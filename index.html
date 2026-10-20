@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOXL Live Tracker</title>
+<title>SOXX Sniper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#07090d;--panel:#0e131b;--panel2:#131a24;--line:#1e2835;--ink:#e6edf5;--dim:#8a97a8;--mute:#5a6676;
-  --up:#19d38a;--down:#ff4d5e;--accent:#4da3ff;--amber:#ffb547;
+  --up:#19d38a;--down:#ff4d5e;--accent:#4da3ff;--amber:#ffb547;--violet:#9b6bff;
   --mono:'JetBrains Mono',ui-monospace,monospace;--sans:'Space Grotesk',system-ui,sans-serif;
 }
 *{box-sizing:border-box}
@@ -21,17 +21,19 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#4da3ff,#9b6bff);display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:13px;color:#fff}
 h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.3px}
 .sub{font-size:12px;color:var(--dim);font-family:var(--mono)}
-.status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--dim)}
 .pill{border:1px solid var(--line);background:var(--panel);padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:6px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
 .dot.live{background:var(--up);box-shadow:0 0 0 0 rgba(25,211,138,.6);animation:pulse 1.6s infinite}
-.dot.warn{background:var(--amber)}.dot.err{background:var(--down)}
+.dot.warn{background:var(--amber)}.dot.err{background:var(--down)}.dot.learn{background:var(--violet);box-shadow:0 0 0 0 rgba(155,107,255,.6);animation:pulsev 1.6s infinite}
 @keyframes pulse{70%{box-shadow:0 0 0 8px rgba(25,211,138,0)}100%{box-shadow:0 0 0 0 rgba(25,211,138,0)}}
-button{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
-button:hover{border-color:var(--accent)}
+@keyframes pulsev{70%{box-shadow:0 0 0 8px rgba(155,107,255,0)}100%{box-shadow:0 0 0 0 rgba(155,107,255,0)}}
+button,select{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover,select:hover{border-color:var(--accent)}
 button.on{border-color:var(--accent);color:var(--accent)}
+button.danger:hover{border-color:var(--down);color:var(--down)}
 .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
 .label{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
 .big{font-family:var(--mono);font-size:34px;font-weight:600;line-height:1.1}
 .mid{font-family:var(--mono);font-size:14px;color:var(--dim);margin-top:4px}
@@ -49,6 +51,7 @@ canvas{width:100%;height:100%;display:block}
 .cbar:before{content:'';position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line)}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:18px 0 10px}
 .toolbar .label{margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:10px}
 .tile{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);transition:background .6s ease;position:relative;overflow:hidden}
 .tile .t{display:flex;justify-content:space-between;align-items:baseline}
@@ -57,20 +60,37 @@ canvas{width:100%;height:100%;display:block}
 .tile .nm{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 8px}
 .tile .px{font-family:var(--mono);font-size:20px;font-weight:600}
 .tile .ch{font-family:var(--mono);font-size:13px;margin-top:2px}
-.tile .ct{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px}
+.tile .ct,.tile .nx{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:4px}
+.tile .nx{color:#b9c4d2}
 .tile .wbar{position:absolute;left:0;bottom:0;height:3px;background:var(--accent);opacity:.7}
 .tile.flash-up{box-shadow:inset 0 0 0 1px var(--up)}
 .tile.flash-down{box-shadow:inset 0 0 0 1px var(--down)}
 .tile.missing{opacity:.45}
+.calls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px}
+.call{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.call.flush{border-color:rgba(155,107,255,.55)}
+.call .px{font-family:var(--mono);font-size:24px;font-weight:600}
+.call .ln{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:3px}
+.tw{overflow-x:auto}
+table.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+.tbl th{font-weight:400;color:var(--dim);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{text-align:right;padding:6px 8px;border-bottom:1px solid rgba(30,40,53,.6);white-space:nowrap}
+.tbl th:first-child,.tbl td:first-child,.tbl td.l,.tbl th.l{text-align:left}
+.tbl tr.cur td{background:rgba(77,163,255,.08);color:var(--accent)}
+.pb{display:inline-block;width:70px;height:6px;background:var(--panel2);border-radius:3px;vertical-align:middle;margin-right:6px;position:relative;overflow:hidden}
+.pb span{position:absolute;left:0;top:0;bottom:0;background:var(--violet);border-radius:3px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-family:var(--mono);font-size:13px}
+.kv span:nth-child(odd){color:var(--dim)}
+.tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(155,107,255,.15);color:#c4abff;margin-left:4px}
 .modal{position:fixed;inset:0;background:rgba(3,5,8,.82);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
 .modal.show{display:flex}
 .box{max-width:520px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
 .box h2{margin:0 0 8px;font-size:18px}
 .box p,.box li{font-size:14px;color:var(--dim);line-height:1.6}
 .box a{color:var(--accent)}
-input{width:100%;font-family:var(--mono);font-size:14px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin:8px 0 12px}
-.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=text]{width:100%;font-family:var(--mono);font-size:14px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin:8px 0 12px}
 .err{color:var(--down);font-size:13px;min-height:18px}
+.note{font-size:12px;color:var(--mute);line-height:1.6;margin-top:10px}
 footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
 </style>
 </head>
@@ -80,44 +100,48 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     <div class="brand">
       <div class="logo">3X</div>
       <div>
-        <h1>SOXL Live Tracker</h1>
-        <div class="sub">NYSE Semiconductor Index · 30 stocks · weighted live</div>
+        <h1>SOXX Sniper</h1>
+        <div class="sub">SOXL · 30-stock weighted index · live learning</div>
       </div>
     </div>
     <div class="status">
       <span class="pill"><span class="dot" id="mktDot"></span><span id="mktTxt">Market: --</span></span>
       <span class="pill"><span class="dot" id="feedDot"></span><span id="feedTxt">Feed: off</span></span>
+      <span class="pill"><span class="dot" id="memDot"></span><span id="memTxt">Memory: --</span></span>
       <span class="pill" id="clock">--:--:-- ET</span>
       <button id="keyBtn">API key</button>
     </div>
   </header>
 
   <section class="hero">
+    <div class="card"><div class="label">Weighted index · today</div><div class="big" id="idxPct">--</div><div class="mid" id="idxSub">-- of 30 stocks live</div></div>
+    <div class="card"><div class="label">Implied SOXL (3× index)</div><div class="big" id="impPct">--</div><div class="mid" id="impPx">Implied price --</div></div>
+    <div class="card"><div class="label">SOXL actual</div><div class="big" id="soxPx">--</div><div class="mid" id="soxPct">--</div></div>
+    <div class="card"><div class="label">Tracking gap</div><div class="big" id="gap">--</div><div class="mid">SOXL actual − implied</div></div>
+  </section>
+
+  <section class="grid2">
     <div class="card">
-      <div class="label">Weighted index · today</div>
-      <div class="big" id="idxPct">--</div>
-      <div class="mid" id="idxSub">-- of 30 stocks live</div>
+      <div class="label">SOXL liquidity map · best-guess next thresholds</div>
+      <div class="calls">
+        <div class="call"><div class="label">Next threshold ↑</div><div class="px up" id="nuPx">--</div><div class="ln" id="nuLn">--</div><div class="ln" id="nuP">--</div></div>
+        <div class="call"><div class="label">Next threshold ↓</div><div class="px down" id="ndPx">--</div><div class="ln" id="ndLn">--</div><div class="ln" id="ndP">--</div></div>
+        <div class="call flush"><div class="label">Soonest liquidity flush</div><div class="px" id="flPx" style="color:#c4abff">--</div><div class="ln" id="flLn">--</div><div class="ln" id="flP">--</div></div>
+      </div>
+      <div class="tw"><table class="tbl" id="lvlTbl"></table></div>
+      <div class="note">Liquidity pools: prior-day and today's highs and lows, swing points, and equal highs or lows (stop clusters). Magnets: VWAP, volume nodes, prior close, round numbers. Touch odds use SOXL's live 1-minute volatility and the drift that the page learned. These are statistical estimates, not certainties.</div>
     </div>
     <div class="card">
-      <div class="label">Implied SOXL (3× index)</div>
-      <div class="big" id="impPct">--</div>
-      <div class="mid" id="impPx">Implied price --</div>
-    </div>
-    <div class="card">
-      <div class="label">SOXL actual</div>
-      <div class="big" id="soxPx">--</div>
-      <div class="mid" id="soxPct">--</div>
-    </div>
-    <div class="card">
-      <div class="label">Tracking gap</div>
-      <div class="big" id="gap">--</div>
-      <div class="mid">SOXL actual − implied</div>
+      <div class="label">Learned signal</div>
+      <div class="kv" id="sigKv"></div>
+      <div class="label" style="margin-top:16px">Top leaders (move before SOXL)</div>
+      <div class="kv" id="leadKv"></div>
     </div>
   </section>
 
   <section class="grid2">
     <div class="card">
-      <div class="label">Intraday (this browser, since page opened)</div>
+      <div class="label">Intraday (this browser)</div>
       <div class="legend">
         <span><i style="background:#4da3ff"></i>Implied SOXL (3× index)</span>
         <span><i style="background:#ffb547"></i>SOXL actual</span>
@@ -126,7 +150,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="chartwrap"><canvas id="chart"></canvas></div>
     </div>
     <div class="card">
-      <div class="label">Who moves the index (contribution, pts)</div>
+      <div class="label">Who moves the index now (contribution, pts)</div>
       <div class="contrib" id="contrib"></div>
     </div>
   </section>
@@ -141,9 +165,42 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </div>
   <section class="tiles" id="tiles"></section>
 
+  <section class="card" style="margin-top:12px">
+    <div class="toolbar" style="margin-top:0">
+      <div class="label">Learned influence on SOXL (memory bank)</div>
+      <div class="row">
+        <button data-ks="inf" class="on">Sort: influence</button>
+        <button data-ks="lead">Sort: lead</button>
+        <button data-ks="w">Sort: weight</button>
+      </div>
+    </div>
+    <div class="tw"><table class="tbl" id="knTbl"></table></div>
+    <div class="note">Corr and beta: how each stock's 1-minute moves line up with SOXL's 1-minute moves (recent sessions count more). Lead: correlation of the stock's last minute with SOXL's next minute; a positive value means the stock tends to move first. Influence = index weight × corr. Values become reliable after a few sessions of learning.</div>
+  </section>
+
+  <section class="card" style="margin-top:12px">
+    <div class="toolbar" style="margin-top:0">
+      <div class="label">Memory bank</div>
+      <div class="row">
+        <button id="expBtn">Export backup</button>
+        <button id="impBtn">Import backup</button>
+        <input type="file" id="impFile" accept="application/json,.json" style="display:none">
+        <button id="rstBtn" class="danger">Reset memory</button>
+      </div>
+    </div>
+    <div class="kv" id="memKv" style="max-width:520px"></div>
+    <div class="toolbar">
+      <div class="label">Recall a stored session</div>
+      <div class="row"><select id="rcSym"></select><select id="rcDay"></select></div>
+    </div>
+    <div class="legend"><span><i style="background:#4da3ff"></i><span id="rcLa">Stock</span></span><span><i style="background:#ffb547"></i>SOXL</span><span id="rcInfo"></span></div>
+    <div class="chartwrap" style="height:240px"><canvas id="rcChart"></canvas></div>
+    <div class="note">The memory bank is in this browser (IndexedDB). It stays after you close the tab or restart. It learns only during regular market hours while this page is open. Only one tab learns at a time. Use Export backup to keep a copy or to move the memory to a different device.</div>
+  </section>
+
   <footer>
-    Weights use share counts from the iShares SOXX holdings file (Oct 19, 2026). SOXX tracks the same index as SOXL. Weight = shares × previous close, so weights drift with price, the same as the index does between rebalances. Update the HOLDINGS list in index.html after each quarterly rebalance.<br>
-    Data: Finnhub (free tier). Live trades during US market hours. Quotes refresh each 60 s as a fallback. Not investment advice.
+    Weights use share counts from the iShares SOXX holdings file (Oct 19, 2026). SOXX tracks the same index as SOXL. Weight = shares × previous close. Update the HOLDINGS list after each quarterly rebalance.<br>
+    Data: Finnhub (free tier). Thresholds and probabilities are statistical estimates from past price action. They are not predictions or investment advice.
   </footer>
 </div>
 
@@ -155,7 +212,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <li>Get a free key at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a>.</li>
       <li>Paste it below.</li>
     </ol>
-    <input id="keyIn" placeholder="Your Finnhub API key" autocomplete="off" spellcheck="false">
+    <input type="text" id="keyIn" placeholder="Your Finnhub API key" autocomplete="off" spellcheck="false">
     <div class="err" id="keyErr"></div>
     <div class="row">
       <button id="saveKey">Save and connect</button>
@@ -201,194 +258,480 @@ const HOLDINGS=[
 const FUND="SOXL", FUND_DEMO_PC=98.65, LEV=3;
 const SYMS=[...HOLDINGS.map(h=>h[0]),FUND];
 const KEY_STORE="soxl_tracker_finnhub_key";
-const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,flash:0});
-let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", dirty=true;
+const LAM=Math.pow(0.5,1/1950);
+const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,h:0,l:0,flash:0});
+let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", kSort="inf", dirty=true, mktState=null;
 const $=id=>document.getElementById(id);
 
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
-function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
-const etDate=()=>new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"});
+const etParts=t=>{const d=new Date(t);return{date:d.toLocaleDateString("en-CA",{timeZone:"America/New_York"}),hm:d.toLocaleTimeString("en-GB",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",hour12:false}),wd:d.toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short"})}};
+const etDate=(t=Date.now())=>etParts(t).date;
 const fmtPct=(x,d=2)=>isFinite(x)?(x>=0?"+":"")+(x*100).toFixed(d)+"%":"--";
 const fmtPx=x=>isFinite(x)&&x>0?"$"+x.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"--";
+const fmtN=(x,d=2)=>isFinite(x)?x.toFixed(d):"--";
 const cls=x=>x>0?"up":x<0?"down":"";
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const fmtEta=t=>!isFinite(t)?"> this session":t<1?"< 1 min":t<60?"~"+Math.round(t)+" min":"~"+(t/60).toFixed(1)+" h";
 
-function setFeed(state,txt){$("feedDot").className="dot "+state;$("feedTxt").textContent=txt}
+/* ---------- math ---------- */
+function erf(x){const t=1/(1+0.3275911*Math.abs(x));const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return x>=0?y:-y}
+const Phi=z=>0.5*(1+erf(z/Math.SQRT2));
+function pTouch(d,mu,sig,T){
+  if(d<=0)return 1; if(!(sig>0))return 0;
+  const s=sig*Math.sqrt(T);
+  const a=Phi((-d+mu*T)/s);
+  const b=Math.exp(Math.min(2*mu*d/(sig*sig),50))*Phi((-d-mu*T)/s);
+  return clamp(a+b,0,1);
+}
+function tMedian(d,mu,sig){
+  if(pTouch(d,mu,sig,390)<0.5)return Infinity;
+  let lo=0.01,hi=390;for(let i=0;i<40;i++){const m=(lo+hi)/2;if(pTouch(d,mu,sig,m)>=0.5)hi=m;else lo=m}
+  return hi;
+}
+const mkS=()=>({n:0,sx:0,sy:0,sxx:0,syy:0,sxy:0});
+function addS(S,x,y,lam){if(lam){for(const k in S)S[k]*=lam}S.n+=1;S.sx+=x;S.sy+=y;S.sxx+=x*x;S.syy+=y*y;S.sxy+=x*y}
+function statOf(S){
+  const n=S?S.n:0;if(n<5)return{n,corr:NaN,beta:NaN,sdx:NaN,sdy:NaN};
+  const vx=n*S.sxx-S.sx*S.sx,vy=n*S.syy-S.sy*S.sy,cv=n*S.sxy-S.sx*S.sy;
+  return{n,corr:vx>0&&vy>0?cv/Math.sqrt(vx*vy):NaN,beta:vx>0?cv/vx:NaN,sdx:Math.sqrt(Math.max(vx,0))/n,sdy:Math.sqrt(Math.max(vy,0))/n};
+}
+function stdev(a){if(a.length<2)return NaN;const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/(a.length-1))}
 
+/* ---------- memory bank (IndexedDB) ---------- */
+let db=null, dbName="", KN={}, META={}, leader=false, persisted=false;
+const heldLocks={};
+function idbOpen(name){return new Promise((res,rej)=>{const q=indexedDB.open(name,1);
+  q.onupgradeneeded=()=>{const d=q.result;const b=d.createObjectStore("bars",{keyPath:["s","m"]});b.createIndex("sd",["s","d"]);
+    d.createObjectStore("know",{keyPath:"s"});d.createObjectStore("days",{keyPath:["s","d"]});d.createObjectStore("meta",{keyPath:"k"})};
+  q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+function idbAll(store,range,index){return new Promise(res=>{if(!db)return res([]);try{const s=db.transaction(store).objectStore(store);const q=(index?s.index(index):s).getAll(range);q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([])}catch(e){res([])}})}
+function idbGet(store,key){return new Promise(res=>{if(!db)return res(null);try{const q=db.transaction(store).objectStore(store).get(key);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(e){res(null)}})}
+function idbCount(store){return new Promise(res=>{if(!db)return res(0);try{const q=db.transaction(store).objectStore(store).count();q.onsuccess=()=>res(q.result);q.onerror=()=>res(0)}catch(e){res(0)}})}
+function idbWrite(map){return new Promise(res=>{if(!db)return res(false);try{const names=Object.keys(map);const t=db.transaction(names,"readwrite");
+  names.forEach(n=>{const s=t.objectStore(n);map[n].forEach(v=>s.put(v))});t.oncomplete=()=>res(true);t.onerror=()=>res(false)}catch(e){res(false)}})}
+function idbClear(){return new Promise(res=>{if(!db)return res();const t=db.transaction(["bars","know","days","meta"],"readwrite");["bars","know","days","meta"].forEach(n=>t.objectStore(n).clear());t.oncomplete=res;t.onerror=res})}
+
+function getK(s){return KN[s]||(KN[s]={s,c:mkS(),ce:mkS(),l:mkS(),le:mkS(),mins:0,first:0,last:0})}
+
+/* live session state */
+let curDay="", todayBars=[], dayRec={}, prof={}, vwPV=0, vwV=0, prior=null;
+const cur={}, pend={}, lastPx={}, prevC={}, prevMin={};
+let prevR={}, prevIdxR=NaN, prevGap=NaN, lastM=null, lastIdxR=NaN;
+
+async function initMemory(name){
+  dbName=name;KN={};META={};
+  try{if(db)db.close();db=await idbOpen(name)}catch(e){db=null;memStatus();return}
+  (await idbAll("know")).forEach(k=>KN[k.s]=k);
+  (await idbAll("meta")).forEach(m=>META[m.k]=m.v);
+  leader=!navigator.locks;
+  if(navigator.locks){
+    if(heldLocks[name])leader=true;
+    else navigator.locks.request("soxx_sniper_"+name,{ifAvailable:true},async l=>{if(!l){leader=false;memStatus();return}heldLocks[name]=true;leader=true;memStatus();await new Promise(()=>{})});
+  }
+  try{if(navigator.storage&&navigator.storage.persist)persisted=await navigator.storage.persist()}catch(e){}
+  await loadDay(etDate());
+  fillRecall();memStats();memStatus();
+}
+async function loadPrior(d){
+  const rows=await idbAll("days",IDBKeyRange.bound([FUND,""],[FUND,d],false,true));
+  prior=rows.length?rows[rows.length-1]:null;
+}
+async function loadDay(d){
+  curDay=d;
+  todayBars=(await idbAll("bars",IDBKeyRange.only([FUND,d]),"sd")).sort((a,b)=>a.m-b.m);
+  dayRec={};for(const s of SYMS){const r=await idbGet("days",[s,d]);if(r)dayRec[s]=r}
+  const sd=dayRec[FUND];prof=(sd&&sd.prof)||{};vwPV=(sd&&sd.pv)||0;vwV=(sd&&sd.vv)||0;
+  await loadPrior(d);
+}
+function sessionOpen(){
+  if(demo)return true;
+  if(mktState!==null)return mktState;
+  const p=etParts(Date.now());if(p.wd==="Sat"||p.wd==="Sun")return false;
+  return p.hm>="09:30"&&p.hm<"16:00";
+}
+const learning=()=>!!db&&leader&&sessionOpen();
+function memStatus(){
+  const d=$("memDot"),t=$("memTxt");
+  if(!db){d.className="dot err";t.textContent="Memory: unavailable";return}
+  if(!leader){d.className="dot warn";t.textContent="Memory: read-only (other tab learns)";return}
+  if(learning()){d.className="dot learn";t.textContent="Memory: learning"+(demo?" (demo)":"");return}
+  d.className="dot";t.textContent="Memory: idle (market closed)";
+}
+
+/* ---------- bars from trades ---------- */
+function updBar(s,p,v){
+  const M=Math.floor(Date.now()/60000);let b=cur[s];
+  if(!b||b.m!==M){if(b&&b.m<M)pend[s]=b;cur[s]={m:M,o:p,h:p,l:p,c:p,v:v||0}}
+  else{b.h=Math.max(b.h,p);b.l=Math.min(b.l,p);b.c=p;b.v+=v||0}
+  lastPx[s]=p;
+  if(s===FUND&&v>0&&learning()){const k=(Math.round(p/0.05)*0.05).toFixed(2);prof[k]=(prof[k]||0)+v;vwPV+=p*v;vwV+=v}
+}
+function finalizeMinute(M){
+  const d=etDate(M*60000);
+  if(d!==curDay){curDay=d;todayBars=[];dayRec={};prof={};vwPV=0;vwV=0;prevR={};prevIdxR=NaN;prevGap=NaN;loadPrior(d)}
+  const learn=learning(), bars={}, r={};
+  for(const s of SYMS){
+    let b=(pend[s]&&pend[s].m===M)?pend[s]:(cur[s]&&cur[s].m===M?cur[s]:null);
+    if(!b){const c=lastPx[s];if(!(c>0))continue;b={m:M,o:c,h:c,l:c,c,v:0}}
+    bars[s]={s,m:M,d,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v};
+    if(prevMin[s]===M-1&&prevC[s]>0)r[s]=b.c/prevC[s]-1;
+    prevC[s]=b.c;prevMin[s]=M;
+  }
+  const m=compute();
+  let idxR=0,ws=0;m.rows.forEach(row=>{if(r[row.s]!=null){idxR+=row.w*r[row.s];ws+=row.w}});
+  idxR=ws>0.5?idxR/ws:NaN;lastIdxR=idxR;
+  const gapNow=m.live&&isFinite(m.fr)?m.fr-m.imp:NaN;
+  if(learn){
+    const y=r[FUND], touched=new Set();
+    if(y!=null&&isFinite(y)){
+      for(const [s] of HOLDINGS){
+        const K=getK(s);
+        if(r[s]!=null){addS(K.c,r[s],y);addS(K.ce,r[s],y,LAM);K.mins++;K.first=K.first||M;K.last=M;touched.add(s)}
+        if(prevR[s]!=null){addS(K.l,prevR[s],y);addS(K.le,prevR[s],y,LAM);touched.add(s)}
+      }
+      const KI=getK("_IDX");if(isFinite(idxR)){addS(KI.c,idxR,y);addS(KI.ce,idxR,y,LAM);KI.mins++}
+      if(isFinite(prevIdxR)){addS(KI.l,prevIdxR,y);addS(KI.le,prevIdxR,y,LAM)}touched.add("_IDX");
+      const KS=getK(FUND);KS.mins++;if(prevR[FUND]!=null){addS(KS.l,prevR[FUND],y);addS(KS.le,prevR[FUND],y,LAM)}touched.add(FUND);
+      const KG=getK("_GAP");if(isFinite(prevGap)){addS(KG.l,prevGap,y);addS(KG.le,prevGap,y,LAM);KG.mins++}touched.add("_GAP");
+      META.minutes=(META.minutes||0)+1;
+    }
+    for(const s in bars){const b=bars[s];const dr=dayRec[s]||(dayRec[s]={s,d,o:b.o,h:b.h,l:b.l,c:b.c,v:0});dr.h=Math.max(dr.h,b.h);dr.l=Math.min(dr.l,b.l);dr.c=b.c;dr.v+=b.v}
+    if(dayRec[FUND]){dayRec[FUND].prof=prof;dayRec[FUND].pv=vwPV;dayRec[FUND].vv=vwV}
+    if(bars[FUND])todayBars.push(bars[FUND]);
+    META.lastLearn=M;
+    idbWrite({bars:Object.values(bars),know:[...touched].map(s=>KN[s]),days:Object.values(dayRec),meta:Object.entries(META).map(([k,v])=>({k,v}))});
+  }
+  prevR={};for(const s in r)prevR[s]=r[s];
+  prevIdxR=idxR;prevGap=gapNow;
+  delete pend[FUND];for(const s in pend)if(pend[s].m<=M)delete pend[s];
+  memStatus();
+}
+
+/* ---------- core compute ---------- */
 function compute(){
-  let tot=0, rows=[];
+  let tot=0,rows=[];
   for(const [s,n,qty] of HOLDINGS){
-    const q=Q[s]; const ok=q.pc>0&&q.c>0;
-    const mv=ok?qty*q.pc:0; tot+=mv;
+    const q=Q[s];const ok=q.pc>0&&q.c>0;const mv=ok?qty*q.pc:0;tot+=mv;
     rows.push({s,n,ok,mv,c:q.c,pc:q.pc,r:ok?q.c/q.pc-1:NaN,flash:q.flash});
   }
-  let idx=0, live=0;
+  let idx=0,live=0;
   rows.forEach(r=>{r.w=tot?r.mv/tot:0;r.contrib=r.ok?r.w*r.r:0;if(r.ok){idx+=r.contrib;live++}});
-  const f=Q[FUND]; const fr=f.pc>0&&f.c>0?f.c/f.pc-1:NaN;
-  return {rows,idx,live,imp:LEV*idx,fpx:f.c,fpc:f.pc,fr};
+  const f=Q[FUND];const fr=f.pc>0&&f.c>0?f.c/f.pc-1:NaN;
+  return{rows,idx,live,imp:LEV*idx,fpx:f.c,fpc:f.pc,fr};
 }
 
-function tileBg(r){
-  if(!isFinite(r))return "var(--panel)";
-  const a=Math.min(Math.abs(r)/0.05,1)*0.55+0.06;
-  return r>=0?`rgba(25,211,138,${a.toFixed(3)})`:`rgba(255,77,94,${a.toFixed(3)})`;
+/* ---------- liquidity map ---------- */
+function soxlSigma(){
+  const rs=[];const b=todayBars.slice(-61);for(let i=1;i<b.length;i++)if(b[i].m===b[i-1].m+1&&b[i-1].c>0)rs.push(Math.log(b[i].c/b[i-1].c));
+  const sd=stdev(rs);if(rs.length>=15&&sd>0)return{sig:sd,src:"live "+rs.length+" min"};
+  const st=statOf(getK(FUND).le);if(st.n>=30&&st.sdy>0)return{sig:st.sdy,src:"memory"};
+  return{sig:0.004,src:"default"};
+}
+function leadSignal(){
+  const si=statOf(getK("_IDX").le), sg=statOf(getK("_GAP").le);
+  const m=compute();const gap=m.live&&isFinite(m.fr)?m.fr-m.imp:NaN;
+  const pIdx=isFinite(si.beta)&&isFinite(lastIdxR)?si.beta*lastIdxR:0;
+  const pGap=isFinite(sg.beta)&&isFinite(gap)?sg.beta*gap:0;
+  const tI=isFinite(si.corr)?Math.abs(si.corr)*Math.sqrt(si.n):0, tG=isFinite(sg.corr)?Math.abs(sg.corr)*Math.sqrt(sg.n):0;
+  const conf=Math.max(tI,tG);
+  return{pred:pIdx+pGap,pIdx,pGap,gap,si,sg,conf:conf>=4?"high":conf>=2?"medium":"low"};
+}
+function soxlLevels(){
+  const P=Q[FUND].c;if(!(P>0))return null;
+  const L=[];const add=(price,score,label,pool)=>{if(price>0&&Math.abs(price/P-1)>0.0002&&Math.abs(price/P-1)<0.25)L.push({price,score,labels:[label],pool})};
+  if(prior){add(prior.h,3,"Prior day high",true);add(prior.l,3,"Prior day low",true)}
+  let hi=Q[FUND].h||0,lo=Q[FUND].l||0;todayBars.forEach(b=>{hi=Math.max(hi,b.h);lo=lo>0?Math.min(lo,b.l):b.l});
+  add(hi,2.5,"High of day",true);add(lo,2.5,"Low of day",true);
+  add(Q[FUND].pc,1.5,"Prior close",false);
+  if(vwV>0)add(vwPV/vwV,2,"VWAP",false);
+  Object.entries(prof).sort((a,b)=>b[1]-a[1]).slice(0,3).forEach(([k])=>add(+k,1.5,"Volume node",false));
+  const B=todayBars,sh=[],sl=[];
+  for(let i=2;i<B.length-2;i++){
+    if(B[i].h>B[i-1].h&&B[i].h>B[i-2].h&&B[i].h>=B[i+1].h&&B[i].h>=B[i+2].h)sh.push(B[i].h);
+    if(B[i].l<B[i-1].l&&B[i].l<B[i-2].l&&B[i].l<=B[i+1].l&&B[i].l<=B[i+2].l)sl.push(B[i].l);
+  }
+  const cluster=(arr,hiSide)=>{arr.sort((a,b)=>a-b);const out=[];arr.forEach(p=>{const c=out.find(o=>Math.abs(p/o.p-1)<0.0015);if(c){c.n++;c.p=hiSide?Math.max(c.p,p):Math.min(c.p,p)}else out.push({p,n:1})});return out};
+  cluster(sh,true).forEach(c=>add(c.p,1+0.6*c.n,c.n>1?`Equal highs ×${c.n}`:"Swing high",true));
+  cluster(sl,false).forEach(c=>add(c.p,1+0.6*c.n,c.n>1?`Equal lows ×${c.n}`:"Swing low",true));
+  const step=P<20?0.5:P<200?1:5,base=Math.round(P/step);
+  for(let k=-4;k<=4;k++){const p=+((base+k)*step).toFixed(2);const u=Math.round(p/step);add(p,u%10===0?2:u%5===0?1.4:0.6,"Round "+fmtPx(p),false)}
+  L.sort((a,b)=>a.price-b.price);
+  const M=[];L.forEach(l=>{const last=M[M.length-1];
+    if(last&&Math.abs(l.price/last.price-1)<0.001){if(l.score>last.score)last.price=l.price;last.score=Math.max(last.score,l.score)+0.3*Math.min(last.score,l.score);last.labels.push(...l.labels);last.pool=last.pool||l.pool}
+    else M.push({...l,labels:[...l.labels]})});
+  const {sig,src}=soxlSigma(), ls=leadSignal();
+  const mu=clamp(ls.pGap+ls.pIdx/5,-0.5*sig,0.5*sig);
+  M.forEach(l=>{l.dir=l.price>P?1:-1;l.d=Math.abs(Math.log(l.price/P));const m2=l.dir*mu;l.p30=pTouch(l.d,m2,sig,30);l.eta=tMedian(l.d,m2,sig);l.label=[...new Set(l.labels)].join(" + ")});
+  const sig2=M.filter(l=>l.score>=1.5);
+  const up=sig2.filter(l=>l.dir>0).sort((a,b)=>a.d-b.d)[0]||null;
+  const dn=sig2.filter(l=>l.dir<0).sort((a,b)=>a.d-b.d)[0]||null;
+  const fl=M.filter(l=>l.pool).sort((a,b)=>a.eta-b.eta||b.score-a.score)[0]||null;
+  return{P,levels:M,up,dn,fl,sig,src,mu};
+}
+function stockNext(s){
+  const q=Q[s];const P=q.c;if(!(P>0))return null;
+  const st=statOf(getK(s).ce);const sig=st.n>=30&&st.sdx>0?st.sdx:0.0025;
+  const step=P<20?0.5:P<50?1:P<200?5:P<1000?10:50;
+  const cands=[q.h,q.l,q.pc,Math.ceil(P/step)*step,Math.floor(P/step)*step].filter(x=>x>0&&Math.abs(x/P-1)>0.0003);
+  let best=null;cands.forEach(x=>{const p=pTouch(Math.abs(Math.log(x/P)),0,sig,30);if(!best||p>best.p)best={x,p,up:x>P}});
+  return best;
 }
 
+/* ---------- render ---------- */
+function setFeed(state,txt){$("feedDot").className="dot "+state;$("feedTxt").textContent=txt}
+function tileBg(r){if(!isFinite(r))return"var(--panel)";const a=Math.min(Math.abs(r)/0.05,1)*0.55+0.06;return r>=0?`rgba(25,211,138,${a.toFixed(3)})`:`rgba(255,77,94,${a.toFixed(3)})`}
 function buildTiles(){
   $("tiles").innerHTML=HOLDINGS.map(h=>`<div class="tile" id="t_${h[0]}">
     <div class="t"><span class="sym">${h[0]}</span><span class="w" id="w_${h[0]}">--</span></div>
-    <div class="nm">${h[1]}</div>
-    <div class="px" id="p_${h[0]}">--</div>
-    <div class="ch" id="c_${h[0]}">--</div>
-    <div class="ct" id="x_${h[0]}">contrib --</div>
+    <div class="nm">${h[1]}</div><div class="px" id="p_${h[0]}">--</div><div class="ch" id="c_${h[0]}">--</div>
+    <div class="ct" id="x_${h[0]}">contrib --</div><div class="nx" id="n_${h[0]}">next --</div>
     <div class="wbar" id="b_${h[0]}"></div></div>`).join("");
 }
-
 function render(){
-  const m=compute(), now=Date.now();
+  const m=compute(),now=Date.now();
   $("idxPct").textContent=m.live?fmtPct(m.idx):"--";$("idxPct").className="big "+cls(m.idx);
   $("idxSub").textContent=`${m.live} of 30 stocks live`;
   $("impPct").textContent=m.live?fmtPct(m.imp):"--";$("impPct").className="big "+cls(m.imp);
   $("impPx").textContent="Implied price "+(m.fpc>0&&m.live?fmtPx(m.fpc*(1+m.imp)):"--");
   $("soxPx").textContent=fmtPx(m.fpx);
   $("soxPct").textContent=isFinite(m.fr)?fmtPct(m.fr)+" today":"--";$("soxPct").className="mid "+cls(m.fr);
-  const gap=m.fr-m.imp;
-  $("gap").textContent=isFinite(gap)&&m.live?fmtPct(gap):"--";
-  $("gap").className="big "+(Math.abs(gap)<0.003?"":cls(gap));
-
+  const gap=m.fr-m.imp;$("gap").textContent=isFinite(gap)&&m.live?fmtPct(gap):"--";$("gap").className="big "+(Math.abs(gap)<0.003?"":cls(gap));
   const order=[...m.rows].sort((a,b)=>sortBy==="w"?b.w-a.w:sortBy==="r"?(isFinite(b.r)?b.r:-9)-(isFinite(a.r)?a.r:-9):b.contrib-a.contrib);
-  const maxW=Math.max(...m.rows.map(r=>r.w),0.0001);
-  const tiles=$("tiles");
+  const maxW=Math.max(...m.rows.map(r=>r.w),0.0001),tiles=$("tiles");
   order.forEach(r=>{
-    const el=$("t_"+r.s); tiles.appendChild(el);
-    el.classList.toggle("missing",!r.ok);
-    el.style.background=tileBg(r.r);
+    const el=$("t_"+r.s);tiles.appendChild(el);el.classList.toggle("missing",!r.ok);el.style.background=tileBg(r.r);
     $("w_"+r.s).textContent=r.ok?(r.w*100).toFixed(2)+"%":"n/a";
     $("p_"+r.s).textContent=fmtPx(r.c);
     $("c_"+r.s).textContent=r.ok?fmtPct(r.r)+"  "+(r.c-r.pc>=0?"+":"")+(r.c-r.pc).toFixed(2):"no data";
     $("x_"+r.s).textContent="contrib "+(r.ok?((r.contrib*100>=0?"+":"")+(r.contrib*100).toFixed(3)+" pts"):"--");
     $("b_"+r.s).style.width=(r.w/maxW*100).toFixed(1)+"%";
-    el.classList.toggle("flash-up",now-r.flash<700&&Q[r.s].dir>0);
-    el.classList.toggle("flash-down",now-r.flash<700&&Q[r.s].dir<0);
+    el.classList.toggle("flash-up",now-r.flash<700&&Q[r.s].dir>0);el.classList.toggle("flash-down",now-r.flash<700&&Q[r.s].dir<0);
   });
-
   const cs=[...m.rows].filter(r=>r.ok).sort((a,b)=>b.contrib-a.contrib);
   const maxC=Math.max(...cs.map(r=>Math.abs(r.contrib)),0.00001);
-  $("contrib").innerHTML=cs.map(r=>{
-    const w=Math.abs(r.contrib)/maxC*50, pos=r.contrib>=0;
-    return `<div class="crow"><span>${r.s}</span><div class="cbar"><span style="${pos?"left:50%":"right:50%"};width:${w.toFixed(1)}%;background:${pos?"var(--up)":"var(--down)"}"></span></div><span class="${cls(r.contrib)}" style="text-align:right">${(r.contrib*100>=0?"+":"")+(r.contrib*100).toFixed(3)}</span></div>`;
-  }).join("")||'<div class="sub">Waiting for data…</div>';
-  return m;
+  $("contrib").innerHTML=cs.map(r=>{const w=Math.abs(r.contrib)/maxC*50,pos=r.contrib>=0;
+    return`<div class="crow"><span>${r.s}</span><div class="cbar"><span style="${pos?"left:50%":"right:50%"};width:${w.toFixed(1)}%;background:${pos?"var(--up)":"var(--down)"}"></span></div><span class="${cls(r.contrib)}" style="text-align:right">${(r.contrib*100>=0?"+":"")+(r.contrib*100).toFixed(3)}</span></div>`}).join("")||'<div class="sub">Waiting for data…</div>';
+}
+function renderAnalysis(){
+  const lv=soxlLevels();
+  const call=(pfx,l,showDir)=>{
+    if(!l){$(pfx+"Px").textContent="--";$(pfx+"Ln").textContent="Not enough data yet";$(pfx+"P").textContent="";return}
+    $(pfx+"Px").textContent=fmtPx(l.price);
+    $(pfx+"Ln").textContent=(showDir?(l.dir>0?"↑ ":"↓ "):"")+l.label;
+    $(pfx+"P").textContent=`${fmtPct(l.dir*l.d)} · ${Math.round(l.p30*100)}% in 30m · ${fmtEta(l.eta)}`;
+  };
+  if(lv){
+    call("nu",lv.up);call("nd",lv.dn);call("fl",lv.fl,true);
+    const rows=[...lv.levels].sort((a,b)=>b.price-a.price);let ins=false,html=`<tr><th class="l">Level</th><th class="l">Type</th><th>Dist</th><th>Liq</th><th class="l">Touch 30m</th><th>ETA</th></tr>`;
+    rows.forEach(l=>{
+      if(!ins&&l.price<lv.P){html+=`<tr class="cur"><td>${fmtPx(lv.P)}</td><td class="l">SOXL now</td><td>--</td><td></td><td class="l">σ ${(lv.sig*100).toFixed(2)}%/min (${lv.src})</td><td></td></tr>`;ins=true}
+      html+=`<tr><td class="${l.dir>0?"up":"down"}">${fmtPx(l.price)}</td><td class="l">${l.label}${l.pool?'<span class="tag">pool</span>':""}</td><td>${fmtPct(l.dir*l.d)}</td><td>${l.score.toFixed(1)}</td><td class="l"><span class="pb"><span style="width:${(l.p30*100).toFixed(0)}%"></span></span>${Math.round(l.p30*100)}%</td><td>${fmtEta(l.eta)}</td></tr>`;
+    });
+    if(!ins)html+=`<tr class="cur"><td>${fmtPx(lv.P)}</td><td class="l">SOXL now</td><td>--</td><td></td><td class="l">σ ${(lv.sig*100).toFixed(2)}%/min (${lv.src})</td><td></td></tr>`;
+    $("lvlTbl").innerHTML=html;
+  }else{["nu","nd","fl"].forEach(p=>call(p,null));$("lvlTbl").innerHTML='<tr><td class="l">Waiting for SOXL price…</td></tr>'}
+
+  const ls=leadSignal(),sg=soxlSigma();
+  $("sigKv").innerHTML=[
+    ["Next-minute bias",`<span class="${cls(ls.pred)}">${fmtPct(ls.pred,3)}</span>`],
+    ["Confidence",ls.conf],
+    ["From index momentum",fmtPct(ls.pIdx,3)],
+    ["From gap pull",fmtPct(ls.pGap,3)],
+    ["Index→SOXL lead beta",fmtN(ls.si.beta,2)+` (n=${ls.si.n|0})`],
+    ["Gap→SOXL pull beta",fmtN(ls.sg.beta,3)+` (n=${ls.sg.n|0})`],
+    ["SOXL 1-min σ",(sg.sig*100).toFixed(3)+"% ("+sg.src+")"],
+    ["Drift used for odds",lv?fmtPct(lv.mu,4)+"/min":"--"]
+  ].map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join("");
+  const leads=HOLDINGS.map(h=>({s:h[0],st:statOf(getK(h[0]).le)})).filter(x=>x.st.n>=60&&isFinite(x.st.corr)).sort((a,b)=>b.st.corr-a.st.corr).slice(0,5);
+  $("leadKv").innerHTML=leads.length?leads.map(x=>`<span>${x.s}</span><span class="${cls(x.st.corr)}">lead ${fmtN(x.st.corr,3)} · n ${x.st.n|0}</span>`).join(""):'<span>Learning…</span><span>needs 60+ min</span>';
+
+  HOLDINGS.forEach(h=>{const n=stockNext(h[0]);$("n_"+h[0]).textContent=n?`next ${fmtPx(n.x)} ${n.up?"↑":"↓"} ${Math.round(n.p*100)}%/30m`:"next --"});
+
+  const m=compute(),wmap={};m.rows.forEach(r=>wmap[r.s]=r.w);
+  const kr=HOLDINGS.map(h=>{const K=getK(h[0]),c=statOf(K.ce),l=statOf(K.le),w=wmap[h[0]]||0;return{s:h[0],w,mins:K.mins,c,l,inf:w*(isFinite(c.corr)?c.corr:0)}});
+  kr.sort((a,b)=>kSort==="lead"?(isFinite(b.l.corr)?b.l.corr:-9)-(isFinite(a.l.corr)?a.l.corr:-9):kSort==="w"?b.w-a.w:b.inf-a.inf);
+  $("knTbl").innerHTML=`<tr><th class="l">Stock</th><th>Weight</th><th>Minutes</th><th>Corr</th><th>Beta</th><th>Lead</th><th>1m σ</th><th>Influence</th></tr>`+
+    kr.map(r=>`<tr><td>${r.s}</td><td>${(r.w*100).toFixed(2)}%</td><td>${r.mins}</td><td>${fmtN(r.c.corr,2)}</td><td>${fmtN(r.c.beta,2)}</td><td class="${r.l.n>=60?cls(r.l.corr):""}">${fmtN(r.l.corr,3)}</td><td>${isFinite(r.c.sdx)?(r.c.sdx*100).toFixed(3)+"%":"--"}</td><td>${(r.inf*100).toFixed(2)}</td></tr>`).join("");
 }
 
+/* ---------- intraday chart (localStorage) ---------- */
 const SER_KEY=()=>"soxl_tracker_series_"+(demo?"demo_":"")+etDate();
 let series=[];
 function loadSeries(){try{series=JSON.parse(lsGet(SER_KEY())||"[]")}catch(e){series=[]}}
-function pushPoint(m){
-  if(!m.live)return;
-  series.push([Date.now(),m.idx,m.imp,isFinite(m.fr)?m.fr:null]);
-  if(series.length>3000)series=series.slice(-3000);
-  lsSet(SER_KEY(),JSON.stringify(series));
-}
-function drawChart(){
-  const cv=$("chart"),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
+function pushPoint(m){if(!m.live)return;series.push([Date.now(),m.idx,m.imp,isFinite(m.fr)?m.fr:null]);if(series.length>3000)series=series.slice(-3000);lsSet(SER_KEY(),JSON.stringify(series))}
+function lineChart(cv,data,keys,empty){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
   cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.scale(dpr,dpr);g.clearRect(0,0,W,H);
   const L=54,R=10,T=10,B=24;
-  if(series.length<2){g.fillStyle="#5a6676";g.font="12px JetBrains Mono";g.fillText("Collecting points… (one each 10 s)",L,H/2);return}
-  const t0=series[0][0],t1=series[series.length-1][0];
-  let mx=0.002;series.forEach(p=>{for(let i=1;i<4;i++)if(p[i]!=null)mx=Math.max(mx,Math.abs(p[i]))});mx*=1.15;
+  if(data.length<2){g.fillStyle="#5a6676";g.font="12px JetBrains Mono";g.fillText(empty,L,H/2);return}
+  const t0=data[0][0],t1=data[data.length-1][0];
+  let mx=0.002;data.forEach(p=>keys.forEach(k=>{if(p[k.i]!=null)mx=Math.max(mx,Math.abs(p[k.i]))}));mx*=1.15;
   const X=t=>L+(t-t0)/(t1-t0||1)*(W-L-R),Y=v=>T+(1-(v+mx)/(2*mx))*(H-T-B);
   g.strokeStyle="#1e2835";g.lineWidth=1;g.fillStyle="#5a6676";g.font="11px JetBrains Mono";
   for(let k=-2;k<=2;k++){const v=mx*k/2.3,y=Y(v);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((v*100).toFixed(1)+"%",4,y+4)}
   g.strokeStyle="#2c3a4c";g.beginPath();g.moveTo(L,Y(0));g.lineTo(W-R,Y(0));g.stroke();
   const tl=t=>new Date(t).toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"});
   g.fillText(tl(t0),L,H-6);const e=tl(t1);g.fillText(e,W-R-g.measureText(e).width,H-6);
-  const line=(i,c,w,dash)=>{g.strokeStyle=c;g.lineWidth=w;g.setLineDash(dash||[]);g.lineJoin="round";g.lineCap="round";g.beginPath();let st=false;
-    series.forEach(p=>{if(p[i]==null){st=false;return}const x=X(p[0]),y=Y(p[i]);st?g.lineTo(x,y):g.moveTo(x,y);st=true});g.stroke();g.setLineDash([])};
-  line(1,"#8a97a8",1.5,[4,4]);line(3,"#ffb547",2);line(2,"#4da3ff",2);
+  keys.forEach(k=>{g.strokeStyle=k.c;g.lineWidth=k.w||2;g.setLineDash(k.dash||[]);g.lineJoin="round";g.lineCap="round";g.beginPath();let st=false;
+    data.forEach(p=>{if(p[k.i]==null){st=false;return}const x=X(p[0]),y=Y(p[k.i]);st?g.lineTo(x,y):g.moveTo(x,y);st=true});g.stroke();g.setLineDash([])});
 }
+const drawChart=()=>lineChart($("chart"),series,[{i:1,c:"#8a97a8",w:1.5,dash:[4,4]},{i:3,c:"#ffb547"},{i:2,c:"#4da3ff"}],"Collecting points… (one each 10 s)");
 
-function onTick(s,p){
+/* ---------- memory UI ---------- */
+async function memStats(){
+  if(!db){$("memKv").innerHTML="<span>Status</span><span>IndexedDB is not available in this browser</span>";return}
+  const nb=await idbCount("bars"),days=await idbAll("days",IDBKeyRange.bound([FUND,""],[FUND,"￿"]));
+  let used="--";try{if(navigator.storage&&navigator.storage.estimate){const e=await navigator.storage.estimate();used=(e.usage/1048576).toFixed(1)+" MB of "+(e.quota/1073741824).toFixed(1)+" GB"}}catch(e){}
+  const KS=getK(FUND);
+  $("memKv").innerHTML=[
+    ["Bank",dbName.replace("soxx_sniper_","")],
+    ["Minutes learned",(META.minutes||0).toLocaleString()],
+    ["Sessions stored",days.length],
+    ["Price bars stored",nb.toLocaleString()],
+    ["First learned",KS.first?new Date(KS.first*60000).toLocaleDateString():"--"],
+    ["Storage used",used],
+    ["Protected from cleanup",persisted?"yes":"no (browser may clear if disk is low)"],
+    ["This tab",leader?"learner":"read-only"]
+  ].map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join("");
+}
+async function fillRecall(){
+  const sel=$("rcSym");if(!sel.options.length)sel.innerHTML=SYMS.map(s=>`<option>${s}</option>`).join("");
+  const days=await idbAll("days",IDBKeyRange.bound([FUND,""],[FUND,"￿"]));
+  const keep=$("rcDay").value;
+  $("rcDay").innerHTML=days.length?days.map(d=>d.d).reverse().map(d=>`<option ${d===keep?"selected":""}>${d}</option>`).join(""):"<option value=''>No sessions yet</option>";
+  drawRecall();
+}
+async function drawRecall(){
+  const s=$("rcSym").value,d=$("rcDay").value;$("rcLa").textContent=s||"Stock";
+  if(!d){lineChart($("rcChart"),[],[],"No stored sessions yet. Learning runs during market hours.");$("rcInfo").textContent="";return}
+  const a=(await idbAll("bars",IDBKeyRange.only([s,d]),"sd")).sort((x,y)=>x.m-y.m);
+  const b=(await idbAll("bars",IDBKeyRange.only([FUND,d]),"sd")).sort((x,y)=>x.m-y.m);
+  const a0=a.length?a[0].o:0,b0=b.length?b[0].o:0,bm={};b.forEach(x=>bm[x.m]=x.c);
+  const data=a.map(x=>[x.m*60000,a0?x.c/a0-1:null,bm[x.m]&&b0?bm[x.m]/b0-1:null]);
+  lineChart($("rcChart"),data,[{i:2,c:"#ffb547"},{i:1,c:"#4da3ff"}],"No bars stored for this stock on this day.");
+  const S=mkS();let am={};a.forEach(x=>am[x.m]=x.c);
+  b.forEach(x=>{if(am[x.m]&&am[x.m-1]&&bm[x.m-1])addS(S,am[x.m]/am[x.m-1]-1,x.c/bm[x.m-1]-1)});
+  const st=statOf(S),dr=await idbGet("days",[s,d]);
+  $("rcInfo").textContent=dr?`O ${fmtPx(dr.o)} H ${fmtPx(dr.h)} L ${fmtPx(dr.l)} C ${fmtPx(dr.c)} · corr to SOXL ${fmtN(st.corr,2)}`:"";
+}
+$("rcSym").onchange=drawRecall;$("rcDay").onchange=drawRecall;
+$("expBtn").onclick=async()=>{
+  if(!db)return;
+  const out={app:"soxx-sniper",version:1,bank:dbName,exported:new Date().toISOString(),bars:await idbAll("bars"),know:await idbAll("know"),days:await idbAll("days"),meta:await idbAll("meta")};
+  const blob=new Blob([JSON.stringify(out)],{type:"application/json"});const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=`soxx-sniper-memory-${etDate()}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+};
+$("impBtn").onclick=()=>$("impFile").click();
+$("impFile").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f||!db)return;
+  try{const j=JSON.parse(await f.text());if(j.app!=="soxx-sniper")throw 0;
+    const ok=await idbWrite({bars:j.bars||[],know:j.know||[],days:j.days||[],meta:j.meta||[]});
+    if(!ok)throw 0;
+    KN={};(await idbAll("know")).forEach(k=>KN[k.s]=k);META={};(await idbAll("meta")).forEach(m=>META[m.k]=m.v);
+    await loadDay(etDate());fillRecall();memStats();alert("Backup imported.");
+  }catch(err){alert("That file is not a valid SOXX Sniper backup.")}
+};
+$("rstBtn").onclick=async()=>{
+  if(!db||!confirm("Delete all learned knowledge and stored price action in this bank? Export a backup first if you want to keep it."))return;
+  await idbClear();KN={};META={};todayBars=[];dayRec={};prof={};vwPV=0;vwV=0;prior=null;fillRecall();memStats();
+};
+
+/* ---------- data feed ---------- */
+function onTick(s,p,v){
   const q=Q[s];if(!q||!(p>0))return;
-  q.dir=p>q.c?1:p<q.c?-1:0;q.c=p;q.flash=Date.now();dirty=true;
+  q.dir=p>q.c?1:p<q.c?-1:0;q.c=p;q.flash=Date.now();
+  if(q.h>0&&p>q.h)q.h=p;if(q.l>0&&p<q.l)q.l=p;
+  updBar(s,p,v);dirty=true;
 }
-
 async function fetchQuote(s){
   const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(s)}&token=${apiKey}`);
   if(r.status===401||r.status===403)throw new Error("auth");
   if(r.status===429)throw new Error("rate");
   const j=await r.json();
-  if(j&&j.pc>0){Q[s].pc=j.pc;if(j.c>0&&!(Q[s].c>0&&ws&&ws.readyState===1&&Date.now()-Q[s].flash<60000))Q[s].c=j.c}
+  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
+    const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
+    if(j.c>0&&!(q.c>0&&fresh)){q.c=j.c;updBar(s,j.c,0)}}
 }
 async function pollAll(){
   for(const s of SYMS){
+    if(demo||!apiKey)return;
     try{await fetchQuote(s)}catch(e){
       if(e.message==="auth"){setFeed("err","Feed: bad API key");openModal("That key did not work. Check it and try again.");return}
-      if(e.message==="rate"){await new Promise(r=>setTimeout(r,2000))}
+      if(e.message==="rate")await new Promise(r=>setTimeout(r,2000));
     }
     dirty=true;await new Promise(r=>setTimeout(r,120));
   }
 }
 async function marketStatus(){
-  if(demo){$("mktDot").className="dot warn";$("mktTxt").textContent="Demo data";return}
-  try{const j=await (await fetch(`https://finnhub.io/api/v1/stock/market-status?exchange=US&token=${apiKey}`)).json();
+  if(demo){$("mktDot").className="dot warn";$("mktTxt").textContent="Demo data";memStatus();return}
+  try{const j=await(await fetch(`https://finnhub.io/api/v1/stock/market-status?exchange=US&token=${apiKey}`)).json();
+    mktState=j.session?j.session==="regular":!!j.isOpen;
     $("mktDot").className="dot "+(j.isOpen?"live":"");
-    $("mktTxt").textContent="Market: "+(j.isOpen?"open":(j.session&&j.session!=="null"?j.session:"closed"));
-  }catch(e){}
+    $("mktTxt").textContent="Market: "+(j.isOpen?(j.session||"open"):"closed");
+  }catch(e){mktState=null}
+  memStatus();
 }
 function connectWS(){
-  if(ws){try{ws.close()}catch(e){}}
+  if(ws){ws.onclose=null;try{ws.close()}catch(e){}}
   ws=new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
   ws.onopen=()=>{SYMS.forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));setFeed("live","Feed: live")};
-  ws.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="trade"&&j.data){const last={};j.data.forEach(t=>last[t.s]=t.p);for(const s in last)onTick(s,last[s])}}catch(e){}};
+  ws.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="trade"&&j.data){const agg={};j.data.forEach(t=>{const a=agg[t.s]||(agg[t.s]={p:0,v:0});a.p=t.p;a.v+=t.v||0});for(const s in agg)onTick(s,agg[s].p,agg[s].v)}}catch(e){}};
   ws.onerror=()=>setFeed("warn","Feed: reconnecting");
   ws.onclose=()=>{if(!demo&&apiKey){setFeed("warn","Feed: reconnecting");setTimeout(()=>{if(!demo&&apiKey)connectWS()},5000)}};
 }
-
-function startLive(){
-  stopAll();demo=false;loadSeries();setFeed("warn","Feed: loading");
-  pollAll().then(()=>{connectWS();marketStatus()});
+function resetLive(){
+  if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
+  clearInterval(pollTimer);clearInterval(demoTimer);
+  SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s]});
+  prevR={};prevIdxR=NaN;prevGap=NaN;lastIdxR=NaN;lastM=null;mktState=null;
+}
+async function startLive(){
+  resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");
+  await initMemory("soxx_sniper_live");
+  await marketStatus();
+  pollAll().then(()=>{if(!demo&&apiKey)connectWS()});
   pollTimer=setInterval(()=>{pollAll();marketStatus()},60000);
 }
-function startDemo(){
-  stopAll();demo=true;apiKey=null;loadSeries();
-  HOLDINGS.forEach(h=>{Q[h[0]].pc=h[3];Q[h[0]].c=h[3]});Q[FUND].pc=FUND_DEMO_PC;Q[FUND].c=FUND_DEMO_PC;
-  const mkt={v:0};
+async function startDemo(){
+  resetLive();demo=true;apiKey=null;loadSeries();
+  await initMemory("soxx_sniper_demo");
+  HOLDINGS.forEach(h=>{const q=Q[h[0]];q.pc=h[3];q.c=h[3];q.h=h[3];q.l=h[3]});
+  Object.assign(Q[FUND],{pc:FUND_DEMO_PC,c:FUND_DEMO_PC,h:FUND_DEMO_PC,l:FUND_DEMO_PC});
+  const mkt={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
+  let lagIdx=0;
   demoTimer=setInterval(()=>{
     mkt.v+=(Math.random()-0.5)*0.0012;
-    HOLDINGS.forEach(h=>{if(Math.random()<0.5){const q=Q[h[0]];const tgt=q.pc*(1+mkt.v*1.1+(Math.random()-0.5)*0.004);onTick(h[0],+(q.c+(tgt-q.c)*0.3).toFixed(2))}});
-    const m=compute();onTick(FUND,+(FUND_DEMO_PC*(1+m.imp+(Math.random()-0.5)*0.002)).toFixed(2));
+    HOLDINGS.forEach(h=>{if(Math.random()<0.6){const q=Q[h[0]];const tgt=q.pc*(1+mkt.v*beta[h[0]]+(Math.random()-0.5)*0.004);onTick(h[0],+(q.c+(tgt-q.c)*0.3).toFixed(2),Math.round(Math.random()*500))}});
+    const m=compute();lagIdx+=(m.imp-lagIdx)*0.25;
+    onTick(FUND,+(FUND_DEMO_PC*(1+lagIdx+(Math.random()-0.5)*0.002)).toFixed(2),Math.round(200+Math.random()*3000));
   },1000);
   setFeed("warn","Feed: demo");marketStatus();
 }
-function stopAll(){
-  if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
-  clearInterval(pollTimer);clearInterval(demoTimer);
-  SYMS.forEach(s=>Q[s]={pc:0,c:0,flash:0});
-}
 
+/* ---------- controls ---------- */
 function openModal(msg){$("keyErr").textContent=msg||"";$("keyIn").value=apiKey||"";$("modal").classList.add("show")}
 $("keyBtn").onclick=()=>openModal();
 $("closeModal").onclick=()=>$("modal").classList.remove("show");
-$("saveKey").onclick=()=>{
-  const k=$("keyIn").value.trim();
-  if(!k){$("keyErr").textContent="Enter a key first.";return}
-  apiKey=k;lsSet(KEY_STORE,k);$("modal").classList.remove("show");startLive();
-};
+$("saveKey").onclick=()=>{const k=$("keyIn").value.trim();if(!k){$("keyErr").textContent="Enter a key first.";return}
+  apiKey=k;lsSet(KEY_STORE,k);$("modal").classList.remove("show");startLive()};
 $("keyIn").oninput=()=>$("keyErr").textContent="";
 $("demoBtn").onclick=()=>{$("modal").classList.remove("show");startDemo()};
-document.querySelectorAll("[data-sort]").forEach(b=>b.onclick=()=>{
-  sortBy=b.dataset.sort;document.querySelectorAll("[data-sort]").forEach(x=>x.classList.toggle("on",x===b));dirty=true;
-});
+document.querySelectorAll("[data-sort]").forEach(b=>b.onclick=()=>{sortBy=b.dataset.sort;document.querySelectorAll("[data-sort]").forEach(x=>x.classList.toggle("on",x===b));dirty=true});
+document.querySelectorAll("[data-ks]").forEach(b=>b.onclick=()=>{kSort=b.dataset.ks;document.querySelectorAll("[data-ks]").forEach(x=>x.classList.toggle("on",x===b));renderAnalysis()});
 
+/* ---------- loops ---------- */
 buildTiles();
 setInterval(()=>{$("clock").textContent=new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York"})+" ET"},1000);
 setInterval(()=>{if(dirty){dirty=false;render()}},400);
+setInterval(()=>{const M=Math.floor(Date.now()/60000);if(lastM===null)lastM=M;if(M>lastM){finalizeMinute(lastM);lastM=M}},1000);
+setInterval(renderAnalysis,2000);
 setInterval(()=>{pushPoint(compute());drawChart()},10000);
-window.addEventListener("resize",drawChart);
+setInterval(()=>{memStats();fillRecall()},60000);
+window.addEventListener("resize",()=>{drawChart();drawRecall()});
 apiKey=lsGet(KEY_STORE);
-if(apiKey)startLive();else openModal();
-render();drawChart();
+if(apiKey)startLive();else{openModal();initMemory("soxx_sniper_live")}
+render();renderAnalysis();drawChart();
 </script>
 </body>
 </html>
