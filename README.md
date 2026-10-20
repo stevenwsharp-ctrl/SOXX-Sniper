@@ -1,0 +1,111 @@
+# SOXX Sniper
+
+A live, self-learning dashboard for **SOXL** (Direxion Daily Semiconductor Bull 3X) and the 30 stocks of the NYSE Semiconductor Index that SOXL tracks.
+
+Live site: https://stevenwsharp-ctrl.github.io/SOXX-Sniper/
+
+> **Not investment advice.** All signals, odds and expectations are statistical estimates from past price action. They do not predict the future.
+
+---
+
+## What it does
+
+### Live tracking
+- **After-hours and pre-market banner** at the top, with the live price and the change in $ and % since the close.
+- **All 30 holdings** as live tiles, colored by % change. Each tile shows the stock's weight, its contribution to the index, and its next likely price level.
+- **Weighted index**, **implied SOXL** (3× the index), **SOXL actual**, and the **tracking gap** between them.
+- **Cross-market table** (24h / day / 1h / 30m): Dow (DIA), S&P 500 (SPY), Nasdaq 100 (QQQ), SOXX, SOXL, SOXS, Bitcoin, Ethereum, and total crypto market cap, with alignment and beta-ladder order.
+- **Live macro proxies:** oil (USO), bonds (TLT, IEF, SHY), credit (HYG, LQD), and the consumer (XLY, XLP, card lenders).
+- **News**, scored live by topic and sentiment.
+
+### Analysis
+- **Decision read:** a stance (lean up / lean down / neutral), the market regime, a favored price threshold, and flags. It combines all the inputs below, with weights.
+- **Liquidity map:** the next likely SOXL price thresholds, with the odds of a touch within 30 minutes and an estimated time.
+- **Fear and greed composite** (0–100) from up to 12 live inputs.
+- **Positioning flow:** SOXL versus SOXS money flow, tick-rule order flow, and large prints (≥ $250k).
+- **Macro, bonds, funding, consumer credit, debt ratios, oil, and semis fundamentals** (FRED and Finnhub).
+- **Sessions:** today's session map, gap playbook, time-of-day profile, overnight versus intraday returns, and the Smart Money Index.
+- **Rule finder:** 15 market-structure hypotheses (leveraged-ETF rebalancing, market makers, retail at the open, after-hours traders, institutions), tested on 2 years of history with out-of-sample validation. Only rules that pass influence the decision.
+- **Flow map and expected price flow:** who moves SOXL now, and what the validated rules expect for each part of the day.
+
+### Memory bank (learns 24 hours a day)
+- **Regular hours:** learns how each stock's 1-minute moves relate to SOXL (correlation, beta, lead), and scores its own forecasts so it can tune itself ("attunement").
+- **Pre-market and after-hours:** learns the same links separately, because off-hours moves are bigger per dollar traded.
+- **Overnight and weekends:** records crypto, and learns how overnight crypto moves relate to SOXL's opening gap.
+- Stored in the browser (IndexedDB). It stays after you close the tab or restart. Use **Export backup** and **Import backup** to keep a copy or to move it to a different device.
+
+---
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `index.html` | The complete website (one file). |
+| `worker.js` | Cloudflare Worker. It keeps the FRED and Massive keys secret and lets the site read their data. It is not part of the GitHub site; deploy it to Cloudflare. |
+| `README.md` | This file. |
+
+---
+
+## Setup
+
+### 1. Website (GitHub Pages)
+1. Put `index.html` in the root of the repository.
+2. Go to **Settings → Pages**. Set **Deploy from a branch**, branch **main**, folder **/ (root)**, then select **Save**.
+3. Open the site after 1–2 minutes.
+
+To test it on your computer first, run this command in the folder that has `index.html`, then open http://localhost:8000:
+
+```
+python3 -m http.server 8000
+```
+
+### 2. Finnhub key (live prices, news, fundamentals)
+1. Get a free key at https://finnhub.io/register.
+2. On the site, select **API key**, paste the key, and select **Save and connect**.
+
+The key stays in your browser only (localStorage). It is not in the repository.
+
+### 3. Cloudflare Worker (FRED data and price history)
+1. Get a free FRED key at https://fredaccount.stlouisfed.org/apikeys.
+2. Get a free Massive key (formerly Polygon.io) at https://massive.com.
+3. In Cloudflare, create a Worker (**Workers & Pages → Create → Start with Hello World**). Name it, for example, `soxx-sniper-fred`.
+4. Select **Edit code**, replace all the code with `worker.js`, and select **Deploy**.
+5. In **Settings → Variables and Secrets**, add:
+
+   | Name | Type | Value |
+   |---|---|---|
+   | `FRED_KEY` | Secret | your FRED key |
+   | `POLYGON_KEY` | Secret | your Massive key |
+   | `ALLOW_ORIGIN` | Text | `https://stevenwsharp-ctrl.github.io` |
+
+6. Open `https://<your-worker>.workers.dev/health`. It must show `{"ok":true,"key":true,"hist":true}`.
+7. On the site, select **API key** and paste the Worker URL (without `/health`) into the FRED proxy field.
+
+On the first visit, the site loads about 2 years of 5-minute SOXL bars. This takes about 3 minutes; keep the tab in front during that time.
+
+### Demo mode
+Select **Demo mode** in the API key box to see every panel with simulated data. Demo mode does not save anything to the real memory bank.
+
+---
+
+## Data sources
+
+| Source | Key | Used for | Speed |
+|---|---|---|---|
+| Finnhub (free) | yes | Prices (websocket), quotes, news, fundamentals, analyst ratings, earnings calendar | Live |
+| Coinbase | no | BTC and ETH prices | Live |
+| CoinGecko | no | Total crypto market cap | About 1 min |
+| alternative.me | no | Crypto Fear & Greed | Daily |
+| FRED, via the Worker | yes | Yields, credit spreads, funding, liquidity, macro, consumer credit, debt ratios, oil | Daily to quarterly |
+| Massive (Polygon), via the Worker | yes | 2 years of 5-minute bars with extended hours | End of day |
+
+---
+
+## Limits
+- **Finnhub free:** 60 calls per minute and 50 websocket symbols. The site uses 49 symbols and stays under 55 calls per minute.
+- **Index values:** the Dow, S&P 500 and Nasdaq are shown through their ETFs, because index data is not free.
+- **Holdings and weights:** from the iShares SOXX holdings file (Oct 19, 2026). Update the `HOLDINGS` list in `index.html` after each quarterly rebalance.
+- **Leveraged-ETF assets:** `LETF_AUM` in `index.html` holds approximate values for SOXL and SOXS. Update them from direxion.com when they change.
+- **Smart money:** no free source shows institutional orders directly. The Smart Money Index and large prints are proxies.
+- **Consumer credit:** no free source gives consumer credit scores in real time. The site uses the Fed's delinquency, charge-off and debt-service data, plus live market signals.
+- **Recording:** the memory bank learns only while the page is open. Raw price bars older than 400 days are deleted to control storage; the learned knowledge stays permanently.
