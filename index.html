@@ -1168,7 +1168,7 @@ function corrT(D,kx,ky){
 const median=a=>{const v=a.filter(isNum).sort((x,y)=>x-y);return v.length?v[Math.floor(v.length/2)]:NaN};
 const mean=a=>{const v=a.filter(isNum);return v.length?v.reduce((x,y)=>x+y,0)/v.length:NaN};
 const sd=a=>{const v=a.filter(isNum);if(v.length<3)return NaN;const m=mean(v);return Math.sqrt(v.reduce((x,y)=>x+(y-m)*(y-m),0)/(v.length-1))};
-const GAPB=[[-Infinity,-0.04,"Down more than 4%"],[-0.04,-0.015,"Down 1.5–4%"],[-0.015,-0.005,"Down 0.5–1.5%"],[-0.005,0.005,"Flat (±0.5%)"],[0.005,0.015,"Up 0.5–1.5%"],[0.015,0.04,"Up 1.5–4%"],[0.04,Infinity,"Up more than 4%"]];
+const GAPB=[[-Infinity,-0.08,"Down more than 8%"],[-0.08,-0.04,"Down 4–8%"],[-0.04,-0.015,"Down 1.5–4%"],[-0.015,0.015,"Small (±1.5%)"],[0.015,0.04,"Up 1.5–4%"],[0.04,0.08,"Up 4–8%"],[0.08,Infinity,"Up more than 8%"]];
 const REL=[["ahRet","pmRet","After-hours → next pre-market"],["gap","oc","Overnight gap → open to close"],["pmRet","f30","Pre-market → first 30 min"],
   ["f30","rest30","First 30 min → rest of day"],["f60","rest60","First hour → rest of day"],["l60","nAh","Last hour → that evening's after-hours"],
   ["l60","nGap","Last hour → next day's gap"],["oc","nGap","Open to close → next day's gap"],["l30","nF30","Last 30 min → next day's first 30 min"]];
@@ -1753,6 +1753,9 @@ function onTick(s,p,v){
   health.lastUpd[s]=Date.now();health.ticks++;
   updBar(s,p,v);dirty=true;
 }
+let qcT=0;
+function saveQuoteCache(){if(demo||Date.now()-qcT<15000)return;qcT=Date.now();const q={};FH_SYMS.forEach(s=>{const x=Q[s];if(x.pc>0)q[s]={pc:x.pc,o:x.o,h:x.h,l:x.l,c:x.c}});lsSet("soxx_quotes",JSON.stringify({d:etDate(),q}))}
+function loadQuoteCache(){try{const c=JSON.parse(lsGet("soxx_quotes")||"null");if(!c||c.d!==etDate())return;for(const s in c.q)if(Q[s])Object.assign(Q[s],c.q[s]);dirty=true}catch(e){}}
 /* Finnhub scheduler: one call each 1.1 s at most, max 55 calls per minute (free limit is 60) */
 const fhQ={calls:[],backoff:0,rr:0,jobs:{},off:{},busy:0,n:0};
 function fhUsed(){const t=Date.now();fhQ.calls=fhQ.calls.filter(x=>t-x<60000);return fhQ.calls.length}
@@ -1767,19 +1770,20 @@ async function fhGet(path,tag){
     srcOk.finnhub=true;return await r.json();
   }finally{fhQ.busy--}
 }
+const POLL_ORDER=[FUND,...[...HOLDINGS].sort((a,b)=>b[2]*b[3]-a[2]*a[3]).map(h=>h[0]),"SOXS","SOXX","QQQ","SPY","DIA",...ETFS.filter(s=>!["SOXS","SOXX","QQQ","SPY","DIA"].includes(s))];
 function fhTick(){
   if(demo||!apiKey||Date.now()<fhQ.backoff||fhUsed()>=55||fhQ.busy>2)return;
-  const now=Date.now();
+  const now=Date.now(),warm=fhQ.rr>=POLL_ORDER.length;
   const jobs=[["status",60000,marketStatus],["news",90000,fetchNews],["cnews",150000,fetchCompanyNews],["earn",6*3600000,fetchEarnings]];
-  for(const [k,iv,fn] of jobs){if(!fhQ.off[k]&&now-(fhQ.jobs[k]||0)>=iv){fhQ.jobs[k]=now;fn().catch(()=>{});return}}
-  const mt=nextMicroTask();
-  if(mt&&fhUsed()<45){runMicroTask(mt).catch(()=>{});return}
-  const s=FH_SYMS[fhQ.rr++%FH_SYMS.length];
+  for(const [k,iv,fn] of jobs){if((warm||k==="status")&&!fhQ.off[k]&&now-(fhQ.jobs[k]||0)>=iv){fhQ.jobs[k]=now;fn().catch(()=>{});return}}
+  const mt=warm?nextMicroTask():null;
+  if(mt&&fhUsed()<40&&now-(fhQ.lastMicro||0)>=4000){fhQ.lastMicro=now;runMicroTask(mt).catch(()=>{});return}
+  const s=POLL_ORDER[fhQ.rr++%POLL_ORDER.length];
   fetchQuote(s).catch(e=>{health.pollErr++;if(e.message==="auth"){setFeed("err","Feed: bad API key");openModal("That key did not work. Check it and try again.")}});
 }
 async function fetchQuote(s){
   const j=await fhGet(`quote?symbol=${encodeURIComponent(s)}`,"quote");
-  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
+  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;saveQuoteCache();if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
     if(j.c>0&&!(q.c>0&&fresh)){q.c=j.c;updBar(s,j.c,0)}
     health.lastUpd[s]=Math.max(health.lastUpd[s]||0,fresh?0:Date.now())}
@@ -1814,7 +1818,7 @@ function resetLive(){
   Object.assign(health,{reconnects:0,pollErr:0,lastUpd:{},lat:NaN,ticks:0});
 }
 async function startLive(){
-  resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");
+  resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");loadQuoteCache();
   await initMemory("soxx_sniper_live");
   startExternal();startMacro();
   await loadSess();syncHistory();clearInterval(histTimer);histTimer=setInterval(syncHistory,30*60000);
