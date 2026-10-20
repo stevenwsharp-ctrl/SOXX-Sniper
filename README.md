@@ -18,6 +18,15 @@ Live site: https://stevenwsharp-ctrl.github.io/SOXX-Sniper/
 - **Live macro proxies:** oil (USO), bonds (TLT, IEF, SHY), credit (HYG, LQD), and the consumer (XLY, XLP, card lenders).
 - **News**, scored live by topic and sentiment.
 
+### Stock pages (made for following these names on X)
+Click any tile, or SOXL, SOXS, SOXX, QQQ, SPY or DIA in the market tables. Each stock has its own link (for example `#/s/NVDA`), so you can share or bookmark it.
+- Live price, pre-market and after-hours price, and a 1-day or 5-day chart with the extended hours shaded.
+- **Effect on SOXL:** weight, index points today, the share of SOXL's move, and the learned correlation, beta and lead.
+- **Peers** in its group (AI compute, memory, equipment, analog, foundry, RF), with relative strength against the semis index.
+- **Key levels** with touch odds, tick-rule order flow, fundamentals, analyst ratings, the last 4 earnings (beat or miss), and the next earnings date.
+- **Live company news**, scored for sentiment.
+- **Share tools:** a written summary, **Post on X**, **Copy summary**, a downloadable **share card** image (1200 × 675), and links to the live $cashtag feeds on X and StockTwits.
+
 ### Analysis
 - **Decision read:** a stance (lean up / lean down / neutral), the market regime, a favored price threshold, and flags. It combines all the inputs below, with weights.
 - **Liquidity map:** the next likely SOXL price thresholds, with the odds of a touch within 30 minutes and an estimated time.
@@ -98,6 +107,9 @@ Select **Demo mode** in the API key box to see every panel with simulated data. 
 | alternative.me | no | Crypto Fear & Greed | Daily |
 | FRED, via the Worker | yes | Yields, credit spreads, funding, liquidity, macro, consumer credit, debt ratios, oil | Daily to quarterly |
 | Massive (Polygon), via the Worker | yes | 2 years of 5-minute bars with extended hours | End of day |
+| Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, stock-page charts, volume, 52-week range | About 15 s |
+
+Yahoo Finance and Nasdaq.com do not officially support these data addresses, so they can change. If they stop, the banner shows an error, and **System health** shows "Extended-hours prices ✕".
 
 ---
 

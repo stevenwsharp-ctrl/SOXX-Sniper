@@ -32,6 +32,29 @@ button,select{font-family:var(--mono);font-size:12px;color:var(--ink);background
 button:hover,select:hover{border-color:var(--accent)}
 button.on{border-color:var(--accent);color:var(--accent)}
 button.danger:hover{border-color:var(--down);color:var(--down)}
+.tile{cursor:pointer}.tile:hover{border-color:var(--accent);transform:translateY(-1px)}
+.brand{cursor:pointer}
+.sv-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.sv-top .row button{padding:4px 8px;font-size:11px}
+.sv-head{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1fr);gap:18px;align-items:center;margin-bottom:12px;background:linear-gradient(120deg,rgba(77,163,255,.08),transparent 60%),var(--panel)}
+@media(max-width:900px){.sv-head{grid-template-columns:minmax(0,1fr)}}
+.sv-tk{font-family:var(--mono);font-size:40px;font-weight:600;line-height:1}
+.sv-nm{color:var(--dim);font-size:14px;margin-top:6px}
+.sv-p{font-family:var(--mono);font-size:46px;font-weight:600;line-height:1}
+.sv-c{font-family:var(--mono);font-size:22px;font-weight:600;margin-top:6px}
+.sv-x{font-family:var(--mono);font-size:14px;margin-top:8px;color:var(--amber)}
+.sv-share{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.sv-share button{text-align:center}
+#svTweet{background:#e6edf5;color:#07090d;border-color:#e6edf5;font-weight:600}
+.sv-story{margin-bottom:12px;font-size:15px;line-height:1.7;border-color:rgba(155,107,255,.4)}
+.sv-story b{color:var(--ink)}
+.chiplink{font-family:var(--mono);font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);color:var(--accent);text-decoration:none}
+.chiplink:hover{border-color:var(--accent)}
+.peer{display:grid;grid-template-columns:62px minmax(0,1fr) 70px 60px;gap:8px;align-items:center;font-family:var(--mono);font-size:12px;padding:4px 0;cursor:pointer}
+.peer:hover{color:var(--accent)}
+.peer.me{color:var(--violet)}
+.anbar{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:12px 0 4px;background:var(--panel2)}
+.anbar span{display:block;height:100%}
 .extbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 28px;margin-bottom:12px;padding:16px 20px;border-radius:14px;border:1px solid rgba(255,181,71,.55);background:linear-gradient(90deg,rgba(255,181,71,.14),rgba(255,181,71,.03))}
 .extbar .label{color:var(--amber)}
 .ebp{font-family:var(--mono);font-size:44px;font-weight:600;line-height:1.05}
@@ -161,9 +184,56 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <span class="pill"><span class="dot" id="feedDot"></span><span id="feedTxt">Feed: off</span></span>
       <span class="pill"><span class="dot" id="memDot"></span><span id="memTxt">Memory: --</span></span>
       <span class="pill" id="clock">--:--:-- ET</span>
+      <button id="shareMain">Share SOXL ↗</button>
       <button id="keyBtn">API key</button>
     </div>
   </header>
+
+  <div id="stockView" style="display:none">
+    <div class="sv-top">
+      <button id="svBack">← Dashboard</button>
+      <div class="row" id="svNav"></div>
+    </div>
+    <section class="sv-head card">
+      <div class="sv-id">
+        <div class="sv-tk" id="svTk">--</div>
+        <div class="sv-nm" id="svNm">--</div>
+        <div class="row" id="svTags" style="margin-top:6px"></div>
+      </div>
+      <div class="sv-px">
+        <div class="sv-p" id="svP">--</div>
+        <div class="sv-c" id="svC">--</div>
+        <div class="sv-x" id="svX"></div>
+      </div>
+      <div class="sv-share">
+        <button id="svTweet">Post on X</button>
+        <button id="svCopy">Copy summary</button>
+        <button id="svCard">Download share card</button>
+        <div class="row" id="svLinks" style="margin-top:6px"></div>
+      </div>
+    </section>
+    <section class="card sv-story" id="svStory"></section>
+    <section class="card" style="margin-bottom:12px">
+      <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0" id="svChartLab">Today · with pre-market and after-hours</div>
+        <div class="row"><button data-svr="1d" class="on">1D</button><button data-svr="5d">5D</button></div></div>
+      <div class="chartwrap" style="height:320px"><canvas id="svChart"></canvas></div>
+      <div class="stiles" id="svStats" style="margin-top:12px"></div>
+    </section>
+    <section class="grid2">
+      <div class="card"><div class="label" id="svImpLab">Effect on SOXL</div><div class="kv" id="svImpact"></div></div>
+      <div class="card"><div class="label">Peers · today</div><div id="svPeers"></div></div>
+    </section>
+    <section class="grid2">
+      <div class="card"><div class="label">Key levels · touch odds in 30 min</div><div class="tw"><table class="tbl" id="svLevels"></table></div><div class="kv" id="svFlow" style="margin-top:12px"></div></div>
+      <div class="card"><div class="label">Fundamentals and analysts</div><div class="kv" id="svFund"></div><div class="anbar" id="svAn"></div><div class="label" style="margin-top:14px">Earnings · last 4 quarters</div><div class="tw"><table class="tbl" id="svEarn"></table></div></div>
+    </section>
+    <section class="card" style="margin-bottom:12px">
+      <div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">News · live, scored</div><div id="svNewsS"></div></div>
+      <div class="news" id="svNews" style="max-height:520px"></div>
+    </section>
+  </div>
+
+  <div id="mainView">
 
   <section class="extbar" id="extBar" style="display:none">
     <div><div class="label" id="ebLab" style="margin:0">After-hours</div><div class="ebp" id="ebPx">--</div></div>
@@ -389,6 +459,9 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     <div class="chartwrap" style="height:240px"><canvas id="rcChart"></canvas></div>
     <div class="note">The memory bank is in this browser (IndexedDB). It stays after you close the tab or restart. It learns only during regular market hours while this page is open. Only one tab learns at a time. Use Export backup to keep a copy or to move the memory to a different device.</div>
   </section>
+
+  </div>
+  <canvas id="cardCanvas" width="1200" height="675" style="display:none"></canvas>
 
   <footer>
     Weights use share counts from the iShares SOXX holdings file (Oct 19, 2026). SOXX tracks the same index as SOXL. Weight = shares × previous close. Update the HOLDINGS list after each quarterly rebalance.<br>
@@ -621,7 +694,8 @@ let extTimer=null,extN=0;const extVol={},extInfo={ok:null,src:"",err:""};
 async function extTick(force){
   if(demo)return;const p=fredProxy();if(!p)return;
   const ph=phaseAt(Date.now());if(!force&&ph==="regular")return;
-  const list=(extN++%4===0?[...EXT_MAIN,...EXT_MORE.filter(s=>s!=="BTC-USD")]:EXT_MAIN);
+  let list=(extN++%4===0?[...EXT_MAIN,...EXT_MORE.filter(s=>s!=="BTC-USD")]:[...EXT_MAIN]);
+  if(curSym&&!CRYPTO.includes(curSym)&&!list.includes(curSym))list.push(curSym);
   try{
     const j=await(await fetch(`${p}/ext?t=${list.join(",")}`)).json();let n=0;
     for(const s in j.quotes){const x=j.quotes[s],q=Q[s];if(!q||!(x.price>0))continue;n++;
@@ -1144,7 +1218,8 @@ function nextMicroTask(){
 async function runMicroTask([t,s]){
   try{
     if(t==="metric"){const j=await fhGet(`stock/metric?symbol=${s}&metric=all`,"metric");const m=j&&j.metric||{};
-      MICRO.m[s]={pe:m.peTTM??m.peBasicExclExtraTTM??null,rg:m.revenueGrowthTTMYoy??null,gm:m.grossMarginTTM??null,nm:m.netProfitMarginTTM??null,de:m["totalDebt/totalEquityQuarterly"]??m["totalDebt/totalEquityAnnual"]??null,cr:m.currentRatioQuarterly??null}}
+      MICRO.m[s]={pe:m.peTTM??m.peBasicExclExtraTTM??null,rg:m.revenueGrowthTTMYoy??null,gm:m.grossMarginTTM??null,nm:m.netProfitMarginTTM??null,de:m["totalDebt/totalEquityQuarterly"]??m["totalDebt/totalEquityAnnual"]??null,cr:m.currentRatioQuarterly??null,
+        ps:m.psTTM??null,eg:m.epsGrowthTTMYoy??null,mc:m.marketCapitalization??null,hi52:m["52WeekHigh"]??null,lo52:m["52WeekLow"]??null,beta:m.beta??null}}
     else{const j=await fhGet(`stock/recommendation?symbol=${s}`,"rec");const r=Array.isArray(j)&&j[0];MICRO.r[s]=r?{b:(r.strongBuy||0)+(r.buy||0),h:r.hold||0,s:(r.sell||0)+(r.strongSell||0)}:null}
   }catch(e){if(t==="metric")MICRO.m[s]=MICRO.m[s]??null;else MICRO.r[s]=MICRO.r[s]??null}
   saveMicro();
@@ -1199,7 +1274,7 @@ function addNews(items,src){
   (items||[]).forEach(it=>{
     const id=String(it.id||it.url||it.headline);if(!it.headline||newsSeen.has(id))return;
     newsSeen.add(id);const sc2=scoreHeadline(it.headline+" "+(it.summary||"").slice(0,200));
-    NEWS.push({id,t:it.datetime||Math.floor(Date.now()/1000),h:it.headline,src:it.source||src,url:it.url||"",rel:it.related||"",...sc2,co:src==="company"});added++;
+    NEWS.push({id,t:it.datetime||Math.floor(Date.now()/1000),h:it.headline,src:it.source||src,url:it.url||"",...sc2,relSym:String(it.related||""),co:src==="company"});added++;
   });
   NEWS.sort((a,b)=>b.t-a.t);const cut=Date.now()/1000-86400;while(NEWS.length&&(NEWS.length>300||NEWS[NEWS.length-1].t<cut))NEWS.pop();
   if(added&&!demo){try{lsSet("soxx_news",JSON.stringify(NEWS.slice(0,150)))}catch(e){}}
@@ -1478,7 +1553,7 @@ function priceChart(cv,pts,ref){
   g.strokeStyle="#1e2835";g.lineWidth=1;g.fillStyle="#5a6676";g.font="11px JetBrains Mono";
   for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText("$"+v.toFixed(2),4,y+4)}
   let prevD="";pts.forEach((p,i)=>{if(p.d!==prevD){prevD=p.d;const x=X(i);g.strokeStyle="#2c3a4c";g.beginPath();g.moveTo(x,T);g.lineTo(x,H-B);g.stroke();g.fillStyle="#8a97a8";g.fillText(new Date(p.d+"T12:00:00Z").toLocaleDateString("en-US",{weekday:"short",month:"numeric",day:"numeric",timeZone:"UTC"}),x+3,H-8)}});
-  if(isNum(ref)){g.strokeStyle="#8a97a8";g.setLineDash([4,4]);g.beginPath();g.moveTo(L,Y(ref));g.lineTo(W-R,Y(ref));g.stroke();g.setLineDash([]);g.fillStyle="#8a97a8";g.fillText("prior close",W-R-80,Y(ref)-4)}
+  if(isNum(ref)){g.strokeStyle="#8a97a8";g.setLineDash([4,4]);g.beginPath();g.moveTo(L,Y(ref));g.lineTo(W-R,Y(ref));g.stroke();g.setLineDash([]);g.fillStyle="#8a97a8";g.fillText("prior close "+fmtPx(ref),L+6,Y(ref)-5)}
   g.lineWidth=1.6;g.lineJoin="round";for(let i=1;i<n;i++){const p=pts[i];g.strokeStyle=p.min<570||p.min>=960?"#ffb547":"#4da3ff";g.beginPath();g.moveTo(X(i-1),Y(pts[i-1].c));g.lineTo(X(i),Y(p.c));g.stroke()}
   const lp=pts[n-1];g.fillStyle="#e6edf5";g.beginPath();g.arc(X(n-1),Y(lp.c),3.5,0,7);g.fill();g.fillText("$"+lp.c.toFixed(2),Math.min(X(n-1)+6,W-R-60),Y(lp.c)-6);
 }
@@ -1624,7 +1699,7 @@ function stockNext(s){
 function setFeed(state,txt){$("feedDot").className="dot "+state;$("feedTxt").textContent=txt}
 function tileBg(r){if(!isFinite(r))return"var(--panel)";const a=Math.min(Math.abs(r)/0.05,1)*0.55+0.06;return r>=0?`rgba(25,211,138,${a.toFixed(3)})`:`rgba(255,77,94,${a.toFixed(3)})`}
 function buildTiles(){
-  $("tiles").innerHTML=HOLDINGS.map(h=>`<div class="tile" id="t_${h[0]}">
+  $("tiles").innerHTML=HOLDINGS.map(h=>`<div class="tile" id="t_${h[0]}" data-go="${h[0]}" title="Open ${h[0]}">
     <div class="t"><span class="sym">${h[0]}</span><span class="w" id="w_${h[0]}">--</span></div>
     <div class="nm">${h[1]}</div><div class="px" id="p_${h[0]}">--</div><div class="ch" id="c_${h[0]}">--</div>
     <div class="ct" id="x_${h[0]}">contrib --</div><div class="nx" id="n_${h[0]}">next --</div>
@@ -1656,6 +1731,7 @@ function renderExtBar(){
   document.title=`SOXL ${fmtPx(P)} ${isFinite(pct)?fmtPct(pct):""} ${ph==="pre"?"PM":"AH"}`;
 }
 function render(){
+  if(curSym){renderStock(false);return}
   renderExtBar();
   const m=compute(),now=Date.now();
   $("idxPct").textContent=m.live?fmtPct(m.idx):"--";$("idxPct").className="big "+cls(m.idx);
@@ -1755,14 +1831,14 @@ function renderMacro(D){
 
   const cell=o2=>!o2||!isFinite(o2.r)?'<td class="sum">--</td>':`<td class="${cls(o2.r)}">${o2.approx?"≈":""}${fmtPct(o2.r)}</td>`;
   $("xm2Tbl").innerHTML=`<tr><th class="l">Live proxy</th><th>Price</th>${WINS.map(([w2])=>`<th>${w2}</th>`).join("")}</tr>`+
-    XM2.map(x=>`<tr><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="_CARD"?"":fmtPx(priceNow(x.k))}</td>${WINS.map(([w2])=>cell(winRet(x.k,w2))).join("")}</tr>`).join("");
+    XM2.map(x=>`<tr ${SYMS.includes(x.k)?`data-go="${x.k}" style="cursor:pointer"`:""}><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="_CARD"?"":fmtPx(priceNow(x.k))}</td>${WINS.map(([w2])=>cell(winRet(x.k,w2))).join("")}</tr>`).join("");
 
   const nm=D.nws;scoreHead("nwsS",nm.score);
   $("nwsHeat").innerHTML=Object.entries(nm.heat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span class="chip">${k} <b>${v.toFixed(1)}</b></span>`).join("")+`<span class="chip">1h <b>${fmtS(nm.s1h)}</b> · ${nm.n1h} items</span>`;
   const now=Date.now()/1000;
   const list=NEWS.filter(n=>n.rel>=0.6||n.co).slice(0,18);
   $("nwsList").innerHTML=list.length?list.map(n=>{const a=Math.round((now-n.t)/60);
-    return`<div class="nrow"><span class="ndot" style="background:${n.s>0.15?"var(--up)":n.s<-0.15?"var(--down)":"var(--mute)"}"></span><span class="sub">${a<60?a+"m":Math.round(a/60)+"h"}</span><span class="nh">${n.url?`<a href="${n.url.replace(/"/g,"&quot;")}" target="_blank" rel="noopener">${esc(n.h)}</a>`:esc(n.h)} <span class="sub">${esc(n.src||"")}${n.rel&&n.co?" · "+esc(n.rel):""}</span>${n.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</span></div>`}).join(""):'<div class="sub">Waiting for headlines…</div>';
+    return`<div class="nrow"><span class="ndot" style="background:${n.s>0.15?"var(--up)":n.s<-0.15?"var(--down)":"var(--mute)"}"></span><span class="sub">${a<60?a+"m":Math.round(a/60)+"h"}</span><span class="nh">${n.url?`<a href="${n.url.replace(/"/g,"&quot;")}" target="_blank" rel="noopener">${esc(n.h)}</a>`:esc(n.h)} <span class="sub">${esc(n.src||"")}${n.relSym&&n.co?" · "+esc(n.relSym):""}</span>${n.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</span></div>`}).join(""):'<div class="sub">Waiting for headlines…</div>';
 }
 function renderFlow(D){
   const st=D.stS,T=D.T,AR=D.AR,lf=D.lf;
@@ -1903,7 +1979,7 @@ function renderCross(){
   const cell=o=>!o||!isFinite(o.r)?'<td class="sum">--</td>':`<td class="${cls(o.r)}">${o.approx?"≈":""}${fmtPct(o.r)}</td>`;
   let h=`<tr><th class="l">Market</th><th>Price</th>${WINS.map(([w])=>`<th>${w}</th>`).join("")}</tr>`;
   XM.forEach(x=>{const p=priceNow(x.k);
-    h+=`<tr><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="TOTAL"?fmtBig(p):x.k==="_IDX"?"":fmtPx(p)}</td>${WINS.map(([w])=>cell(cm.tbl[x.k][w])).join("")}</tr>`});
+    h+=`<tr ${SYMS.includes(x.k)?`data-go="${x.k}" style="cursor:pointer"`:""}><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="TOTAL"?fmtBig(p):x.k==="_IDX"?"":fmtPx(p)}</td>${WINS.map(([w])=>cell(cm.tbl[x.k][w])).join("")}</tr>`});
   h+=`<tr><td class="sum">Alignment</td><td></td>${WINS.map(([w])=>{const a=cm.win[w];return`<td class="${cls(a.align)}">${isFinite(a.align)?(a.align>0?"↑ ":"↓ ")+(a.align>0?a.up:a.n-a.up)+"/"+a.n:"--"}</td>`}).join("")}</tr>`;
   h+=`<tr><td class="sum">Beta order (ρ)</td><td></td>${WINS.map(([w])=>{const r=cm.win[w].rho;return`<td class="${r>0.4?"up":r<-0.4?"down":"meh"}">${fmtN(r,2)}</td>`}).join("")}</tr>`;
   $("xmTbl").innerHTML=h;
@@ -2197,6 +2273,222 @@ async function startDemo(){
   setFeed("warn","Feed: demo");marketStatus();
 }
 
+/* ---------- stock pages (#/s/TICKER) ---------- */
+const GROUPS={"AI compute":["NVDA","AMD","AVGO","MRVL","ALAB","CRDO","CBRS","ARM"],"Memory":["MU","SKHY"],"Equipment":["AMAT","LRCX","KLAC","ASML","TER","ENTG"],
+  "Analog and power":["ADI","TXN","MCHP","ON","NXPI","STM","MPWR"],"Foundry and packaging":["TSM","INTC","UMC","TSEM","ASX"],"RF and connectivity":["QCOM","MTSI"],
+  "Semis ETFs":["SOXL","SOXS","SOXX"],"Market":["QQQ","SPY","DIA"],"Bonds and credit":["TLT","IEF","SHY","HYG","LQD"],"Consumer":["XLY","XLP","COF","SYF","AXP"],"Oil":["USO"],"Crypto":["BTC","ETH"]};
+const groupOf=s=>Object.keys(GROUPS).find(g=>GROUPS[g].includes(s))||"Other";
+const ORDER=[...HOLDINGS].sort((a,b)=>b[2]*b[3]-a[2]*a[3]).map(h=>h[0]);
+const NAMES=Object.fromEntries(HOLDINGS.map(h=>[h[0],h[1]]));
+Object.assign(NAMES,{SOXL:"Direxion Daily Semiconductor Bull 3X",SOXS:"Direxion Daily Semiconductor Bear 3X",SOXX:"iShares Semiconductor ETF",QQQ:"Invesco QQQ (Nasdaq 100)",SPY:"SPDR S&P 500 ETF",DIA:"SPDR Dow Jones ETF",
+  TLT:"iShares 20+ Year Treasury",IEF:"iShares 7–10 Year Treasury",SHY:"iShares 1–3 Year Treasury",HYG:"iShares High Yield Corporate Bond",LQD:"iShares Investment Grade Corporate Bond",USO:"United States Oil Fund",
+  XLY:"Consumer Discretionary SPDR",XLP:"Consumer Staples SPDR",COF:"Capital One",SYF:"Synchrony Financial",AXP:"American Express",BTC:"Bitcoin",ETH:"Ethereum"});
+const ySym=s=>s==="BTC"?"BTC-USD":s==="ETH"?"ETH-USD":s;
+let curSym=null,svRange="1d",svT=0;const svData={};
+function route(){
+  const m=location.hash.match(/^#\/s\/([A-Za-z.\-]+)/),s=m?m[1].toUpperCase():null;
+  if(s&&SYMS.includes(s))openStock(s);else closeStock();
+}
+function openStock(s){
+  const first=curSym!==s;curSym=s;
+  $("mainView").style.display="none";$("stockView").style.display="block";
+  if(first){window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true)}
+  renderStock(true);
+}
+function closeStock(){curSym=null;$("stockView").style.display="none";$("mainView").style.display="block";document.title="SOXX Sniper";dirty=true}
+async function fhSoon(path,tag){for(let i=0;i<20&&(fhUsed()>=55||Date.now()<fhQ.backoff);i++)await sleep(600);return fhGet(path,tag)}
+async function svLoad(s,full){
+  const d=svData[s]||(svData[s]={news:[],earn:null,c1d:null,c5d:null,t:0});
+  const p=fredProxy();
+  if(p&&!demo){
+    fetch(`${p}/chart?t=${ySym(s)}&range=1d&interval=1m`).then(r=>r.json()).then(j=>{if(j.status==="ok"){d.c1d=j;if(j.meta&&j.meta.name&&!NAMES[s])NAMES[s]=j.meta.name;if(curSym===s)renderStock(true)}}).catch(()=>{});
+    if(full||svRange==="5d")fetch(`${p}/chart?t=${ySym(s)}&range=5d&interval=5m`).then(r=>r.json()).then(j=>{if(j.status==="ok"){d.c5d=j;if(curSym===s)renderStock(true)}}).catch(()=>{});
+  }
+  if(demo){if(!d.c1d)d.c1d=demoChart(s);if(!d.c5d)d.c5d=demoChart(s,5);if(!d.news.length)d.news=NEWS.slice(0,4);return}
+  if(!apiKey||!full)return;
+  if(!["BTC","ETH"].includes(s)){
+    try{const j=await fhSoon(`company-news?symbol=${s}&from=${etDate(Date.now()-3*86400000)}&to=${etDate()}`,"svnews");
+      d.news=(j||[]).slice(0,40).map(it=>({id:String(it.id||it.url),t:it.datetime,h:it.headline,src:it.source,url:it.url,...scoreHeadline(it.headline+" "+(it.summary||"").slice(0,200))}));if(curSym===s)renderStock(true)}catch(e){}
+    try{const j=await fhSoon(`stock/earnings?symbol=${s}`,"svearn");d.earn=Array.isArray(j)?j.slice(0,4):[];if(curSym===s)renderStock(true)}catch(e){d.earn=[]}
+    const m=MICRO.m&&MICRO.m[s];if(!m||m.hi52===undefined){try{await runMicroTask(["metric",s]);if(curSym===s)renderStock(true)}catch(e){}}
+    if(!MICRO.r||MICRO.r[s]===undefined){try{await runMicroTask(["rec",s]);if(curSym===s)renderStock(true)}catch(e){}}
+  }
+  d.t=Date.now();
+}
+function demoChart(s,days=1){
+  const q=Q[s],base=q.pc||100,out=[];let p=base;const d0=etDate();const ds=[d0];let d=d0;
+  while(ds.length<days){d=addDays(d,-1);const w=new Date(d+"T12:00:00Z").getUTCDay();if(w>0&&w<6)ds.unshift(d)}
+  ds.forEach(dt=>{for(let m=240;m<(dt===d0?etInfo(Date.now()).min:1200);m+=days>1?5:1){p*=1+(Math.random()-0.5)*(m<570||m>=960?0.0008:0.002);out.push([etEpochMin(dt,m)*60000,p,p,p,p,1000])}});
+  return{status:"ok",bars:out,meta:{price:q.c,prevClose:q.pc,dayHigh:q.h,dayLow:q.l,volume:3.2e7,hi52:base*1.4,lo52:base*0.6,name:NAMES[s]||s,exchange:"demo"}};
+}
+function svPrices(s){
+  const q=Q[s],ph=demo?"regular":phaseAt(Date.now()),P=q.c,pc=q.pc;
+  const ext=(ph==="pre"||ph==="post"||ph==="closed")&&q.lt&&!CRYPTO.includes(s);
+  let main=P,chg=pc>0&&P>0?P-pc:NaN,pct=pc>0&&P>0?P/pc-1:NaN,xP=NaN,xC=NaN,xPct=NaN,xLab="";
+  if(ext){
+    const rc=ph==="pre"?pc:(q.regClose>0?q.regClose:q.qc>0?q.qc:pc);
+    if(ph==="pre"){main=pc;chg=NaN;pct=NaN;xLab="Pre-market"}else{main=rc;chg=rc-pc;pct=rc/pc-1;xLab=ph==="post"?"After-hours":"After-hours (closed)"}
+    xP=P;xC=P-rc;xPct=P/rc-1;
+  }
+  return{P,pc,main,chg,pct,xP,xC,xPct,xLab,ph,ext};
+}
+function svSigma(s){
+  const d=svData[s],b=d&&d.c1d&&d.c1d.bars;
+  if(b&&b.length>30){const rs=[];const L=b.slice(-61);for(let i=1;i<L.length;i++)if(L[i-1][4]>0)rs.push(Math.log(L[i][4]/L[i-1][4]));const v=stdev(rs);if(v>0)return v}
+  const st=statOf(getK(s).ce);return st.n>=30&&st.sdx>0?st.sdx:0.002;
+}
+function svLevels(s,meta){
+  const q=Q[s],P=q.c;if(!(P>0))return[];const sig=svSigma(s),L=[];
+  const add=(price,lab)=>{if(price>0&&Math.abs(price/P-1)>0.0003&&Math.abs(price/P-1)<0.2)L.push({price,lab})};
+  add(q.pc,"Prior close");add(q.h,"High of day");add(q.l,"Low of day");if(q.o>0)add(q.o,"Open");
+  if(meta){add(meta.hi52,"52-week high");add(meta.lo52,"52-week low")}
+  const hb=(hist[s]||[]).filter(b=>b.m>=etEpochMin(etDate(),570));let pv=0,vv=0;hb.forEach(b=>{pv+=b.c*(b.v||0);vv+=b.v||0});if(vv>0)add(pv/vv,"VWAP");
+  const step=P<20?0.5:P<50?1:P<200?5:P<1000?10:50;for(let k=-2;k<=2;k++){const r=(Math.round(P/step)+k)*step;add(r,"Round "+fmtPx(r))}
+  L.sort((a,b)=>b.price-a.price);const M=[];L.forEach(l=>{const z=M[M.length-1];if(z&&Math.abs(l.price/z.price-1)<0.0015){z.lab+=" + "+l.lab}else M.push({...l})});
+  M.forEach(l=>{l.d=Math.abs(Math.log(l.price/P));l.dir=l.price>P?1:-1;l.p30=pTouch(l.d,0,sig,30);l.eta=tMedian(l.d,0,sig)});
+  return M;
+}
+function svSummary(s){
+  const pr=svPrices(s),m=compute(),row=m.rows.find(r=>r.s===s),isH=!!row,q=Q[s],d=svData[s]||{};
+  const r=pr.pc>0&&pr.main>0?pr.main/pr.pc-1:NaN,rs=isNum(r)&&m.live?r-m.idx:NaN;
+  const lv=svLevels(s,d.c1d&&d.c1d.meta),nx=[...lv].sort((a,b)=>b.p30-a.p30)[0];
+  const e=EARN.find(x=>x.s===s&&x.d>=etDate());
+  return{pr,row,isH,r,rs,nx,e,w:row?row.w:NaN,contrib:row&&row.ok?row.contrib:NaN,idx:m.idx};
+}
+function tweetText(s){
+  const S=svSummary(s),pr=S.pr,lines=[];
+  lines.push(`$${s} ${fmtPx(pr.main)}${isNum(pr.pct)?" "+fmtPct(pr.pct):""}${pr.ext?` | ${pr.xLab==="Pre-market"?"PM":"AH"} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`:""}`);
+  if(S.isH&&isNum(S.contrib))lines.push(`• ${(S.w*100).toFixed(2)}% of the $SOXL index: ${(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(2)} pts today (≈${fmtPct(3*S.contrib)} of SOXL)`);
+  if(s===FUND){const mm=compute();if(mm.live)lines.push(`• Semis index ${fmtPct(mm.idx)} → implied ${fmtPct(mm.imp)} · gap ${fmtPct(mm.fr-mm.imp)}`)}
+  if(isNum(S.rs)&&s!==FUND)lines.push(`• vs semis index: ${S.rs>=0?"+":""}${(S.rs*100).toFixed(2)} pts`);
+  if(S.nx)lines.push(`• Next level ${fmtPx(S.nx.price)} (${Math.round(S.nx.p30*100)}% odds in 30m)`);
+  if(S.e)lines.push(`• Earnings ${S.e.d}${S.e.h==="amc"?" after close":S.e.h==="bmo"?" before open":""}`);
+  let t=lines.join("\n");const tail=`\n\n${location.origin}${location.pathname}#/s/${s}`;
+  while((t+tail).length>275&&lines.length>1){lines.pop();t=lines.join("\n")}
+  return t+tail;
+}
+function drawCard(s){
+  const cv=$("cardCanvas"),g=cv.getContext("2d"),W=1200,H=675,S=svSummary(s),pr=S.pr,d=svData[s]||{};
+  const bg=g.createLinearGradient(0,0,W,H);bg.addColorStop(0,"#0b1424");bg.addColorStop(1,"#150f26");g.fillStyle=bg;g.fillRect(0,0,W,H);
+  g.fillStyle="rgba(77,163,255,.10)";g.beginPath();g.arc(W-120,-60,360,0,7);g.fill();
+  const mono="'JetBrains Mono', ui-monospace, monospace",sans="'Space Grotesk', system-ui, sans-serif";
+  g.fillStyle="#e6edf5";g.font=`600 84px ${mono}`;g.fillText("$"+s,60,130);
+  g.fillStyle="#8a97a8";g.font=`400 28px ${sans}`;g.fillText((NAMES[s]||"").slice(0,48),62,178);
+  g.fillStyle="#e6edf5";g.font=`600 96px ${mono}`;g.fillText(fmtPx(pr.main),60,300);
+  const up=pr.chg>=0;g.fillStyle=isNum(pr.pct)?(up?"#19d38a":"#ff4d5e"):"#8a97a8";g.font=`600 44px ${mono}`;
+  g.fillText(isNum(pr.pct)?`${up?"+":"−"}$${Math.abs(pr.chg).toFixed(2)} (${fmtPct(pr.pct)})`:"",62,362);
+  if(pr.ext){g.fillStyle="#ffb547";g.font=`600 34px ${mono}`;g.fillText(`${pr.xLab} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`,62,418)}
+  const bars=d.c1d&&d.c1d.bars;if(bars&&bars.length>2){const x0=640,y0=110,w=500,h=260;let lo=Infinity,hi=-Infinity;bars.forEach(b=>{lo=Math.min(lo,b[4]);hi=Math.max(hi,b[4])});
+    g.strokeStyle="rgba(255,255,255,.08)";g.strokeRect(x0,y0,w,h);g.lineWidth=3;g.lineJoin="round";g.beginPath();
+    bars.forEach((b,i)=>{const x=x0+i/(bars.length-1)*w,y=y0+h-(b[4]-lo)/(hi-lo||1)*h;i?g.lineTo(x,y):g.moveTo(x,y)});g.strokeStyle=up?"#19d38a":"#ff4d5e";g.stroke();
+    g.fillStyle="#5a6676";g.font=`400 18px ${mono}`;g.fillText("today incl. extended hours",x0,y0+h+28)}
+  const stats=[];
+  if(S.isH)stats.push(["Weight in SOXL index",(S.w*100).toFixed(2)+"%"],["Index pts today",isNum(S.contrib)?(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(2):"--"]);
+  if(isNum(S.rs)&&s!==FUND)stats.push(["vs semis index",(S.rs>=0?"+":"")+(S.rs*100).toFixed(2)+" pts"]);
+  if(s===FUND){const mm=compute();stats.push(["Semis index",fmtPct(mm.idx)],["Implied (3×)",fmtPct(mm.imp)])}
+  if(S.nx)stats.push(["Next level",`${fmtPx(S.nx.price)} · ${Math.round(S.nx.p30*100)}%`]);
+  if(S.e)stats.push(["Earnings",S.e.d.slice(5)]);
+  stats.slice(0,4).forEach(([k,v],i)=>{const x=60+i*275,y=500;g.fillStyle="rgba(255,255,255,.05)";g.fillRect(x,y,255,100);g.strokeStyle="rgba(255,255,255,.08)";g.strokeRect(x,y,255,100);
+    g.fillStyle="#8a97a8";g.font=`400 18px ${sans}`;g.fillText(k.toUpperCase(),x+16,y+34);g.fillStyle="#e6edf5";let fs=32;g.font=`600 ${fs}px ${mono}`;while(g.measureText(v).width>223&&fs>18){fs-=2;g.font=`600 ${fs}px ${mono}`}g.fillText(v,x+16,y+78)});
+  g.fillStyle="#5a6676";g.font=`400 20px ${mono}`;g.fillText(`SOXX Sniper · ${new Date().toLocaleString("en-US",{timeZone:"America/New_York",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} ET`,60,645);
+  g.textAlign="right";g.fillText("not investment advice",W-60,645);g.textAlign="left";
+  return cv;
+}
+function renderStock(force){
+  if(!curSym)return;const now=Date.now();if(!force&&now-svT<1000)return;svT=now;
+  const s=curSym,q=Q[s],d=svData[s]||{},S=svSummary(s),pr=S.pr,meta=(d.c1d&&d.c1d.meta)||{},mic=(MICRO.m&&MICRO.m[s])||((MICRO.prevM||{})[s])||{};
+  const i=ORDER.indexOf(s);
+  $("svNav").innerHTML=(i>=0?`<button data-go="${ORDER[(i-1+ORDER.length)%ORDER.length]}">← ${ORDER[(i-1+ORDER.length)%ORDER.length]}</button><button data-go="${ORDER[(i+1)%ORDER.length]}">${ORDER[(i+1)%ORDER.length]} →</button>`:"")+
+    ["SOXL","NVDA","AMD","MU","AVGO","TSM"].filter(x=>x!==s).map(x=>`<button data-go="${x}">${x}</button>`).join("");
+  $("svTk").textContent=s;$("svNm").textContent=NAMES[s]||meta.name||"";
+  $("svTags").innerHTML=`<span class="chip">${groupOf(s)}</span>`+(S.isH?`<span class="chip">#${ORDER.indexOf(s)+1} in SOXL index · ${(S.w*100).toFixed(2)}%</span>`:"")+(meta.exchange?`<span class="chip">${esc(meta.exchange)}</span>`:"");
+  $("svP").textContent=fmtPx(pr.main);
+  $("svC").innerHTML=isNum(pr.pct)?`<span class="${cls(pr.chg)}">${pr.chg>=0?"+":"−"}$${Math.abs(pr.chg).toFixed(2)} (${fmtPct(pr.pct)})</span> <span class="sub">${pr.ph==="regular"?"today":"regular session"}</span>`:'<span class="sub">vs prior close '+fmtPx(pr.pc)+"</span>";
+  $("svX").innerHTML=pr.ext?`${pr.xLab}: <b>${fmtPx(pr.xP)}</b> <span class="${cls(pr.xC)}">${pr.xC>=0?"+":"−"}$${Math.abs(pr.xC).toFixed(2)} (${fmtPct(pr.xPct)})</span>${q.xt?` · ${Math.round((now-q.xt)/60000)} min ago`:""}`:"";
+  document.title=`$${s} ${fmtPx(pr.ext?pr.xP:pr.main)} ${fmtPct(pr.ext?pr.xPct:pr.pct)} · SOXX Sniper`;
+  const tag=encodeURIComponent("$"+s);
+  $("svLinks").innerHTML=`<a class="chiplink" href="https://x.com/search?q=${tag}&f=live" target="_blank" rel="noopener">$${s} live on X</a><a class="chiplink" href="https://stocktwits.com/symbol/${ySym(s)}" target="_blank" rel="noopener">StockTwits</a><a class="chiplink" href="https://finance.yahoo.com/quote/${ySym(s)}" target="_blank" rel="noopener">Yahoo</a>${CRYPTO.includes(s)?"":`<a class="chiplink" href="https://finviz.com/quote.ashx?t=${s}" target="_blank" rel="noopener">Finviz</a>`}`;
+  // story
+  const bits=[];
+  bits.push(`<b>$${s}</b> is ${isNum(S.r)?`<b class="${cls(S.r)}">${fmtPct(S.r)}</b> ${pr.ph==="regular"?"today":"in the regular session"}`:"waiting for a quote"}`+(isNum(S.rs)&&s!==FUND?`, <b class="${cls(S.rs)}">${S.rs>=0?"outperforming":"lagging"}</b> the semis index by ${Math.abs(S.rs*100).toFixed(2)} pts.`:"."));
+  if(S.isH&&isNum(S.contrib))bits.push(`At ${(S.w*100).toFixed(2)}% of the index, it adds <b class="${cls(S.contrib)}">${(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(2)} pts</b>, about <b class="${cls(S.contrib)}">${fmtPct(3*S.contrib)}</b> of SOXL's move (≈${(3*S.contrib*Q[FUND].c>=0?"+":"−")+"$"+Math.abs(3*S.contrib*Q[FUND].c).toFixed(2)} per SOXL share).`);
+  if(s===FUND){const mm=compute();if(mm.live)bits.push(`The semis index is ${fmtPct(mm.idx)}, so 3× implies ${fmtPct(mm.imp)}; SOXL is ${mm.fr-mm.imp>=0?"above":"below"} that by ${fmtPct(Math.abs(mm.fr-mm.imp))}.`)}
+  if(pr.ext)bits.push(`${pr.xLab}: <b>${fmtPx(pr.xP)}</b> (<span class="${cls(pr.xPct)}">${fmtPct(pr.xPct)}</span>).`);
+  if(S.nx)bits.push(`Most likely next level: <b>${fmtPx(S.nx.price)}</b> (${S.nx.lab}, ${fmtPct(S.nx.dir*S.nx.d)}, ${Math.round(S.nx.p30*100)}% odds within 30 min).`);
+  if(S.e)bits.push(`Earnings: <b>${S.e.d}</b>${S.e.h==="amc"?" after the close":S.e.h==="bmo"?" before the open":""}${isNum(S.e.est)&&S.e.est!==null?`, EPS estimate ${S.e.est}`:""}.`);
+  const nm=(d.news||[]).filter(n=>Date.now()/1000-n.t<86400);if(nm.length){const sc=mean(nm.map(n=>n.s));bits.push(`News (24h): ${nm.length} headlines, tone <b class="${cls(sc)}">${sc>0.1?"positive":sc<-0.1?"negative":"mixed"}</b>.`)}
+  $("svStory").innerHTML=bits.join(" ");
+  // chart
+  const src=svRange==="5d"?d.c5d:d.c1d;let pts=[];
+  if(src&&src.bars)pts=src.bars.map(b=>{const e=etInfo(b[0]);return{t:b[0],c:b[4],d:e.d,min:e.min}}).filter(p=>p.min>=240&&p.min<1200||CRYPTO.includes(s));
+  if(!pts.length){const hb=hist[s]||[];pts=hb.filter(b=>etInfo(b.m*60000).d===etDate()).map(b=>{const e=etInfo(b.m*60000);return{t:b.m*60000,c:b.c,d:e.d,min:e.min}})}
+  if(pts.length&&q.c>0&&pts[pts.length-1].c!==q.c){const e=etInfo(now);pts.push({t:now,c:q.c,d:e.d,min:Math.max(e.min,pts[pts.length-1].min)})}
+  if(CRYPTO.includes(s))pts.forEach(p=>p.min=600);
+  $("svChartLab").textContent=svRange==="5d"?"Last 5 days · 5-minute · extended hours shaded":"Today · 1-minute · extended hours shaded";
+  priceChart($("svChart"),pts,pr.pc);
+  // stats
+  const hi52=meta.hi52||mic.hi52,lo52=meta.lo52||mic.lo52,cur=q.c;
+  const st=(k,v,sub,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||""}">${v}</div><div class="s">${sub||""}</div></div>`;
+  $("svStats").innerHTML=st("Open",fmtPx(q.o))+st("Day range",q.l>0?`${fmtPx(q.l)} – ${fmtPx(q.h)}`:"--",q.h>q.l&&cur>0?`at ${Math.round((cur-q.l)/(q.h-q.l)*100)}% of range`:"")+
+    st("Prior close",fmtPx(q.pc))+st("Volume",meta.volume?fmtVol(meta.volume):"--","shares today")+
+    st("52-week range",hi52&&lo52?`${fmtPx(lo52)} – ${fmtPx(hi52)}`:"--",hi52&&cur>0?`${fmtPct(cur/hi52-1)} from high`:"")+
+    st("Market cap",mic.mc?fmtBig(mic.mc*1e6):"--")+st("Beta",isNum(mic.beta)?mic.beta.toFixed(2):"--","vs market");
+  // impact
+  const K=statOf(getK(s).ce),Kl=statOf(getK(s).le),Kx=statOf(getK("X:"+s).ce);
+  $("svImpLab").textContent=s===FUND?"SOXL vs its index":"Effect on SOXL";
+  if(s===FUND){const mm=compute(),lf=letfFlow(todaySess());
+    $("svImpact").innerHTML=kvHtml([["Semis index (30 stocks)",`<span class="${cls(mm.idx)}">${fmtPct(mm.idx)}</span>`],["Implied SOXL (3×)",fmtPct(mm.imp)],["SOXL actual",fmtPct(mm.fr)],["Tracking gap",fmtPct(mm.fr-mm.imp)],
+      ["Rebalancing into the close",lf?`<span class="${cls(lf.usd)}">${lf.usd>=0?"buy":"sell"} ~${fmtBig(Math.abs(lf.usd))}</span>`:"--"],["Realized leverage (memory)",fmtN(statOf(getK("_IDX").ce).beta,2)+"×"]])}
+  else $("svImpact").innerHTML=kvHtml([
+    ...(S.isH?[["Weight in the index",(S.w*100).toFixed(2)+"% · rank #"+(ORDER.indexOf(s)+1)],["Index points today",isNum(S.contrib)?`<span class="${cls(S.contrib)}">${(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(3)}</span>`:"--"],
+      ["Share of SOXL's move",isNum(S.contrib)?`<span class="${cls(S.contrib)}">${fmtPct(3*S.contrib)}</span> (≈$${Math.abs(3*S.contrib*Q[FUND].c).toFixed(2)} per share)`:"--"],
+      ["If it moves 1%, SOXL moves (mechanical)",fmtPct(3*S.w*0.01,2)]]:[]),
+    ["Correlation with SOXL, 1-min (regular)",K.n>=30?`${fmtN(K.corr,2)} · ${K.n|0} min`:"learning"],
+    ["SOXL move per 1% of this (learned beta)",K.n>=30&&isNum(K.beta)?fmtPct(K.beta/100,2).replace("+","")+" per 1%":"learning"],
+    ["Moves before SOXL (lead)",Kl.n>=60?`<span class="${Kl.corr>0.03?"up":""}">${fmtN(Kl.corr,3)}</span>`:"learning"],
+    ["Correlation in extended hours",Kx.n>=20?`${fmtN(Kx.corr,2)} · ${Kx.n|0} min`:"learning"]]);
+  // peers
+  const g=groupOf(s),mm=compute(),peers=(GROUPS[g]||[]).filter(x=>Q[x]);
+  const prow=x=>{const r=dayPct(x),rs=isNum(r)&&mm.live?r-mm.idx:NaN;return`<div class="peer ${x===s?"me":""}" data-go="${x}"><span>${x}</span><span class="cbar"><span style="${r>=0?"left:50%":"right:50%"};width:${Math.min(50,Math.abs(r||0)/0.05*50).toFixed(1)}%;background:${r>=0?"var(--up)":"var(--down)"}"></span></span><span class="${cls(r)}" style="text-align:right">${fmtPct(r)}</span><span class="sub" style="text-align:right">${isNum(rs)?(rs>=0?"+":"")+(rs*100).toFixed(1):""}</span></div>`};
+  $("svPeers").innerHTML=`<div class="sub" style="margin-bottom:6px">${g} · last column: pts vs semis index</div>`+peers.sort((a,b)=>(dayPct(b)||-9)-(dayPct(a)||-9)).map(prow).join("")+
+    (g!=="Semis ETFs"?`<div class="sub" style="margin:10px 0 6px">Benchmarks</div>`+["SOXX","SOXL","QQQ"].filter(x=>x!==s).map(prow).join(""):"");
+  // levels and flow
+  const lv=svLevels(s,meta);let ins=false,h=`<tr><th class="l">Level</th><th class="l">Type</th><th>Dist</th><th class="l">30 min</th><th>ETA</th></tr>`;
+  lv.forEach(l=>{if(!ins&&l.price<q.c){h+=`<tr class="cur"><td>${fmtPx(q.c)}</td><td class="l">now</td><td></td><td class="l">σ ${(svSigma(s)*100).toFixed(2)}%/min</td><td></td></tr>`;ins=true}
+    h+=`<tr><td class="${l.dir>0?"up":"down"}">${fmtPx(l.price)}</td><td class="l">${l.lab}</td><td>${fmtPct(l.dir*l.d)}</td><td class="l"><span class="pb"><span style="width:${(l.p30*100).toFixed(0)}%"></span></span>${Math.round(l.p30*100)}%</td><td>${fmtEta(l.eta)}</td></tr>`});
+  if(!ins&&q.c>0)h+=`<tr class="cur"><td>${fmtPx(q.c)}</td><td class="l">now</td><td></td><td></td><td></td></tr>`;
+  $("svLevels").innerHTML=lv.length?h:'<tr><td class="l">Waiting for a price…</td></tr>';
+  const fw=w=>{const f=flowWin(s,w);return isNum(f.press)?`<span class="${f.press>0.53?"up":f.press<0.47?"down":""}">${Math.round(f.press*100)}% buy-side</span> <span class="sub">${fmtBig(f.dol)}</span>`:"--"};
+  $("svFlow").innerHTML=kvHtml([["Order flow, 30 min",fw(30)],["Order flow, 1 hour",fw(60)],["Order flow, today",fw(null)]]);
+  // fundamentals, analysts, earnings
+  const rec=(MICRO.r&&MICRO.r[s])||((MICRO.prevR||{})[s]);
+  const pf=x=>isNum(x)&&x!==null?x.toFixed(1)+"%":"--";
+  $("svFund").innerHTML=kvHtml([["P/E (TTM)",isNum(mic.pe)&&mic.pe>0?mic.pe.toFixed(1):"--"],["P/S (TTM)",isNum(mic.ps)?mic.ps.toFixed(1):"--"],["Revenue growth (TTM, YoY)",pf(mic.rg)],["EPS growth (TTM, YoY)",pf(mic.eg)],
+    ["Gross margin",pf(mic.gm)],["Net margin",pf(mic.nm)],["Debt / equity",isNum(mic.de)?mic.de.toFixed(2):"--"],["Current ratio",isNum(mic.cr)?mic.cr.toFixed(2):"--"],
+    ["Analysts",rec&&rec.b+rec.h+rec.s>0?`${Math.round(rec.b/(rec.b+rec.h+rec.s)*100)}% buy · ${rec.b} buy, ${rec.h} hold, ${rec.s} sell`:"--"],
+    ["Next earnings",S.e?`${S.e.d}${S.e.h==="amc"?" after close":S.e.h==="bmo"?" before open":""}`:"none in 14 days"]]);
+  $("svAn").innerHTML=rec&&rec.b+rec.h+rec.s>0?(()=>{const t=rec.b+rec.h+rec.s;return`<span style="width:${rec.b/t*100}%;background:var(--up)"></span><span style="width:${rec.h/t*100}%;background:var(--mute)"></span><span style="width:${rec.s/t*100}%;background:var(--down)"></span>`})():"";
+  const er=d.earn;
+  $("svEarn").innerHTML=er&&er.length?`<tr><th class="l">Quarter</th><th>Estimate</th><th>Actual</th><th>Surprise</th></tr>`+er.map(x=>`<tr><td>${x.period||(x.year+" Q"+x.quarter)}</td><td>${fmtN(x.estimate,2)}</td><td>${fmtN(x.actual,2)}</td><td class="${cls(x.surprisePercent)}">${isNum(x.surprisePercent)?(x.surprisePercent>=0?"beat +":"miss ")+x.surprisePercent.toFixed(1)+"%":"--"}</td></tr>`).join(""):`<tr><td class="l sub">${CRYPTO.includes(s)||groupOf(s).match(/ETF|Market|Bonds|Oil/)?"Not applicable for this symbol":er?"No earnings data":"Loading…"}</td></tr>`;
+  // news
+  const extra=NEWS.filter(n=>String(n.relSym||"").split(",").includes(s)||new RegExp("\\b("+s+"|"+(NAMES[s]||"").split(" ")[0]+")\\b","i").test(n.h));
+  const seen=new Set(),list=[...(d.news||[]),...extra].filter(n=>{if(seen.has(n.id))return false;seen.add(n.id);return true}).sort((a,b)=>b.t-a.t).slice(0,30);
+  scoreHead("svNewsS",list.length?mean(list.slice(0,15).map(n=>n.s)):NaN);
+  $("svNews").innerHTML=list.length?list.map(n=>{const a=Math.round((Date.now()/1000-n.t)/60);return`<div class="nrow"><span class="ndot" style="background:${n.s>0.15?"var(--up)":n.s<-0.15?"var(--down)":"var(--mute)"}"></span><span class="sub">${a<60?a+"m":a<1440?Math.round(a/60)+"h":Math.round(a/1440)+"d"}</span><span class="nh">${n.url?`<a href="${String(n.url).replace(/"/g,"&quot;")}" target="_blank" rel="noopener">${esc(n.h)}</a>`:esc(n.h)} <span class="sub">${esc(n.src||"")}</span>${(n.tags||[]).map(t=>`<span class="tag">${t}</span>`).join("")}</span></div>`}).join(""):`<div class="sub">${apiKey||demo?"No recent headlines for this symbol.":"Add your Finnhub key for company news."}</div>`;
+}
+function fmtVol(v){return v>=1e9?(v/1e9).toFixed(2)+"B":v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"k":String(v)}
+document.addEventListener("click",e=>{const g=e.target.closest("[data-go]");if(g){location.hash="#/s/"+g.dataset.go}});
+$("svBack").onclick=()=>{location.hash="#/"};
+$("shareMain").onclick=()=>{location.hash="#/s/"+FUND};
+document.querySelector(".brand").onclick=()=>{location.hash="#/"};
+document.querySelectorAll("[data-svr]").forEach(b=>b.onclick=()=>{svRange=b.dataset.svr;document.querySelectorAll("[data-svr]").forEach(x=>x.classList.toggle("on",x===b));if(curSym){if(svRange==="5d"&&!(svData[curSym]||{}).c5d)svLoad(curSym,false);renderStock(true)}});
+$("svTweet").onclick=()=>{if(curSym)window.open("https://x.com/intent/tweet?text="+encodeURIComponent(tweetText(curSym)),"_blank","noopener")};
+$("svCopy").onclick=async()=>{if(!curSym)return;const t=tweetText(curSym);try{await navigator.clipboard.writeText(t);$("svCopy").textContent="Copied ✓"}catch(e){prompt("Copy this text:",t)}setTimeout(()=>$("svCopy").textContent="Copy summary",1800)};
+$("svCard").onclick=()=>{if(!curSym)return;const cv=drawCard(curSym);cv.toBlob(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`${curSym}-soxx-sniper-${etDate()}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)},"image/png")};
+window.addEventListener("hashchange",route);
+setInterval(()=>{if(curSym){svLoad(curSym,false)}},60000);
+setInterval(()=>{if(curSym&&Date.now()-((svData[curSym]||{}).t||0)>5*60000)svLoad(curSym,true)},30000);
+
 /* ---------- controls ---------- */
 function openModal(msg){$("keyErr").textContent=msg||"";$("keyIn").value=apiKey||"";$("proxyIn").value=fredProxy();$("modal").classList.add("show")}
 $("keyBtn").onclick=()=>openModal();
@@ -2214,7 +2506,9 @@ document.querySelectorAll("[data-ks]").forEach(b=>b.onclick=()=>{kSort=b.dataset
 /* ---------- loops ---------- */
 buildTiles();
 setInterval(()=>{$("clock").textContent=new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York"})+" ET"},1000);
-setInterval(()=>{if(dirty){dirty=false;render()}},400);
+setInterval(()=>{if(dirty||curSym){dirty=false;render()}},400);
+window.addEventListener("resize",()=>{if(curSym)renderStock(true)});
+setTimeout(route,50);
 setInterval(()=>{const M=Math.floor(Date.now()/60000);if(lastM===null)lastM=M;if(M>lastM){finalizeMinute(lastM);lastM=M}},1000);
 setInterval(renderAnalysis,2000);
 setInterval(()=>{pushPoint(compute());drawChart()},10000);
