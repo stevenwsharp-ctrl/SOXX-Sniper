@@ -10,6 +10,34 @@ Live site: https://stevenwsharp-ctrl.github.io/SOXX-Sniper/
 
 ## What it does
 
+### Main page order (most useful first)
+1. **Market strip:** $SOXL, the 30-stock index, the real **SOX, Nasdaq, S&P 500 and Dow levels with point changes**, VIX, the 10-year yield (in basis points) and Bitcoin.
+2. **After-hours / pre-market banner** (only outside regular hours).
+3. **Index cards:** the weighted index (% and ≈ SOX points), implied SOXL, SOXL actual ($ and %), and the tracking gap.
+4. **Post kit and live alerts** (see below).
+5. **Decision read**, then **Movers**, then the **30 holding tiles**.
+6. Liquidity map, cross-market table (now with a **Day chg** column), sessions, extended hours, price flow, rule finder, macro, news, and the memory sections.
+
+### Post kit (for X and StockTwits)
+Five updates that the page writes again every few seconds from live data. Each shows its character count and has **Post on X**, **StockTwits** (copies the text and opens $SOXL on StockTwits) and **Copy**:
+- **Market pulse:** SOXL price and change, $SOX points, the index and 3× implied move, breadth, fear and greed, and the current read.
+- **Top movers:** the top 3 gainers and losers in the index.
+- **Who's driving $SOXL:** the stocks that add or remove the most **$SOX points** today.
+- **Levels to watch:** the next levels above and below, with the touch odds in 30 minutes, and the liquidity flush level.
+- **After-hours / pre-market** (outside regular hours) or **Smart money** (during regular hours).
+
+**Add link** puts a link to the live page on each post. **Download SOXL card** saves a 1200 × 675 image for a post. The chips open the live $cashtag feeds on X and StockTwits.
+
+### Live alerts
+The page watches the market every 5 seconds and writes a post-ready alert when:
+- SOXL moves ±2% in 15 minutes, or makes a new high or low of the day.
+- The 30-stock index crosses ±1, 2 or 3%, or a top-10 holding crosses ±3 or 5%.
+- SOXL moves ±1, 2, 3 or 5% in after-hours or pre-market.
+- The tracking gap is 0.6% or more, or large prints are $3M or more net in 5 minutes.
+- Fear and greed is 25 or less, or 75 or more, or the VIX is up 10% or more.
+
+Only the largest threshold that is crossed makes an alert. Select **Alerts: on** to also get browser notifications (the browser asks for permission once).
+
 ### Live tracking
 - **After-hours and pre-market banner** at the top, with the live price and the change in $ and % since the close.
 - **All 30 holdings** as live tiles, colored by % change. Each tile shows the stock's weight, its contribution to the index, and its next likely price level.
@@ -88,7 +116,8 @@ The key stays in your browser only (localStorage). It is not in the repository.
    | `ALLOW_ORIGIN` | Text | `https://stevenwsharp-ctrl.github.io` |
 
 6. Open `https://<your-worker>.workers.dev/health`. It must show `{"ok":true,"key":true,"hist":true}`.
-7. On the site, select **API key** and paste the Worker URL (without `/health`) into the FRED proxy field.
+7. When you get a new `worker.js`, open the Worker, select **Edit code**, replace all the code, and select **Deploy** again. You do not need to change the variables.
+8. On the site, select **API key** and paste the Worker URL (without `/health`) into the FRED proxy field.
 
 On the first visit, the site loads about 2 years of 5-minute SOXL bars. This takes about 3 minutes; keep the tab in front during that time.
 
@@ -107,7 +136,7 @@ Select **Demo mode** in the API key box to see every panel with simulated data. 
 | alternative.me | no | Crypto Fear & Greed | Daily |
 | FRED, via the Worker | yes | Yields, credit spreads, funding, liquidity, macro, consumer credit, debt ratios, oil | Daily to quarterly |
 | Massive (Polygon), via the Worker | yes | 2 years of 5-minute bars with extended hours | End of day |
-| Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, stock-page charts, volume, 52-week range | About 15 s |
+| Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, index levels (SOX, Dow, S&P 500, Nasdaq, VIX, 10Y), stock-page charts, volume, 52-week range | About 15–20 s |
 
 Yahoo Finance and Nasdaq.com do not officially support these data addresses, so they can change. If they stop, the banner shows an error, and **System health** shows "Extended-hours prices ✕".
 
@@ -115,7 +144,8 @@ Yahoo Finance and Nasdaq.com do not officially support these data addresses, so 
 
 ## Limits
 - **Finnhub free:** 60 calls per minute and 50 websocket symbols. The site uses 49 symbols and stays under 55 calls per minute.
-- **Index values:** the Dow, S&P 500 and Nasdaq are shown through their ETFs, because index data is not free.
+- **Index values:** the market strip shows the real SOX, Nasdaq, S&P 500, Dow, VIX and 10-year levels from Yahoo Finance through the Worker (about every 20 s). The cross-market table still uses the ETFs (DIA, SPY, QQQ), because Finnhub gives them live. Without the Worker, the strip shows SOXX in place of SOX.
+- **SOX points:** a stock's points = its index contribution × the SOX prior close. The 30-stock index is an estimate, so its SOX points are shown with "≈" and can differ a little from the real SOX.
 - **Holdings and weights:** from the iShares SOXX holdings file (Oct 19, 2026). Update the `HOLDINGS` list in `index.html` after each quarterly rebalance.
 - **Leveraged-ETF assets:** `LETF_AUM` in `index.html` holds approximate values for SOXL and SOXS. Update them from direxion.com when they change.
 - **Smart money:** no free source shows institutional orders directly. The Smart Money Index and large prints are proxies.

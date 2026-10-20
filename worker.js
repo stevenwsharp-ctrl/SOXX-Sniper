@@ -86,7 +86,7 @@ const UA = { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Appl
 async function yahooQuote(t) {
   for (const host of ["query1", "query2"]) {
     try {
-      const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${t}?interval=1m&range=1d&includePrePost=true`, { headers: UA });
+      const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?interval=1m&range=1d&includePrePost=true`, { headers: UA });
       if (!r.ok) continue;
       const j = await r.json();
       const res = j && j.chart && j.chart.result && j.chart.result[0];
@@ -124,7 +124,7 @@ async function nasdaqQuote(t) {
 async function extQuote(t) {
   const hit = extMemo.get(t);
   if (hit && Date.now() - hit.at < EXT_TTL_MS) return hit.q;
-  const q = (await yahooQuote(t)) || (await nasdaqQuote(t));
+  const q = (await yahooQuote(t)) || (t.startsWith("^") ? null : await nasdaqQuote(t));
   if (q) extMemo.set(t, { at: Date.now(), q });
   return q;
 }
@@ -135,7 +135,7 @@ async function yahooChart(t, range, interval) {
   if (hit && Date.now() - hit.at < (interval === "1m" ? 20000 : 60000)) return hit.body;
   for (const host of ["query1", "query2"]) {
     try {
-      const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${t}?interval=${interval}&range=${range}&includePrePost=true`, { headers: UA });
+      const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?interval=${interval}&range=${range}&includePrePost=true`, { headers: UA });
       if (!r.ok) continue;
       const j = await r.json(), res = j && j.chart && j.chart.result && j.chart.result[0];
       if (!res) continue;
@@ -164,7 +164,7 @@ export default {
       });
     }
     if (url.pathname === "/ext") {
-      const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^[A-Z][A-Z.\-]{0,5}$/.test(s)).slice(0, 20);
+      const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^\^?[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 24);
       const quotes = {};
       await Promise.all(list.map(async t => { const q = await extQuote(t); if (q) quotes[t] = q; }));
       return new Response(JSON.stringify({ t: Date.now(), quotes }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -174,7 +174,7 @@ export default {
       const range = ["1d", "5d", "1mo"].includes(url.searchParams.get("range")) ? url.searchParams.get("range") : "1d";
       const interval = ["1m", "2m", "5m", "15m", "30m", "60m"].includes(url.searchParams.get("interval")) ? url.searchParams.get("interval") : "1m";
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
-      if (!/^[A-Z][A-Z.\-]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
+      if (!/^\^?[A-Z][A-Z.\-]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
       return json(await yahooChart(t, range, interval));
     }
     if (url.pathname === "/hist") {

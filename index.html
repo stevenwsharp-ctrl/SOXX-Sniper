@@ -32,6 +32,25 @@ button,select{font-family:var(--mono);font-size:12px;color:var(--ink);background
 button:hover,select:hover{border-color:var(--accent)}
 button.on{border-color:var(--accent);color:var(--accent)}
 button.danger:hover{border-color:var(--down);color:var(--down)}
+.mstrip{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px;scrollbar-width:thin}
+.mi{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-family:var(--mono);min-width:150px;cursor:default}
+.mi[data-go]{cursor:pointer}.mi:hover{border-color:var(--accent)}
+.mi .n{font-size:11px;color:var(--dim);letter-spacing:.5px}.mi .v{font-size:16px;font-weight:600;margin-top:2px}.mi .c{font-size:12px;margin-top:1px}
+.postkit{margin-bottom:12px;border-color:rgba(77,163,255,.45);background:linear-gradient(180deg,rgba(77,163,255,.07),transparent 50%),var(--panel)}
+.pkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.pk{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.pk .t{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between}
+.pk pre{margin:0;white-space:pre-wrap;font-family:var(--sans);font-size:14px;line-height:1.5;color:var(--ink);flex:1}
+.pk .b{display:flex;gap:6px;flex-wrap:wrap}.pk .b button{padding:5px 9px;font-size:11px}
+.pk .b .x{background:#e6edf5;color:#07090d;border-color:#e6edf5;font-weight:600}
+.alerts{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}
+.al{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px}
+.al .tm{font-family:var(--mono);font-size:11px;color:var(--mute)}.al .b{display:flex;gap:6px}.al .b button{padding:4px 8px;font-size:11px}
+.al.hot{border-color:rgba(255,181,71,.6)}
+.mvgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
+.mvcol .h{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+.mvr{display:grid;grid-template-columns:58px 1fr 76px;gap:8px;font-family:var(--mono);font-size:13px;padding:5px 0;border-bottom:1px solid rgba(30,40,53,.6);cursor:pointer}
+.mvr:hover{color:var(--accent)}
 .tile{cursor:pointer}.tile:hover{border-color:var(--accent);transform:translateY(-1px)}
 .brand{cursor:pointer}
 .sv-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
@@ -234,6 +253,33 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </div>
 
   <div id="mainView">
+  <section class="mstrip" id="mStrip"></section>
+
+  <section class="card postkit" id="postKit">
+    <div class="toolbar" style="margin:0 0 10px">
+      <div class="label" style="margin:0">Post kit · ready-to-post updates, live</div>
+      <div class="row">
+        <label class="sub" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pkLink" checked> add link</label>
+        <button id="pkCard">Download SOXL card</button>
+        <button id="alertBtn">Alerts: off</button>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <a class="chiplink" href="https://x.com/search?q=%24SOXL&f=live" target="_blank" rel="noopener">$SOXL live on X</a>
+      <a class="chiplink" href="https://stocktwits.com/symbol/SOXL" target="_blank" rel="noopener">$SOXL on StockTwits</a>
+      <a class="chiplink" href="https://x.com/search?q=%24SOX%20OR%20%24SOXX%20OR%20%24SMH&f=live" target="_blank" rel="noopener">$SOX $SOXX $SMH on X</a>
+      <a class="chiplink" href="https://stocktwits.com/symbol/SOXS" target="_blank" rel="noopener">$SOXS on StockTwits</a>
+      <a class="chiplink" href="https://x.com/search?q=%24NVDA%20OR%20%24AMD%20OR%20%24MU%20OR%20%24AVGO&f=live" target="_blank" rel="noopener">Top holdings on X</a>
+    </div>
+    <div class="pkgrid" id="pkGrid"></div>
+    <div class="label" style="margin-top:14px">Live alerts · post-ready</div>
+    <div id="alertList" class="alerts"></div>
+  </section>
+
+  <section class="card" id="moversCard" style="margin-bottom:12px">
+    <div class="label">Movers · SOXL index stocks today</div>
+    <div class="mvgrid" id="mvGrid"></div>
+  </section>
 
   <section class="extbar" id="extBar" style="display:none">
     <div><div class="label" id="ebLab" style="margin:0">After-hours</div><div class="ebp" id="ebPx">--</div></div>
@@ -706,7 +752,7 @@ async function extTick(force){
     extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
   }catch(e){extInfo.ok=false;extInfo.err="Worker /ext did not answer (update the Worker code)";srcOk.ext=false}
 }
-function startExt(){clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),15000)}
+function startExt(){startIdx();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),15000)}
 
 /* ---------- off-hours memory: extended-hours learning, overnight recording ---------- */
 function offHours(M,d,bars,r){
@@ -1735,10 +1781,10 @@ function render(){
   renderExtBar();
   const m=compute(),now=Date.now();
   $("idxPct").textContent=m.live?fmtPct(m.idx):"--";$("idxPct").className="big "+cls(m.idx);
-  $("idxSub").textContent=`${m.live} of 30 stocks live`;
+  {const sx=idxChg("^SOX");$("idxSub").innerHTML=`${m.live} of 30 live · ${isFinite(soxBase())?"≈ "+ipts(m.idx)+" SOX":ipts(m.idx)}`+(sx?` · <span class="${cls(sx.ch)}">$SOX ${fmtNum(sx.p)} ${sgn(sx.ch)} pts</span>`:"")}
   $("impPct").textContent=m.live?fmtPct(m.imp):"--";$("impPct").className="big "+cls(m.imp);
   $("impPx").textContent="Implied price "+(m.fpc>0&&m.live?fmtPx(m.fpc*(1+m.imp)):"--");
-  $("soxPx").textContent=fmtPx(m.fpx);
+  $("soxPx").innerHTML=fmtPx(m.fpx)+(m.fpc>0&&m.fpx>0?` <span class="mid ${cls(m.fpx-m.fpc)}">${sgn(m.fpx-m.fpc)}</span>`:"");
   const phNow=demo?"regular":phaseAt(now);
   $("soxPct").textContent=isFinite(m.fr)?fmtPct(m.fr)+(phNow==="regular"?" today":phNow==="pre"?" vs prior close, pre-market":" since prior close, incl. after-hours"):"--";$("soxPct").className="mid "+cls(m.fr);
   const gap=m.fr-m.imp;$("gap").textContent=isFinite(gap)&&m.live?fmtPct(gap):"--";$("gap").className="big "+(Math.abs(gap)<0.003?"":cls(gap));
@@ -1749,14 +1795,14 @@ function render(){
     $("w_"+r.s).textContent=r.ok?(r.w*100).toFixed(2)+"%":"n/a";
     $("p_"+r.s).textContent=fmtPx(r.c);
     $("c_"+r.s).textContent=r.ok?fmtPct(r.r)+"  "+(r.c-r.pc>=0?"+":"")+(r.c-r.pc).toFixed(2):"no data";
-    $("x_"+r.s).textContent="contrib "+(r.ok?((r.contrib*100>=0?"+":"")+(r.contrib*100).toFixed(3)+" pts"):"--");
+    $("x_"+r.s).textContent=(r.ok?ipts(r.contrib,2):"--");
     $("b_"+r.s).style.width=(r.w/maxW*100).toFixed(1)+"%";
     el.classList.toggle("flash-up",now-r.flash<700&&Q[r.s].dir>0);el.classList.toggle("flash-down",now-r.flash<700&&Q[r.s].dir<0);
   });
   const cs=[...m.rows].filter(r=>r.ok).sort((a,b)=>b.contrib-a.contrib);
   const maxC=Math.max(...cs.map(r=>Math.abs(r.contrib)),0.00001);
   $("contrib").innerHTML=cs.map(r=>{const w=Math.abs(r.contrib)/maxC*50,pos=r.contrib>=0;
-    return`<div class="crow"><span>${r.s}</span><div class="cbar"><span style="${pos?"left:50%":"right:50%"};width:${w.toFixed(1)}%;background:${pos?"var(--up)":"var(--down)"}"></span></div><span class="${cls(r.contrib)}" style="text-align:right">${(r.contrib*100>=0?"+":"")+(r.contrib*100).toFixed(3)}</span></div>`}).join("")||'<div class="sub">Waiting for data…</div>';
+    return`<div class="crow"><span>${r.s}</span><div class="cbar"><span style="${pos?"left:50%":"right:50%"};width:${w.toFixed(1)}%;background:${pos?"var(--up)":"var(--down)"}"></span></div><span class="${cls(r.contrib)}" style="text-align:right">${ipts(r.contrib,2)}</span></div>`}).join("")||'<div class="sub">Waiting for data…</div>';
 }
 function renderAnalysis(){
   const lv=soxlLevels();
@@ -1952,8 +1998,11 @@ function renderSess(D){
 }
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function fmtBig(x){return!(x>0)?"$0":x>=1e12?"$"+(x/1e12).toFixed(3)+"T":x>=1e9?"$"+(x/1e9).toFixed(2)+"B":x>=1e6?"$"+(x/1e6).toFixed(2)+"M":x>=1e3?"$"+(x/1e3).toFixed(0)+"k":fmtPx(x)}
+var pkT=0;
 function renderCross(){
-  const D=decide(),cm=D.cm,pos=D.pos,fg=D.fg;
+  const D=decide(),cm=D.cm,pos=D.pos,fg=D.fg;lastD=D;
+  try{renderStrip()}catch(e){console.warn("strip",e)}
+  if(Date.now()-pkT>2500){pkT=Date.now();try{renderPostKit(D)}catch(e){console.warn("postkit",e)}}
   $("dStance").textContent=D.stance;$("dStance").className="stance "+(D.bias>0.25?"up":D.bias<-0.25?"down":"");
   $("dRegime").textContent=D.regime;
   $("dMark").style.left=isFinite(D.bias)?`calc(${((D.bias+1)/2*100).toFixed(1)}% - 2px)`:"calc(50% - 2px)";
@@ -1977,11 +2026,13 @@ function renderCross(){
   $("dFlags").innerHTML=D.flags.map(f=>`<li>${f}</li>`).join("");
 
   const cell=o=>!o||!isFinite(o.r)?'<td class="sum">--</td>':`<td class="${cls(o.r)}">${o.approx?"≈":""}${fmtPct(o.r)}</td>`;
-  let h=`<tr><th class="l">Market</th><th>Price</th>${WINS.map(([w])=>`<th>${w}</th>`).join("")}</tr>`;
+  let h=`<tr><th class="l">Market</th><th>Price</th><th>Day chg</th>${WINS.map(([w])=>`<th>${w}</th>`).join("")}</tr>`;
+  const dchg=k=>{if(k==="_IDX"){const m=compute();return m.live?`<td class="${cls(m.idx)}">${ipts(m.idx)}</td>`:"<td>--</td>"}
+    const q=Q[k];if(!q||!(q.c>0)||!(q.pc>0)||CRYPTO.includes(k))return'<td class="sum">--</td>';const d=q.c-q.pc;return`<td class="${cls(d)}">${sgn(d)}</td>`};
   XM.forEach(x=>{const p=priceNow(x.k);
-    h+=`<tr ${SYMS.includes(x.k)?`data-go="${x.k}" style="cursor:pointer"`:""}><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="TOTAL"?fmtBig(p):x.k==="_IDX"?"":fmtPx(p)}</td>${WINS.map(([w])=>cell(cm.tbl[x.k][w])).join("")}</tr>`});
-  h+=`<tr><td class="sum">Alignment</td><td></td>${WINS.map(([w])=>{const a=cm.win[w];return`<td class="${cls(a.align)}">${isFinite(a.align)?(a.align>0?"↑ ":"↓ ")+(a.align>0?a.up:a.n-a.up)+"/"+a.n:"--"}</td>`}).join("")}</tr>`;
-  h+=`<tr><td class="sum">Beta order (ρ)</td><td></td>${WINS.map(([w])=>{const r=cm.win[w].rho;return`<td class="${r>0.4?"up":r<-0.4?"down":"meh"}">${fmtN(r,2)}</td>`}).join("")}</tr>`;
+    h+=`<tr ${SYMS.includes(x.k)?`data-go="${x.k}" style="cursor:pointer"`:""}><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="TOTAL"?fmtBig(p):x.k==="_IDX"?"":fmtPx(p)}</td>${dchg(x.k)}${WINS.map(([w])=>cell(cm.tbl[x.k][w])).join("")}</tr>`});
+  h+=`<tr><td class="sum">Alignment</td><td></td><td></td>${WINS.map(([w])=>{const a=cm.win[w];return`<td class="${cls(a.align)}">${isFinite(a.align)?(a.align>0?"↑ ":"↓ ")+(a.align>0?a.up:a.n-a.up)+"/"+a.n:"--"}</td>`}).join("")}</tr>`;
+  h+=`<tr><td class="sum">Beta order (ρ)</td><td></td><td></td>${WINS.map(([w])=>{const r=cm.win[w].rho;return`<td class="${r>0.4?"up":r<-0.4?"down":"meh"}">${fmtN(r,2)}</td>`}).join("")}</tr>`;
   $("xmTbl").innerHTML=h;
 
   $("fgScore").textContent=isFinite(fg.score)?Math.round(fg.score):"--";
@@ -2257,6 +2308,7 @@ async function startDemo(){
   const mkt={v:0},cry={v:0},oil={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
   let lagIdx=0;const vol=()=>Math.round(100+Math.random()*2000);
   const drift=(s,tgtR)=>{const q=Q[s];const tgt=q.pc*(1+tgtR+(Math.random()-0.5)*0.0015);onTick(s,+(q.c+(tgt-q.c)*0.35).toFixed(2),vol())};
+  startIdx();
   demoTimer=setInterval(()=>{
     mkt.v+=(Math.random()-0.5)*0.0003;cry.v+=(Math.random()-0.5)*0.0004+(Math.random()-0.5)*0.0002*Math.sign(mkt.v);
     HOLDINGS.forEach(h=>{if(Math.random()<0.6){const q=Q[h[0]];const tgt=q.pc*(1+mkt.v*beta[h[0]]+(Math.random()-0.5)*0.004);onTick(h[0],+(q.c+(tgt-q.c)*0.3).toFixed(2),Math.round(Math.random()*500))}});
@@ -2272,6 +2324,159 @@ async function startDemo(){
   },1000);
   setFeed("warn","Feed: demo");marketStatus();
 }
+
+/* ---------- market strip: real index levels with point changes ---------- */
+var IDX_LIST=[["^SOX","SOX (PHLX Semis)"],["^IXIC","Nasdaq"],["^GSPC","S&P 500"],["^DJI","Dow"],["^VIX","VIX"],["^TNX","10Y yield"]];
+var IDXQ={},idxTimer=null;
+function soxBase(){const q=IDXQ&&IDXQ["^SOX"];return q&&q.pc>0?q.pc:NaN}
+/* contribution (fraction of index) → SOX points when the SOX feed is live, else percentage points */
+function ipts(c,d){const b=soxBase();return isFinite(b)?(c>=0?"+":"−")+Math.abs(c*b).toFixed(d==null?1:d)+" pts":(c>=0?"+":"−")+Math.abs(c*100).toFixed(2)+" pp"}
+async function pollIdx(){
+  if(demo){IDX_LIST.forEach(([k],i)=>{const base=[6123,22650,6735,46820,16.4,4.12][i];const q=IDXQ[k]||(IDXQ[k]={pc:base,p:base});q.p=+(q.p*(1+(Math.random()-0.5)*0.0012)).toFixed(2)});return}
+  const p=fredProxy();if(!p)return;
+  try{const j=await(await fetch(`${p}/ext?t=${IDX_LIST.map(x=>x[0]).join(",")}`)).json();
+    for(const k in j.quotes){const x=j.quotes[k];IDXQ[k]={p:x.price,pc:x.prevClose||x.regularClose,t:x.time}}}catch(e){}
+}
+function startIdx(){clearInterval(idxTimer);pollIdx();idxTimer=setInterval(pollIdx,20000)}
+const fmtNum=(x,d=2)=>isFinite(x)?x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}):"--";
+const sgn=(x,d=2)=>isFinite(x)?(x>=0?"+":"−")+fmtNum(Math.abs(x),d):"--";
+function idxChg(k){const q=IDXQ[k];if(!q||!(q.p>0)||!(q.pc>0))return null;return{p:q.p,ch:q.p-q.pc,pct:q.p/q.pc-1}}
+function renderStrip(){
+  const items=[];
+  const add=(n,v,ch,pct,go,inv,bp)=>items.push(`<div class="mi" ${go?`data-go="${go}" style="cursor:pointer"`:""}><div class="n">${n}</div><div class="v">${v}</div><div class="c ${cls(inv?-ch:ch)}">${!isFinite(ch)?"--":bp?(ch>=0?"+":"−")+Math.abs(ch).toFixed(1)+" bp":sgn(ch)+" ("+fmtPct(pct)+")"}</div></div>`);
+  const pr=svPrices(FUND);add("$SOXL"+(pr.ext?" · "+(pr.xLab==="Pre-market"?"PM":"AH"):""),fmtPx(pr.ext?pr.xP:pr.main),pr.ext?pr.xC:pr.chg,pr.ext?pr.xPct:pr.pct,FUND);
+  const m=compute();if(m.live)items.push(`<div class="mi"><div class="n">SEMIS 30 (SOXL index)</div><div class="v ${cls(m.idx)}">${fmtPct(m.idx)}</div><div class="c">3× = ${fmtPct(m.imp)}</div></div>`);
+  IDX_LIST.forEach(([k,n])=>{const c=idxChg(k);if(c)add(n,k==="^TNX"?c.p.toFixed(3)+"%":fmtNum(c.p,2),k==="^TNX"?c.ch*100:c.ch,c.pct,null,k==="^VIX"||k==="^TNX",k==="^TNX");
+    else if(k==="^SOX"&&Q.SOXX.c>0)add("SOXX (no index feed)",fmtPx(Q.SOXX.c),Q.SOXX.c-Q.SOXX.pc,dayPct("SOXX"),"SOXX")});
+  if(Q.BTC.c>0){const b=winRet("BTC","24h");add("Bitcoin (24h)",fmtPx(Q.BTC.c).replace(".00",""),b.r*Q.BTC.c/(1+b.r),b.r,"BTC")}
+  $("mStrip").innerHTML=items.join("");
+}
+
+/* ---------- post kit: ready-to-post updates ---------- */
+const cash=s=>"$"+s;
+function pkPosts(D){
+  const P=[],m=compute(),pr=svPrices(FUND),sox=idxChg("^SOX"),ok=m.rows.filter(r=>r.ok);
+  const soxl=`$SOXL ${fmtPx(pr.main)} ${isFinite(pr.chg)?sgn(pr.chg)+" ("+fmtPct(pr.pct)+")":""}`.trim()+(pr.ext?` | ${pr.xLab==="Pre-market"?"PM":"AH"} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`:"");
+  const up=ok.filter(r=>r.r>0).length,dn=ok.filter(r=>r.r<0).length;
+  // 1 market pulse
+  let t=[soxl];
+  if(sox)t.push(`$SOX ${fmtNum(sox.p,2)} ${sgn(sox.ch)} pts (${fmtPct(sox.pct)})`);
+  if(m.live)t.push(`Semis 30: ${fmtPct(m.idx)} → 3× = ${fmtPct(m.imp)}${isFinite(m.fr)?` · gap ${fmtPct(m.fr-m.imp)}`:""}`);
+  if(ok.length)t.push(`Breadth ${up}▲ / ${dn}▼${D&&isFinite(D.fg.score)?` · Fear & Greed ${Math.round(D.fg.score)} (${D.fg.label})`:""}`);
+  if(D&&D.stance&&D.stance!=="--")t.push(`Read: ${D.stance} · ${D.regime.split(":")[0]}`);
+  P.push({k:"pulse",title:"Market pulse",text:t.join("\n")+"\n#SOXL #semiconductors"});
+  // 2 top movers
+  const srt=[...ok].sort((a,b)=>b.r-a.r),g=srt.slice(0,3).filter(r=>r.r>0),l=srt.slice(-3).reverse().filter(r=>r.r<0);
+  t=["Semis movers today (SOXL index):"];
+  if(g.length)t.push("▲ "+g.map(r=>`${cash(r.s)} ${fmtPct(r.r,1)}`).join("  "));
+  if(l.length)t.push("▼ "+l.map(r=>`${cash(r.s)} ${fmtPct(r.r,1)}`).join("  "));
+  t.push(`$SOXL ${fmtPct(pr.pct)} · $SOXS ${fmtPct(dayPct("SOXS"))}`);
+  P.push({k:"movers",title:"Top movers",text:t.join("\n")});
+  // 3 drivers
+  const cs=[...ok].sort((a,b)=>b.contrib-a.contrib),pos=cs.filter(r=>r.contrib>0).slice(0,3),neg=cs.filter(r=>r.contrib<0).slice(-3).reverse();
+  const pts=r=>ipts(r.contrib);
+  t=[`Who's driving $SOXL today (${isFinite(soxBase())?"$SOX points":"index % points"}):`];
+  if(pos.length)t.push("▲ "+pos.map(r=>`${cash(r.s)} ${pts(r)}`).join(" · "));
+  if(neg.length)t.push("▼ "+neg.map(r=>`${cash(r.s)} ${pts(r)}`).join(" · "));
+  if(m.live)t.push(`Index ${fmtPct(m.idx)} → 3× ${fmtPct(m.imp)} · $SOXL ${fmtPct(pr.pct)}`);
+  P.push({k:"drivers",title:"Who's driving $SOXL",text:t.join("\n")});
+  // 4 levels
+  const lv=D&&D.lv;t=[`$SOXL levels to watch (${fmtPx(Q[FUND].c)}):`];
+  if(lv&&lv.up)t.push(`▲ ${fmtPx(lv.up.price)} · ${lv.up.label.split(" + ")[0]} · ${Math.round(lv.up.p30*100)}% odds in 30m`);
+  if(lv&&lv.dn)t.push(`▼ ${fmtPx(lv.dn.price)} · ${lv.dn.label.split(" + ")[0]} · ${Math.round(lv.dn.p30*100)}% odds in 30m`);
+  if(lv&&lv.fl)t.push(`Liquidity flush: ${fmtPx(lv.fl.price)} (${lv.fl.label.split(" + ")[0]}) ${fmtEta(lv.fl.eta)}`);
+  if(D&&D.T&&D.T.c0>0)t.push(`Prior close ${fmtPx(D.T.c0)}`);
+  P.push({k:"levels",title:"Levels to watch",text:t.join("\n")});
+  // 5 extended hours or smart money
+  if(pr.ext){
+    const mv=["NVDA","AMD","AVGO","MU","TSM","INTC"].map(s=>({s,p:svPrices(s)})).filter(x=>x.p.ext&&isFinite(x.p.xPct)).sort((a,b)=>Math.abs(b.p.xPct)-Math.abs(a.p.xPct)).slice(0,4);
+    t=[`${pr.xLab==="Pre-market"?"Pre-market":"After-hours"} $SOXL ${fmtPx(pr.xP)} ${sgn(pr.xC)} (${fmtPct(pr.xPct)}) vs ${pr.xLab==="Pre-market"?"prior close":"4pm close"} ${fmtPx(pr.xLab==="Pre-market"?pr.pc:pr.main)}`];
+    if(mv.length)t.push(mv.map(x=>`${cash(x.s)} ${fmtPct(x.p.xPct,1)}`).join(" · "));
+    const ex=D&&D.stS&&D.stS.ext;if(ex&&isFinite(ex.ovVar))t.push(`${Math.round(ex.ovVar*100)}% of $SOXL's day-to-day variance comes from the overnight gap`);
+    P.push({k:"ext",title:pr.xLab,text:t.join("\n")});
+  }else{
+    const bf=blockFlow(60),pos1=D&&D.pos&&D.pos["1h"];t=[`Smart-money read on $SOXL:`];
+    if(D&&D.stS&&D.stS.n>=20)t.push(`SMI 20 days: ${D.stS.div.split(":")[0]}`);
+    if(bf.n)t.push(`Large prints (≥$250k) 1h: ${bf.net>=0?"+":"−"}${fmtBig(Math.abs(bf.net))} net, ${Math.round((bf.ratio+1)/2*100)}% bull`);
+    if(pos1&&isFinite(pos1.net))t.push(`Order flow 1h: ${Math.round(pos1.net*100)}% buy-side`);
+    if(pos1&&isFinite(pos1.share))t.push(`Bull vs bear ETF $: ${Math.round(pos1.share*100)}% $SOXL / ${Math.round((1-pos1.share)*100)}% $SOXS`);
+    P.push({k:"smart",title:"Smart money",text:t.join("\n")});
+  }
+  return P;
+}
+const siteURL=s=>`${location.origin}${location.pathname}${s?"#/s/"+s:""}`;
+function xIntent(text,s){const u=$("pkLink")&&$("pkLink").checked?"&url="+encodeURIComponent(siteURL(s)):"";window.open("https://x.com/intent/tweet?text="+encodeURIComponent(text)+u,"_blank","noopener")}
+async function copyText(text,btn){try{await navigator.clipboard.writeText(text);if(btn){const o=btn.textContent;btn.textContent="Copied ✓";setTimeout(()=>btn.textContent=o,1500)}}catch(e){prompt("Copy this text:",text)}}
+var PK=[];
+function renderPostKit(D){
+  PK=pkPosts(D);const lim=$("pkLink").checked?257:280;
+  $("pkGrid").innerHTML=PK.map((p,i)=>`<div class="pk"><div class="t"><span>${p.title}</span><span class="${p.text.length>lim?"down":""}">${p.text.length}/${lim}</span></div><pre>${esc(p.text)}</pre>
+    <div class="b"><button class="x" data-pk="x" data-i="${i}">Post on X</button><button data-pk="st" data-i="${i}">StockTwits</button><button data-pk="c" data-i="${i}">Copy</button></div></div>`).join("");
+  renderMovers();
+}
+function renderMovers(){
+  const m=compute(),ok=m.rows.filter(r=>r.ok);if(!ok.length){$("mvGrid").innerHTML='<div class="sub">Waiting for prices…</div>';return}
+  const srt=[...ok].sort((a,b)=>b.r-a.r),cs=[...ok].sort((a,b)=>b.contrib-a.contrib);
+  const row=(r,v,c)=>`<div class="mvr" data-go="${r.s}"><span>${r.s}</span><span class="sub">${fmtPx(r.c)} ${sgn(r.c-r.pc)}</span><span class="${c}" style="text-align:right">${v}</span></div>`;
+  $("mvGrid").innerHTML=
+    `<div class="mvcol"><div class="h">Top gainers</div>${(srt.filter(r=>r.r>0).slice(0,5).map(r=>row(r,fmtPct(r.r),cls(r.r))).join("")||'<div class="sub">No gainers</div>')}</div>`+
+    `<div class="mvcol"><div class="h">Top losers</div>${(srt.filter(r=>r.r<0).slice(-5).reverse().map(r=>row(r,fmtPct(r.r),cls(r.r))).join("")||'<div class="sub">No decliners</div>')}</div>`+
+    `<div class="mvcol"><div class="h">Biggest drivers (${isFinite(soxBase())?"SOX pts":"index % pts"})</div>${[...cs.slice(0,3).filter(r=>r.contrib>0),...cs.slice(-3).reverse().filter(r=>r.contrib<0)].map(r=>row(r,ipts(r.contrib,2),cls(r.contrib))).join("")}</div>`;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-pk]");if(b){const p=PK[+b.dataset.i];if(!p)return;
+    if(b.dataset.pk==="x")xIntent(p.text,null);else if(b.dataset.pk==="c")copyText(p.text,b);else{copyText(p.text,b);window.open("https://stocktwits.com/symbol/SOXL","_blank","noopener")}}
+  const a=e.target.closest("[data-al]");if(a){const al=ALERTS[+a.dataset.i];if(!al)return;if(a.dataset.al==="x")xIntent(al.text,al.s);else copyText(al.text,a)}
+});
+$("pkCard").onclick=()=>{const cv=drawCard(FUND);cv.toBlob(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`SOXL-soxx-sniper-${etDate()}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)},"image/png")};
+
+/* ---------- live alerts ---------- */
+var ALERTS=[],alSeen={};var alertsOn=lsGet("soxx_alerts")==="on",lastD=null;
+function alert1(key,cool,text,s,hot){
+  const now=Date.now();if(alSeen[key]&&now-alSeen[key]<cool)return;alSeen[key]=now;
+  ALERTS.unshift({t:now,text,s:s||null,hot:!!hot});if(ALERTS.length>40)ALERTS.pop();
+  if(alertsOn&&"Notification"in window&&Notification.permission==="granted"){try{new Notification("SOXX Sniper",{body:text.split("\n")[0],tag:key})}catch(e){}}
+  renderAlerts();
+}
+function ladder(prefix,val,ths,make){if(!isFinite(val))return;const hit=ths.filter(th=>Math.abs(val)>=th);if(!hit.length)return;const top=hit[hit.length-1],sg=Math.sign(val);
+  hit.slice(0,-1).forEach(th=>{if(!alSeen[prefix+sg+th])alSeen[prefix+sg+th]=Date.now()});alert1(prefix+sg+top,864e5,make(top),...make.extra||[])}
+function renderAlerts(){
+  $("alertList").innerHTML=ALERTS.length?ALERTS.slice(0,12).map((a,i)=>`<div class="al ${a.hot?"hot":""}"><span class="tm">${new Date(a.t).toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"})}</span><span>${esc(a.text).replace(/\n/g," · ")}</span><span class="b"><button data-al="x" data-i="${i}">Post</button><button data-al="c" data-i="${i}">Copy</button></span></div>`).join(""):'<div class="sub">No alerts yet. The page watches SOXL moves, new highs and lows, index thresholds, big holding moves, after-hours spikes, tracking gaps, large prints and fear/greed extremes.</div>';
+}
+var hodT=0,lodT=0,sessHi=0,sessLo=0;
+function checkAlerts(){
+  const now=Date.now(),day=etDate(),q=Q[FUND],P=q.c;if(!(P>0))return;
+  const ph=demo?"regular":phaseAt(now),m=compute(),pr=svPrices(FUND),D=lastD;
+  const p15=findAt(hist[FUND]||[],nowM()-15,"c");
+  if(p15>0){const r=P/p15-1;if(Math.abs(r)>=0.02)alert1("m15"+Math.sign(r),20*60000,`⚡ $SOXL ${fmtPct(r)} in 15 minutes → ${fmtPx(P)}${m.live?`\nSemis 30 ${fmtPct(m.idx)} · $SOX ${idxChg("^SOX")?fmtPct(idxChg("^SOX").pct):"--"}`:""}`,FUND,true)}
+  if(ph==="regular"&&etInfo(now).min>=600){
+    if(!sessHi){sessHi=q.h||P;sessLo=q.l||P}
+    if(P>sessHi*1.001&&now-hodT>10*60000){hodT=now;alert1("hod"+day+Math.round(P*10),0,`$SOXL new high of day ${fmtPx(P)} (${fmtPct(pr.pct)})`,FUND)}
+    if(P<sessLo*0.999&&now-lodT>10*60000){lodT=now;alert1("lod"+day+Math.round(P*10),0,`$SOXL new low of day ${fmtPx(P)} (${fmtPct(pr.pct)})`,FUND)}
+    sessHi=Math.max(sessHi,P);sessLo=Math.min(sessLo,P);
+  }
+  if(m.live&&ph==="regular"){const sx=idxChg("^SOX");const mk=()=>`Semis 30 index ${m.idx>0?"up":"down"} ${fmtPct(m.idx)}${sx?` · $SOX ${sgn(sx.ch)} pts`:""} → $SOXL implied ${fmtPct(m.imp)}, actual ${fmtPct(m.fr)}`;mk.extra=[FUND,Math.abs(m.idx)>=0.02];ladder("idx"+day,m.idx,[0.01,0.02,0.03],mk)}
+  if(ph==="regular")ORDER.slice(0,10).forEach(s=>{const r=dayPct(s);if(!isNum(r))return;const row=m.rows.find(x=>x.s===s);const mk=()=>`${cash(s)} ${fmtPct(r)} today${row?` · ${(row.w*100).toFixed(1)}% of the $SOXL index → ${ipts(row.contrib)}`:""}`;mk.extra=[s,Math.abs(r)>=0.05];ladder(`h${day}${s}`,r,[0.03,0.05],mk)});
+  if(pr.ext&&isFinite(pr.xPct)){const mk=()=>`${pr.xLab} $SOXL ${fmtPx(pr.xP)} ${sgn(pr.xC)} (${fmtPct(pr.xPct)}) vs ${pr.xLab==="Pre-market"?"prior close":"4pm close"}`;mk.extra=[FUND,Math.abs(pr.xPct)>=0.02];ladder(`x${day}${pr.xLab}`,pr.xPct,[0.01,0.02,0.03,0.05],mk)}
+  if(m.live&&ph==="regular"&&isFinite(m.fr)&&Math.abs(m.fr-m.imp)>=0.006)alert1("gap"+Math.sign(m.fr-m.imp),30*60000,`$SOXL is ${fmtPct(Math.abs(m.fr-m.imp))} ${m.fr>m.imp?"above":"below"} its 3× implied value (index ${fmtPct(m.idx)})`,FUND);
+  const b5=blockFlow(5);if(Math.abs(b5.net)>=3e6)alert1("blk"+Math.sign(b5.net),15*60000,`Large prints: ${b5.net>0?"+":"−"}${fmtBig(Math.abs(b5.net))} net ${b5.net>0?"bullish":"bearish"} in $SOXL/$SOXS in 5 minutes (${b5.n} prints ≥ $250k)`,FUND,true);
+  if(D&&isFinite(D.fg.score)){if(D.fg.score>=75)alert1("fgG"+day,864e5,`Semis Fear & Greed at ${Math.round(D.fg.score)} (extreme greed) · $SOXL ${fmtPct(pr.pct)}`,FUND);if(D.fg.score<=25)alert1("fgF"+day,864e5,`Semis Fear & Greed at ${Math.round(D.fg.score)} (extreme fear) · $SOXL ${fmtPct(pr.pct)}`,FUND)}
+  const v=idxChg("^VIX");if(v&&v.pct>=0.1)alert1("vix"+day,864e5,`$VIX ${fmtNum(v.p)} ${fmtPct(v.pct)} today · $SOXL ${fmtPct(pr.pct)}`,FUND,true);
+}
+$("alertBtn").onclick=async()=>{
+  if(!alertsOn&&"Notification"in window&&Notification.permission!=="granted"){try{await Notification.requestPermission()}catch(e){}}
+  alertsOn=!alertsOn;lsSet("soxx_alerts",alertsOn?"on":"off");$("alertBtn").textContent="Alerts: "+(alertsOn?"on":"off");$("alertBtn").classList.toggle("on",alertsOn);
+};
+$("alertBtn").textContent="Alerts: "+(alertsOn?"on":"off");$("alertBtn").classList.toggle("on",alertsOn);
+setInterval(()=>{try{checkAlerts()}catch(e){}},5000);
+
+/* ---------- main page order: most useful first ---------- */
+function reorderMain(){
+  const mv=$("mainView"),seq=["mStrip","extBar","idxPct","postKit","dStance","moversCard","tiles","nuPx","xmTbl","sTiles","xTiles","pFlow","gapTbl","ruleStory","macT","xm2Tbl","todTbl","atScore","chart","knTbl","memKv"];
+  const top=id=>{let e=$(id);while(e&&e.parentElement!==mv)e=e.parentElement;return e};
+  seq.forEach(id=>{const e=top(id);if(!e)return;if(id==="tiles"&&e.previousElementSibling&&e.previousElementSibling.classList.contains("toolbar"))mv.appendChild(e.previousElementSibling);mv.appendChild(e)});
+}
+reorderMain();
 
 /* ---------- stock pages (#/s/TICKER) ---------- */
 const GROUPS={"AI compute":["NVDA","AMD","AVGO","MRVL","ALAB","CRDO","CBRS","ARM"],"Memory":["MU","SKHY"],"Equipment":["AMAT","LRCX","KLAC","ASML","TER","ENTG"],
@@ -2358,7 +2563,7 @@ function svSummary(s){
 function tweetText(s){
   const S=svSummary(s),pr=S.pr,lines=[];
   lines.push(`$${s} ${fmtPx(pr.main)}${isNum(pr.pct)?" "+fmtPct(pr.pct):""}${pr.ext?` | ${pr.xLab==="Pre-market"?"PM":"AH"} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`:""}`);
-  if(S.isH&&isNum(S.contrib))lines.push(`• ${(S.w*100).toFixed(2)}% of the $SOXL index: ${(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(2)} pts today (≈${fmtPct(3*S.contrib)} of SOXL)`);
+  if(S.isH&&isNum(S.contrib))lines.push(`• ${(S.w*100).toFixed(2)}% of the $SOXL index: ${ipts(S.contrib)} today (≈${fmtPct(3*S.contrib)} of SOXL)`);
   if(s===FUND){const mm=compute();if(mm.live)lines.push(`• Semis index ${fmtPct(mm.idx)} → implied ${fmtPct(mm.imp)} · gap ${fmtPct(mm.fr-mm.imp)}`)}
   if(isNum(S.rs)&&s!==FUND)lines.push(`• vs semis index: ${S.rs>=0?"+":""}${(S.rs*100).toFixed(2)} pts`);
   if(S.nx)lines.push(`• Next level ${fmtPx(S.nx.price)} (${Math.round(S.nx.p30*100)}% odds in 30m)`);
@@ -2383,7 +2588,7 @@ function drawCard(s){
     bars.forEach((b,i)=>{const x=x0+i/(bars.length-1)*w,y=y0+h-(b[4]-lo)/(hi-lo||1)*h;i?g.lineTo(x,y):g.moveTo(x,y)});g.strokeStyle=up?"#19d38a":"#ff4d5e";g.stroke();
     g.fillStyle="#5a6676";g.font=`400 18px ${mono}`;g.fillText("today incl. extended hours",x0,y0+h+28)}
   const stats=[];
-  if(S.isH)stats.push(["Weight in SOXL index",(S.w*100).toFixed(2)+"%"],["Index pts today",isNum(S.contrib)?(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(2):"--"]);
+  if(S.isH)stats.push(["Weight in SOXL index",(S.w*100).toFixed(2)+"%"],["Index pts today",isNum(S.contrib)?ipts(S.contrib):"--"]);
   if(isNum(S.rs)&&s!==FUND)stats.push(["vs semis index",(S.rs>=0?"+":"")+(S.rs*100).toFixed(2)+" pts"]);
   if(s===FUND){const mm=compute();stats.push(["Semis index",fmtPct(mm.idx)],["Implied (3×)",fmtPct(mm.imp)])}
   if(S.nx)stats.push(["Next level",`${fmtPx(S.nx.price)} · ${Math.round(S.nx.p30*100)}%`]);
@@ -2411,7 +2616,7 @@ function renderStock(force){
   // story
   const bits=[];
   bits.push(`<b>$${s}</b> is ${isNum(S.r)?`<b class="${cls(S.r)}">${fmtPct(S.r)}</b> ${pr.ph==="regular"?"today":"in the regular session"}`:"waiting for a quote"}`+(isNum(S.rs)&&s!==FUND?`, <b class="${cls(S.rs)}">${S.rs>=0?"outperforming":"lagging"}</b> the semis index by ${Math.abs(S.rs*100).toFixed(2)} pts.`:"."));
-  if(S.isH&&isNum(S.contrib))bits.push(`At ${(S.w*100).toFixed(2)}% of the index, it adds <b class="${cls(S.contrib)}">${(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(2)} pts</b>, about <b class="${cls(S.contrib)}">${fmtPct(3*S.contrib)}</b> of SOXL's move (≈${(3*S.contrib*Q[FUND].c>=0?"+":"−")+"$"+Math.abs(3*S.contrib*Q[FUND].c).toFixed(2)} per SOXL share).`);
+  if(S.isH&&isNum(S.contrib))bits.push(`At ${(S.w*100).toFixed(2)}% of the index, it adds <b class="${cls(S.contrib)}">${ipts(S.contrib)}</b>, about <b class="${cls(S.contrib)}">${fmtPct(3*S.contrib)}</b> of SOXL's move (≈${(3*S.contrib*Q[FUND].c>=0?"+":"−")+"$"+Math.abs(3*S.contrib*Q[FUND].c).toFixed(2)} per SOXL share).`);
   if(s===FUND){const mm=compute();if(mm.live)bits.push(`The semis index is ${fmtPct(mm.idx)}, so 3× implies ${fmtPct(mm.imp)}; SOXL is ${mm.fr-mm.imp>=0?"above":"below"} that by ${fmtPct(Math.abs(mm.fr-mm.imp))}.`)}
   if(pr.ext)bits.push(`${pr.xLab}: <b>${fmtPx(pr.xP)}</b> (<span class="${cls(pr.xPct)}">${fmtPct(pr.xPct)}</span>).`);
   if(S.nx)bits.push(`Most likely next level: <b>${fmtPx(S.nx.price)}</b> (${S.nx.lab}, ${fmtPct(S.nx.dir*S.nx.d)}, ${Math.round(S.nx.p30*100)}% odds within 30 min).`);
@@ -2440,7 +2645,7 @@ function renderStock(force){
     $("svImpact").innerHTML=kvHtml([["Semis index (30 stocks)",`<span class="${cls(mm.idx)}">${fmtPct(mm.idx)}</span>`],["Implied SOXL (3×)",fmtPct(mm.imp)],["SOXL actual",fmtPct(mm.fr)],["Tracking gap",fmtPct(mm.fr-mm.imp)],
       ["Rebalancing into the close",lf?`<span class="${cls(lf.usd)}">${lf.usd>=0?"buy":"sell"} ~${fmtBig(Math.abs(lf.usd))}</span>`:"--"],["Realized leverage (memory)",fmtN(statOf(getK("_IDX").ce).beta,2)+"×"]])}
   else $("svImpact").innerHTML=kvHtml([
-    ...(S.isH?[["Weight in the index",(S.w*100).toFixed(2)+"% · rank #"+(ORDER.indexOf(s)+1)],["Index points today",isNum(S.contrib)?`<span class="${cls(S.contrib)}">${(S.contrib*100>=0?"+":"")+(S.contrib*100).toFixed(3)}</span>`:"--"],
+    ...(S.isH?[["Weight in the index",(S.w*100).toFixed(2)+"% · rank #"+(ORDER.indexOf(s)+1)],["Index points today",isNum(S.contrib)?`<span class="${cls(S.contrib)}">${ipts(S.contrib,2)}</span>`:"--"],
       ["Share of SOXL's move",isNum(S.contrib)?`<span class="${cls(S.contrib)}">${fmtPct(3*S.contrib)}</span> (≈$${Math.abs(3*S.contrib*Q[FUND].c).toFixed(2)} per share)`:"--"],
       ["If it moves 1%, SOXL moves (mechanical)",fmtPct(3*S.w*0.01,2)]]:[]),
     ["Correlation with SOXL, 1-min (regular)",K.n>=30?`${fmtN(K.corr,2)} · ${K.n|0} min`:"learning"],
