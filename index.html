@@ -81,6 +81,16 @@ table.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 .pb span{position:absolute;left:0;top:0;bottom:0;background:var(--violet);border-radius:3px}
 .kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-family:var(--mono);font-size:13px}
 .kv span:nth-child(odd){color:var(--dim)}
+.quad{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:12px}
+.score{font-family:var(--mono);font-size:44px;font-weight:600;line-height:1;color:#c4abff}
+.score small{font-size:16px;color:var(--dim)}
+.brd{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--panel2);margin:6px 0 12px}
+.brd span{display:block;height:100%}
+.calrow{display:grid;grid-template-columns:62px minmax(0,1fr) 92px;gap:8px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:4px}
+.calbar{position:relative;height:8px;background:var(--panel2);border-radius:4px}
+.calbar .a{position:absolute;top:0;bottom:0;left:0;background:var(--violet);border-radius:4px;opacity:.85}
+.calbar .p{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.ok{color:var(--up)}.bad{color:var(--down)}.meh{color:var(--amber)}
 .tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(155,107,255,.15);color:#c4abff;margin-left:4px}
 .modal{position:fixed;inset:0;background:rgba(3,5,8,.82);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
 .modal.show{display:flex}
@@ -101,7 +111,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="logo">3X</div>
       <div>
         <h1>SOXX Sniper</h1>
-        <div class="sub">SOXL · 30-stock weighted index · live learning</div>
+        <div class="sub">SOXL · 30-stock weighted index · self-attuning</div>
       </div>
     </div>
     <div class="status">
@@ -136,6 +146,29 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="kv" id="sigKv"></div>
       <div class="label" style="margin-top:16px">Top leaders (move before SOXL)</div>
       <div class="kv" id="leadKv"></div>
+    </div>
+  </section>
+
+  <section class="quad">
+    <div class="card">
+      <div class="label">Attunement · self-calibration</div>
+      <div class="score" id="atScore">--<small>/100</small></div>
+      <div class="mid" id="atSub">Scores its own forecasts and tunes itself</div>
+      <div class="kv" id="atKv" style="margin-top:12px"></div>
+      <div id="calTbl" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <div class="label">Quant · leverage and volatility</div>
+      <div class="kv" id="qKv"></div>
+    </div>
+    <div class="card">
+      <div class="label">Crowd · breadth of the 30</div>
+      <div class="brd" id="brdBar"></div>
+      <div class="kv" id="cKv"></div>
+    </div>
+    <div class="card">
+      <div class="label">System health</div>
+      <div class="kv" id="hKv"></div>
     </div>
   </section>
 
@@ -317,7 +350,9 @@ function getK(s){return KN[s]||(KN[s]={s,c:mkS(),ce:mkS(),l:mkS(),le:mkS(),mins:
 /* live session state */
 let curDay="", todayBars=[], dayRec={}, prof={}, vwPV=0, vwV=0, prior=null;
 const cur={}, pend={}, lastPx={}, prevC={}, prevMin={};
-let prevR={}, prevIdxR=NaN, prevGap=NaN, lastM=null, lastIdxR=NaN;
+let prevR={}, prevIdxR=NaN, prevGap=NaN, lastM=null, lastIdxR=NaN, prevPred=NaN;
+let fcPend=[], pastDays=[];
+const health={reconnects:0,pollErr:0,lastUpd:{},lat:NaN,ticks:0};
 
 async function initMemory(name){
   dbName=name;KN={};META={};
@@ -340,7 +375,8 @@ async function loadPrior(d){
 async function loadDay(d){
   curDay=d;
   todayBars=(await idbAll("bars",IDBKeyRange.only([FUND,d]),"sd")).sort((a,b)=>a.m-b.m);
-  dayRec={};for(const s of SYMS){const r=await idbGet("days",[s,d]);if(r)dayRec[s]=r}
+  dayRec={};for(const s of [...SYMS,"_DAY"]){const r=await idbGet("days",[s,d]);if(r)dayRec[s]=r}
+  fcPend=Array.isArray(META.fc)?META.fc:[];
   const sd=dayRec[FUND];prof=(sd&&sd.prof)||{};vwPV=(sd&&sd.pv)||0;vwV=(sd&&sd.vv)||0;
   await loadPrior(d);
 }
@@ -394,18 +430,100 @@ function finalizeMinute(M){
       if(isFinite(prevIdxR)){addS(KI.l,prevIdxR,y);addS(KI.le,prevIdxR,y,LAM)}touched.add("_IDX");
       const KS=getK(FUND);KS.mins++;KS.first=KS.first||M;KS.last=M;if(prevR[FUND]!=null){addS(KS.l,prevR[FUND],y);addS(KS.le,prevR[FUND],y,LAM)}touched.add(FUND);
       const KG=getK("_GAP");if(isFinite(prevGap)){addS(KG.l,prevGap,y);addS(KG.le,prevGap,y,LAM);KG.mins++}touched.add("_GAP");
+      if(isFinite(prevPred)){const KP=getK("_PRED");addS(KP.c,prevPred,y);addS(KP.ce,prevPred,y,LAM);KP.mins++;touched.add("_PRED");
+        if(prevPred!==0&&y!==0){META.dirN=(META.dirN||0)+1;if(Math.sign(prevPred)===Math.sign(y))META.dirHit=(META.dirHit||0)+1}}
+      if(isFinite(prevGap)&&isFinite(gapNow)){const KA=getK("_GAPAR");addS(KA.c,prevGap,gapNow);addS(KA.ce,prevGap,gapNow,LAM);KA.mins++;touched.add("_GAPAR")}
+      const DS=dayRec._DAY||(dayRec._DAY={s:"_DAY",d,lev:mkS(),n:0,rv2:0,ri2:0,g2:0,gn:0});
+      if(isFinite(idxR)){addS(DS.lev,idxR,y);DS.ri2+=idxR*idxR}
+      DS.n++;DS.rv2+=y*y;if(isFinite(gapNow)){DS.g2+=gapNow*gapNow;DS.gn++}
       META.minutes=(META.minutes||0)+1;
     }
+    if(bars[FUND])resolveForecasts(M,bars[FUND]);
     for(const s in bars){const b=bars[s];const dr=dayRec[s]||(dayRec[s]={s,d,o:b.o,h:b.h,l:b.l,c:b.c,v:0});dr.h=Math.max(dr.h,b.h);dr.l=Math.min(dr.l,b.l);dr.c=b.c;dr.v+=b.v}
     if(dayRec[FUND]){dayRec[FUND].prof=prof;dayRec[FUND].pv=vwPV;dayRec[FUND].vv=vwV}
     if(bars[FUND])todayBars.push(bars[FUND]);
     META.lastLearn=M;
+    logForecasts(M);
+    prevPred=leadSignal().pred;
+    META.fc=fcPend;
     idbWrite({bars:Object.values(bars),know:[...touched].map(s=>KN[s]),days:Object.values(dayRec),meta:Object.entries(META).map(([k,v])=>({k,v}))});
   }
+  if(!learn)prevPred=NaN;
   prevR={};for(const s in r)prevR[s]=r[s];
   prevIdxR=idxR;prevGap=gapNow;
   delete pend[FUND];for(const s in pend)if(pend[s].m<=M)delete pend[s];
   memStatus();
+}
+
+/* ---------- attunement: forecast logging, scoring, self-tuning ---------- */
+function logForecasts(M){
+  const lv=soxlLevels();if(!lv)return;
+  [...lv.levels].sort((a,b)=>a.d-b.d).slice(0,6).forEach(l=>fcPend.push({m:M,price:l.price,dir:l.dir,p:l.p30,seen:0}));
+  if(fcPend.length>400)fcPend=fcPend.slice(-400);
+}
+function resolveForecasts(M,sb){
+  const keep=[];
+  for(const f of fcPend){
+    if(f.m>=M){keep.push(f);continue}
+    if(M-f.m>45){continue}
+    f.seen++;
+    const hit=f.dir>0?sb.h>=f.price:sb.l<=f.price;
+    if(hit)scoreFc(f,1);else if(M-f.m>=30){if(f.seen>=25)scoreFc(f,0)}else keep.push(f);
+  }
+  fcPend=keep;
+}
+function scoreFc(f,o){
+  const C=META.cal||(META.cal={b:Array.from({length:10},()=>({n:0,sp:0,h:0})),n:0,h:0,bs:0});
+  const i=Math.min(9,Math.max(0,Math.floor(f.p*10))),b=C.b[i];
+  b.n++;b.sp+=f.p;b.h+=o;C.n++;C.h+=o;C.bs+=(f.p-o)*(f.p-o);
+  META.sigScale=clamp((META.sigScale||1)*Math.exp(0.01*(o-f.p)),0.5,2.5);
+}
+function attunement(){
+  const C=META.cal;if(!C||C.n<1)return{n:0};
+  let ece=0;C.b.forEach(b=>{if(b.n)ece+=b.n*Math.abs(b.sp/b.n-b.h/b.n)});ece/=C.n;
+  const o=C.h/C.n,bs=C.bs/C.n,ref=o*(1-o),bss=ref>0?1-bs/ref:NaN;
+  const KP=statOf(getK("_PRED").ce);
+  return{n:C.n,ece,bs,bss,o,score:Math.round(clamp(100*(1-2*ece),0,100)),ic:KP.corr,icn:KP.n,dirN:META.dirN||0,dirHit:META.dirHit||0,k:META.sigScale||1,b:C.b};
+}
+
+/* ---------- quant, crowd, health ---------- */
+function minutesLeft(){const p=etParts(Date.now());const [h,m]=p.hm.split(":").map(Number);return clamp(960-(h*60+m),0,390)}
+function minutesIn(){return 390-minutesLeft()}
+function quant(){
+  const DS=dayRec._DAY,sd=statOf(DS&&DS.lev),sm=statOf(getK("_IDX").ce),sa=statOf(getK("_GAPAR").ce);
+  const te=DS&&DS.gn>5?Math.sqrt(DS.g2/DS.gn):NaN;
+  const hl=sa.n>=30&&sa.beta>0&&sa.beta<1?Math.log(0.5)/Math.log(sa.beta):NaN;
+  const dragToday=DS&&DS.n?LEV*(LEV-1)/2*DS.ri2:NaN;
+  const full=pastDays.filter(x=>x.d!==curDay&&x.n>=200);
+  const dragAnnual=full.length?LEV*(LEV-1)/2*252*full.reduce((a,x)=>a+x.ri2*390/x.n,0)/full.length:NaN;
+  const sigDay=DS&&DS.n>=20?Math.sqrt(DS.rv2*390/DS.n):NaN;
+  const hist=full.map(x=>Math.sqrt(x.rv2*390/x.n)).sort((a,b)=>a-b);
+  const pct=isFinite(sigDay)&&hist.length>=5?hist.filter(v=>v<=sigDay).length/hist.length:NaN;
+  const reg=!isFinite(pct)?(hist.length<5?"needs 5+ sessions":"--"):pct>0.8?"hot":pct>0.6?"elevated":pct<0.2?"calm":"normal";
+  const sg=soxlSigma(),k=META.sigScale||1,left=demo?60:minutesLeft();
+  const rng=sg.sig*k*Math.sqrt(Math.max(left,1));
+  return{levToday:sd.beta,levN:sd.n,levMem:sm.beta,levMemN:sm.n,te,hl,dragToday,dragAnnual,sigDay,pct,reg,rng,left,days:full.length};
+}
+function crowd(){
+  const m=compute(),ok=m.rows.filter(r=>r.ok);
+  if(!ok.length)return null;
+  const adv=ok.filter(r=>r.r>0),dec=ok.filter(r=>r.r<0);
+  const wb=ok.reduce((a,r)=>a+r.w*Math.sign(r.r),0);
+  const disp=Math.sqrt(ok.reduce((a,r)=>a+r.w*(r.r-m.idx)*(r.r-m.idx),0));
+  const effN=1/ok.reduce((a,r)=>a+r.w*r.w,0);
+  const abs=ok.map(r=>Math.abs(r.contrib)).sort((a,b)=>b-a),tot=abs.reduce((a,b)=>a+b,0);
+  const top5=tot>0?abs.slice(0,5).reduce((a,b)=>a+b,0)/tot:NaN;
+  let s2=0,sw=0,ok2=0;ok.forEach(r=>{const st=statOf(getK(r.s).ce);if(st.n>=30&&st.sdx>0){s2+=r.w*r.w*st.sdx*st.sdx;sw+=r.w*st.sdx;ok2++}});
+  const si=statOf(getK("_IDX").ce);
+  const rho=ok2>=20&&si.n>=30&&sw*sw-s2>0?clamp((si.sdx*si.sdx-s2)/(sw*sw-s2),-1,1):NaN;
+  const narrow=Math.abs(m.idx)>0.002&&Math.sign(wb)!==Math.sign(m.idx);
+  return{n:ok.length,adv:adv.length,dec:dec.length,unch:ok.length-adv.length-dec.length,wb,disp,effN,top5,rho,narrow,idx:m.idx};
+}
+function sysHealth(){
+  const now=Date.now(),open=sessionOpen();
+  const stale=SYMS.filter(s=>!(now-(health.lastUpd[s]||0)<150000));
+  const DS=dayRec._DAY,expect=demo?null:Math.max(minutesIn(),0);
+  return{open,stale,cov:DS&&expect?clamp(DS.n/expect,0,1):NaN,learned:DS?DS.n:0,lat:health.lat,rec:health.reconnects,perr:health.pollErr,ticks:health.ticks,leader,pend:fcPend.length};
 }
 
 /* ---------- core compute ---------- */
@@ -461,7 +579,7 @@ function soxlLevels(){
   const M=[];L.forEach(l=>{const last=M[M.length-1];
     if(last&&Math.abs(l.price/last.price-1)<0.001){if(l.score>last.score)last.price=l.price;last.score=Math.max(last.score,l.score)+0.3*Math.min(last.score,l.score);last.labels.push(...l.labels);last.pool=last.pool||l.pool}
     else M.push({...l,labels:[...l.labels]})});
-  const {sig,src}=soxlSigma(), ls=leadSignal();
+  const sv=soxlSigma(),kS=META.sigScale||1,sig=sv.sig*kS,src=sv.src+(Math.abs(kS-1)>0.005?" ×"+kS.toFixed(2)+" tuned":""), ls=leadSignal();
   const mu=clamp(ls.pGap+ls.pIdx/5,-0.25*sig,0.25*sig);
   M.forEach(l=>{l.dir=l.price>P?1:-1;l.d=Math.abs(Math.log(l.price/P));const m2=l.dir*mu;l.p30=pTouch(l.d,m2,sig,30);l.eta=tMedian(l.d,m2,sig);l.label=[...new Set(l.labels)].join(" + ")});
   const sig2=M.filter(l=>l.score>=1.5);
@@ -544,8 +662,9 @@ function renderAnalysis(){
     ["SOXL 1-min σ",(sg.sig*100).toFixed(3)+"% ("+sg.src+")"],
     ["Drift used for odds",lv?fmtPct(lv.mu,4)+"/min":"--"]
   ].map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join("");
-  const leads=HOLDINGS.map(h=>({s:h[0],st:statOf(getK(h[0]).le)})).filter(x=>x.st.n>=60&&isFinite(x.st.corr)).sort((a,b)=>b.st.corr-a.st.corr).slice(0,5);
-  $("leadKv").innerHTML=leads.length?leads.map(x=>`<span>${x.s}</span><span class="${cls(x.st.corr)}">lead ${fmtN(x.st.corr,3)} · n ${x.st.n|0}</span>`).join(""):'<span>Learning…</span><span>needs 60+ min</span>';
+  const leads=HOLDINGS.map(h=>({s:h[0],st:statOf(getK(h[0]).le)})).filter(x=>x.st.n>=60&&isFinite(x.st.corr)&&x.st.corr>0).sort((a,b)=>b.st.corr-a.st.corr).slice(0,5);
+  const enough=getK(FUND).mins>=60;
+  $("leadKv").innerHTML=leads.length?leads.map(x=>`<span>${x.s}</span><span class="${x.st.corr*Math.sqrt(x.st.n)>=2?"ok":"meh"}">lead ${fmtN(x.st.corr,3)} · n ${x.st.n|0}</span>`).join(""):enough?'<span>No stock leads yet</span><span>SOXL reacts in the same minute</span>':'<span>Learning…</span><span>needs 60+ min</span>';
 
   HOLDINGS.forEach(h=>{const n=stockNext(h[0]);$("n_"+h[0]).textContent=n?`next ${fmtPx(n.x)} ${n.up?"↑":"↓"} ${Math.round(n.p*100)}%/30m`:"next --"});
 
@@ -554,6 +673,67 @@ function renderAnalysis(){
   kr.sort((a,b)=>kSort==="lead"?(isFinite(b.l.corr)?b.l.corr:-9)-(isFinite(a.l.corr)?a.l.corr:-9):kSort==="w"?b.w-a.w:b.inf-a.inf);
   $("knTbl").innerHTML=`<tr><th class="l">Stock</th><th>Weight</th><th>Minutes</th><th>Corr</th><th>Beta</th><th>Lead</th><th>1m σ</th><th>Influence</th></tr>`+
     kr.map(r=>`<tr><td>${r.s}</td><td>${(r.w*100).toFixed(2)}%</td><td>${r.mins}</td><td>${fmtN(r.c.corr,2)}</td><td>${fmtN(r.c.beta,2)}</td><td class="${r.l.n>=60?cls(r.l.corr):""}">${fmtN(r.l.corr,3)}</td><td>${isFinite(r.c.sdx)?(r.c.sdx*100).toFixed(3)+"%":"--"}</td><td>${(r.inf*100).toFixed(2)}</td></tr>`).join("");
+  renderInsights();
+}
+
+function kvHtml(rows){return rows.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join("")}
+function renderInsights(){
+  const at=attunement();
+  if(!at.n){$("atScore").innerHTML='--<small>/100</small>';$("atSub").textContent="Calibrating: needs resolved forecasts (about 30 min of learning)"}
+  else{
+    $("atScore").innerHTML=(at.n>=50?at.score:"~"+at.score)+"<small>/100</small>";
+    $("atSub").textContent=at.n<50?"Early estimate, few forecasts resolved":at.score>=85?"Well attuned to SOXL":at.score>=70?"Attuned, still tuning":"Tuning: odds were off, the model adjusts";
+  }
+  const dh=at.dirN?at.dirHit/at.dirN:NaN;
+  $("atKv").innerHTML=kvHtml([
+    ["Forecasts resolved",(at.n||0).toLocaleString()],
+    ["Calibration error",isFinite(at.ece)?(at.ece*100).toFixed(1)+" pts":"--"],
+    ["Brier skill vs base rate",isFinite(at.bss)?`<span class="${at.bss>0?"ok":"bad"}">${fmtN(at.bss,3)}</span>`:"--"],
+    ["Volatility scale (auto-tuned)",fmtN(at.k||META.sigScale||1,3)+"×"],
+    ["Next-minute IC",isFinite(at.ic)?`<span class="${at.ic>0.03?"ok":at.ic<0?"bad":"meh"}">${fmtN(at.ic,3)}</span> (n ${at.icn|0})`:"--"],
+    ["Direction hit rate",isFinite(dh)?`<span class="${dh>0.52?"ok":dh<0.48?"bad":"meh"}">${(dh*100).toFixed(1)}%</span> (n ${at.dirN})`:"-- (signal not yet reliable)"]
+  ]);
+  $("calTbl").innerHTML=at.n?at.b.map((b,i)=>b.n>=5?`<div class="calrow"><span>${i*10}–${i*10+10}%</span><div class="calbar"><div class="a" style="width:${(b.h/b.n*100).toFixed(1)}%"></div><div class="p" style="left:${(b.sp/b.n*100).toFixed(1)}%"></div></div><span>${Math.round(b.h/b.n*100)}% act · n ${b.n}</span></div>`:"").join("")+'<div class="note" style="margin-top:6px">Bar = how often the level was touched. White mark = the odds the page gave. When they match, the page is attuned.</div>':"";
+
+  const q=quant(),P=Q[FUND].c;
+  const levCls=x=>!isFinite(x)?"":Math.abs(x-LEV)<0.3?"ok":Math.abs(x-LEV)<0.6?"meh":"bad";
+  $("qKv").innerHTML=kvHtml([
+    ["Realized leverage today",isFinite(q.levToday)?`<span class="${levCls(q.levToday)}">${fmtN(q.levToday,2)}×</span> (n ${q.levN|0})`:"--"],
+    ["Realized leverage (memory)",isFinite(q.levMem)?`<span class="${levCls(q.levMem)}">${fmtN(q.levMem,2)}×</span> (n ${q.levMemN|0})`:"--"],
+    ["Tracking error today (RMS gap)",isFinite(q.te)?(q.te*100).toFixed(3)+"%":"--"],
+    ["Gap half-life",isFinite(q.hl)?fmtN(q.hl,1)+" min":"--"],
+    ["Volatility drag today",isFinite(q.dragToday)?"-"+(q.dragToday*100).toFixed(3)+"%":"--"],
+    ["Volatility drag, 1 year est.",isFinite(q.dragAnnual)?"-"+(q.dragAnnual*100).toFixed(1)+"%":`needs full sessions (${q.days})`],
+    ["SOXL daily σ (today's pace)",isFinite(q.sigDay)?(q.sigDay*100).toFixed(2)+"%":"--"],
+    ["Volatility regime",isFinite(q.pct)?`${q.reg} (${Math.round(q.pct*100)}th pct)`:q.reg],
+    [demo?"1σ range, next 60 min":`1σ range to close (${q.left} min)`,P>0&&q.left>0?`${fmtPx(P*Math.exp(-q.rng))} – ${fmtPx(P*Math.exp(q.rng))}`:"market closed"]
+  ]);
+
+  const c=crowd();
+  if(c){
+    $("brdBar").innerHTML=`<span style="width:${c.adv/c.n*100}%;background:var(--up)"></span><span style="width:${c.unch/c.n*100}%;background:var(--mute)"></span><span style="width:${c.dec/c.n*100}%;background:var(--down)"></span>`;
+    $("cKv").innerHTML=kvHtml([
+      ["Advancing / declining",`<span class="up">${c.adv}</span> / <span class="down">${c.dec}</span>${c.unch?" / "+c.unch+" flat":""}`],
+      ["Weighted breadth",`<span class="${cls(c.wb)}">${fmtN(c.wb*100,0)}%</span>`],
+      ["Breadth check",c.narrow?'<span class="meh">narrow: few heavy stocks carry the move</span>':'<span class="ok">broad</span>'],
+      ["Dispersion (weighted σ)",(c.disp*100).toFixed(2)+"%"],
+      ["Top 5 share of the move",isFinite(c.top5)?Math.round(c.top5*100)+"%":"--"],
+      ["Effective number of stocks",fmtN(c.effN,1)+" of 30"],
+      ["Herding (avg correlation)",isFinite(c.rho)?`<span class="${c.rho>0.6?"meh":""}">${fmtN(c.rho,2)}</span> ${c.rho>0.6?"high: stocks move as one":c.rho<0.3?"low: stock-picking day":"normal"}`:"needs 30+ min"]
+    ]);
+  }else{$("brdBar").innerHTML="";$("cKv").innerHTML=kvHtml([["Breadth","waiting for prices"]])}
+
+  const h=sysHealth();
+  $("hKv").innerHTML=kvHtml([
+    ["Session",h.open?'<span class="ok">regular hours</span>':"closed or extended hours"],
+    ["Learning",learning()?'<span class="ok">on</span>':leader?"paused (market closed)":'<span class="meh">other tab learns</span>'],
+    ["Minutes learned today",h.learned+(isFinite(h.cov)?` · coverage ${Math.round(h.cov*100)}%`:"")],
+    ["Stale symbols (>2.5 min)",h.stale.length?`<span class="${h.open?"meh":""}">${h.stale.length}: ${h.stale.slice(0,4).join(", ")}${h.stale.length>4?"…":""}</span>`:'<span class="ok">0</span>'],
+    ["Trade feed latency",isFinite(h.lat)?`<span class="${h.lat<2000?"ok":"meh"}">${Math.round(h.lat)} ms</span>`:"--"],
+    ["Trades received",h.ticks.toLocaleString()],
+    ["Reconnects / poll errors",`${h.rec} / ${h.perr}`],
+    ["Open forecasts",h.pend]
+  ]);
 }
 
 /* ---------- intraday chart (localStorage) ---------- */
@@ -583,6 +763,7 @@ const drawChart=()=>lineChart($("chart"),series,[{i:1,c:"#8a97a8",w:1.5,dash:[4,
 async function memStats(){
   if(!db){$("memKv").innerHTML="<span>Status</span><span>IndexedDB is not available in this browser</span>";return}
   const nb=await idbCount("bars"),days=await idbAll("days",IDBKeyRange.bound([FUND,""],[FUND,"￿"]));
+  pastDays=await idbAll("days",IDBKeyRange.bound(["_DAY",""],["_DAY","￿"]));
   let used="--";try{if(navigator.storage&&navigator.storage.estimate){const e=await navigator.storage.estimate();used=(e.usage/1048576).toFixed(1)+" MB of "+(e.quota/1073741824).toFixed(1)+" GB"}}catch(e){}
   const KS=getK(FUND);
   $("memKv").innerHTML=[
@@ -635,7 +816,7 @@ $("impFile").onchange=async e=>{
 };
 $("rstBtn").onclick=async()=>{
   if(!db||!confirm("Delete all learned knowledge and stored price action in this bank? Export a backup first if you want to keep it."))return;
-  await idbClear();KN={};META={};todayBars=[];dayRec={};prof={};vwPV=0;vwV=0;prior=null;fillRecall();memStats();
+  await idbClear();KN={};META={};todayBars=[];dayRec={};prof={};vwPV=0;vwV=0;prior=null;fcPend=[];pastDays=[];prevPred=NaN;fillRecall();memStats();renderAnalysis();
 };
 
 /* ---------- data feed ---------- */
@@ -643,6 +824,7 @@ function onTick(s,p,v){
   const q=Q[s];if(!q||!(p>0))return;
   q.dir=p>q.c?1:p<q.c?-1:0;q.c=p;q.flash=Date.now();
   if(q.h>0&&p>q.h)q.h=p;if(q.l>0&&p<q.l)q.l=p;
+  health.lastUpd[s]=Date.now();health.ticks++;
   updBar(s,p,v);dirty=true;
 }
 async function fetchQuote(s){
@@ -652,13 +834,15 @@ async function fetchQuote(s){
   const j=await r.json();
   if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
-    if(j.c>0&&!(q.c>0&&fresh)){q.c=j.c;updBar(s,j.c,0)}}
+    if(j.c>0&&!(q.c>0&&fresh)){q.c=j.c;updBar(s,j.c,0)}
+    health.lastUpd[s]=Math.max(health.lastUpd[s]||0,fresh?0:Date.now())}
 }
 async function pollAll(){
   for(const s of SYMS){
     if(demo||!apiKey)return;
     try{await fetchQuote(s)}catch(e){
       if(e.message==="auth"){setFeed("err","Feed: bad API key");openModal("That key did not work. Check it and try again.");return}
+      health.pollErr++;
       if(e.message==="rate")await new Promise(r=>setTimeout(r,2000));
     }
     dirty=true;await new Promise(r=>setTimeout(r,120));
@@ -677,15 +861,16 @@ function connectWS(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}}
   ws=new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
   ws.onopen=()=>{SYMS.forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));setFeed("live","Feed: live")};
-  ws.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="trade"&&j.data){const agg={};j.data.forEach(t=>{const a=agg[t.s]||(agg[t.s]={p:0,v:0});a.p=t.p;a.v+=t.v||0});for(const s in agg)onTick(s,agg[s].p,agg[s].v)}}catch(e){}};
+  ws.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="trade"&&j.data){const agg={};j.data.forEach(t=>{const a=agg[t.s]||(agg[t.s]={p:0,v:0});a.p=t.p;a.v+=t.v||0;if(t.t>0){const L=Date.now()-t.t;if(L>-5000&&L<600000)health.lat=isFinite(health.lat)?health.lat*0.95+L*0.05:L}});for(const s in agg)onTick(s,agg[s].p,agg[s].v)}}catch(e){}};
   ws.onerror=()=>setFeed("warn","Feed: reconnecting");
-  ws.onclose=()=>{if(!demo&&apiKey){setFeed("warn","Feed: reconnecting");setTimeout(()=>{if(!demo&&apiKey)connectWS()},5000)}};
+  ws.onclose=()=>{health.reconnects++;if(!demo&&apiKey){setFeed("warn","Feed: reconnecting");setTimeout(()=>{if(!demo&&apiKey)connectWS()},5000)}};
 }
 function resetLive(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
   clearInterval(pollTimer);clearInterval(demoTimer);
   SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s]});
-  prevR={};prevIdxR=NaN;prevGap=NaN;lastIdxR=NaN;lastM=null;mktState=null;
+  prevR={};prevIdxR=NaN;prevGap=NaN;lastIdxR=NaN;lastM=null;mktState=null;prevPred=NaN;
+  Object.assign(health,{reconnects:0,pollErr:0,lastUpd:{},lat:NaN,ticks:0});
 }
 async function startLive(){
   resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");
