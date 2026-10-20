@@ -32,6 +32,12 @@ button,select{font-family:var(--mono);font-size:12px;color:var(--ink);background
 button:hover,select:hover{border-color:var(--accent)}
 button.on{border-color:var(--accent);color:var(--accent)}
 button.danger:hover{border-color:var(--down);color:var(--down)}
+.extbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 28px;margin-bottom:12px;padding:16px 20px;border-radius:14px;border:1px solid rgba(255,181,71,.55);background:linear-gradient(90deg,rgba(255,181,71,.14),rgba(255,181,71,.03))}
+.extbar .label{color:var(--amber)}
+.ebp{font-family:var(--mono);font-size:44px;font-weight:600;line-height:1.05}
+.ebc{font-family:var(--mono);font-size:30px;font-weight:600}
+.ebs{font-family:var(--mono);font-size:13px;color:var(--dim);line-height:1.6}
+@media(max-width:600px){.ebp{font-size:34px}.ebc{font-size:22px}}
 .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
 .label{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
@@ -158,6 +164,12 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <button id="keyBtn">API key</button>
     </div>
   </header>
+
+  <section class="extbar" id="extBar" style="display:none">
+    <div><div class="label" id="ebLab" style="margin:0">After-hours</div><div class="ebp" id="ebPx">--</div></div>
+    <div class="ebc" id="ebCh">--</div>
+    <div class="ebs" id="ebSub">--</div>
+  </section>
 
   <section class="hero">
     <div class="card"><div class="label">Weighted index · today</div><div class="big" id="idxPct">--</div><div class="mid" id="idxSub">-- of 30 stocks live</div></div>
@@ -1599,14 +1611,40 @@ function buildTiles(){
     <div class="ct" id="x_${h[0]}">contrib --</div><div class="nx" id="n_${h[0]}">next --</div>
     <div class="wbar" id="b_${h[0]}"></div></div>`).join("");
 }
+function renderExtBar(){
+  const el=$("extBar"),now=Date.now(),ph=demo?"":phaseAt(now),q=Q[FUND],P=q.c,d=etInfo(now).d;
+  const recentTrade=q.lt&&now-q.lt<12*3600000;
+  const show=(ph==="pre"||ph==="post"||(ph==="closed"&&recentTrade))&&P>0;
+  if(!show){if(el.style.display!=="none"){el.style.display="none";document.title="SOXX Sniper"}return}
+  el.style.display="flex";
+  let base,baseLab,lab,from;
+  if(ph==="pre"){base=q.pc;baseLab="prior close";lab="Pre-market · SOXL";from=etEpochMin(d,240)}
+  else{
+    const before4=etInfo(now).min<240;const cd=before4?addDays(d,-1):d;
+    base=findAt(hist[FUND]||[],etEpochMin(cd,959),"c");if(!(base>0))base=q.qc>0?q.qc:q.pc;
+    baseLab="4:00 pm close";lab=ph==="post"?"After-hours · SOXL":"After-hours (closed) · SOXL";from=etEpochMin(cd,960);
+  }
+  const ch=base>0?P-base:NaN,pct=base>0?P/base-1:NaN;
+  let hi=-Infinity,lo=Infinity,usd=0;(hist[FUND]||[]).forEach(b=>{if(b.m>=from){hi=Math.max(hi,b.c);lo=Math.min(lo,b.c);usd+=b.c*(b.v||0)}});
+  const cb=cur[FUND];if(cb&&cb.m>=from){hi=Math.max(hi,cb.h);lo=Math.min(lo,cb.l);usd+=cb.c*cb.v}
+  const ago=q.lt?Math.round((now-q.lt)/1000):null;
+  $("ebLab").textContent=lab;
+  $("ebPx").textContent=fmtPx(P);
+  $("ebCh").innerHTML=isFinite(ch)?`<span class="${cls(ch)}">${ch>=0?"+":"−"}$${Math.abs(ch).toFixed(2)} (${fmtPct(pct)})</span>`:"--";
+  $("ebSub").innerHTML=`vs ${baseLab} ${fmtPx(base)}`+(isFinite(hi)?`<br>range ${fmtPx(lo)} – ${fmtPx(hi)}${usd>0?" · $ volume "+fmtBig(usd):""}`:"")+
+    `<br>${ago==null?"waiting for the first trade":ago<90?`last trade ${ago}s ago`:`last trade ${Math.round(ago/60)} min ago`}`+(ph==="pre"&&q.pc>0?"":"");
+  document.title=`SOXL ${fmtPx(P)} ${isFinite(pct)?fmtPct(pct):""} ${ph==="pre"?"PM":"AH"}`;
+}
 function render(){
+  renderExtBar();
   const m=compute(),now=Date.now();
   $("idxPct").textContent=m.live?fmtPct(m.idx):"--";$("idxPct").className="big "+cls(m.idx);
   $("idxSub").textContent=`${m.live} of 30 stocks live`;
   $("impPct").textContent=m.live?fmtPct(m.imp):"--";$("impPct").className="big "+cls(m.imp);
   $("impPx").textContent="Implied price "+(m.fpc>0&&m.live?fmtPx(m.fpc*(1+m.imp)):"--");
   $("soxPx").textContent=fmtPx(m.fpx);
-  $("soxPct").textContent=isFinite(m.fr)?fmtPct(m.fr)+" today":"--";$("soxPct").className="mid "+cls(m.fr);
+  const phNow=demo?"regular":phaseAt(now);
+  $("soxPct").textContent=isFinite(m.fr)?fmtPct(m.fr)+(phNow==="regular"?" today":phNow==="pre"?" vs prior close, pre-market":" since prior close, incl. after-hours"):"--";$("soxPct").className="mid "+cls(m.fr);
   const gap=m.fr-m.imp;$("gap").textContent=isFinite(gap)&&m.live?fmtPct(gap):"--";$("gap").className="big "+(Math.abs(gap)<0.003?"":cls(gap));
   const order=[...m.rows].sort((a,b)=>sortBy==="w"?b.w-a.w:sortBy==="r"?(isFinite(b.r)?b.r:-9)-(isFinite(a.r)?a.r:-9):b.contrib-a.contrib);
   const maxW=Math.max(...m.rows.map(r=>r.w),0.0001),tiles=$("tiles");
@@ -2018,7 +2056,7 @@ function onTick(s,p,v){
   const q=Q[s];if(!q||!(p>0))return;
   q.dir=p>q.c?1:p<q.c?-1:0;q.c=p;q.flash=Date.now();
   if(q.h>0&&p>q.h)q.h=p;if(q.l>0&&p<q.l)q.l=p;
-  health.lastUpd[s]=Date.now();health.ticks++;
+  health.lastUpd[s]=Date.now();health.ticks++;q.lt=Date.now();
   updBar(s,p,v);dirty=true;
 }
 let qcT=0;
@@ -2052,8 +2090,11 @@ function fhTick(){
 async function fetchQuote(s){
   const j=await fhGet(`quote?symbol=${encodeURIComponent(s)}`,"quote");
   if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;saveQuoteCache();if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
+    if(j.c>0)q.qc=j.c;
+    const ph=phaseAt(Date.now()),ext=ph==="pre"||ph==="post"||ph==="closed";
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
-    if(j.c>0&&!(q.c>0&&fresh)){q.c=j.c;updBar(s,j.c,0)}
+    const extLive=ext&&q.lt&&Date.now()-q.lt<6*3600000;
+    if(j.c>0&&!(q.c>0&&(fresh||extLive))){q.c=j.c;updBar(s,j.c,0)}
     health.lastUpd[s]=Math.max(health.lastUpd[s]||0,fresh?0:Date.now())}
 }
 async function marketStatus(){
