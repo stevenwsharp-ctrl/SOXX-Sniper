@@ -101,6 +101,12 @@ table.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 .flags{margin:10px 0 0;padding-left:18px;font-size:13px;color:var(--amber);line-height:1.7}
 .fgw{display:flex;align-items:center;gap:14px}
 .tbl td.sum{color:var(--dim)}
+.news{max-height:420px;overflow:auto;padding-right:4px}
+.nrow{display:grid;grid-template-columns:10px 34px minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid rgba(30,40,53,.6);font-size:13px;line-height:1.45}
+.ndot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.nh a{color:var(--ink);text-decoration:none}.nh a:hover{color:var(--accent)}
+.quad .tbl td:first-child{white-space:normal}
+.quad.wide{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
 .tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(155,107,255,.15);color:#c4abff;margin-left:4px}
 .modal{position:fixed;inset:0;background:rgba(3,5,8,.82);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
 .modal.show{display:flex}
@@ -164,6 +170,28 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="kv" id="fgKv"></div>
       <div class="label" style="margin-top:16px">Positioning flow</div>
       <div class="tw"><table class="tbl" id="posTbl"></table></div>
+    </div>
+  </section>
+
+  <section class="quad wide">
+    <div class="card"><div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">Macro backdrop</div><div id="macS"></div></div><div class="tw"><table class="tbl" id="macT"></table></div><div id="macN"></div></div>
+    <div class="card"><div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">Bonds · credit · funding</div><div id="bonS"></div></div><div class="tw"><table class="tbl" id="bonT"></table></div><div id="bonN"></div></div>
+    <div class="card"><div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">Consumer credit · debt ratios</div><div id="conS"></div></div><div class="tw"><table class="tbl" id="conT"></table></div><div id="conN"></div>
+      <div class="note">No free source gives consumer credit scores in real time. The page uses the Fed's card delinquency, charge-off and debt-service data (official, quarterly) plus live market signals from consumer stocks and card lenders.</div></div>
+    <div class="card"><div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">Oil · micro (semis fundamentals)</div><div id="micS"></div></div><div class="tw"><table class="tbl" id="micT"></table></div>
+      <div class="label" style="margin-top:12px">Earnings in the next 14 days</div><div class="row" id="earnL"></div></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="label">Live macro proxies · 24h / day / 1h / 30m</div>
+      <div class="tw"><table class="tbl" id="xm2Tbl"></table></div>
+      <div class="note">These ETFs trade in real time, so they show what the slow official data cannot: oil (USO), rates (TLT, IEF, SHY), credit (HYG, LQD), and the consumer (XLY, XLP, card lenders). Live yields and the live high-yield spread are estimates from the ETF moves and their durations.</div>
+    </div>
+    <div class="card">
+      <div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">News · scored live</div><div id="nwsS"></div></div>
+      <div class="row" id="nwsHeat" style="margin-bottom:8px"></div>
+      <div class="news" id="nwsList"></div>
     </div>
   </section>
 
@@ -283,6 +311,8 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <li>Paste it below.</li>
     </ol>
     <input type="text" id="keyIn" placeholder="Your Finnhub API key" autocomplete="off" spellcheck="false">
+    <p style="margin:4px 0 0">Optional: your FRED proxy (Cloudflare Worker) URL, for macro, bonds, funding and consumer credit data.</p>
+    <input type="text" id="proxyIn" placeholder="https://soxx-sniper-fred.yourname.workers.dev" autocomplete="off" spellcheck="false">
     <div class="err" id="keyErr"></div>
     <div class="row">
       <button id="saveKey">Save and connect</button>
@@ -326,7 +356,21 @@ const HOLDINGS=[
  ["STM","STMicroelectronics (ADR)",3718027,45.61]
 ];
 const FUND="SOXL", FUND_DEMO_PC=98.65, LEV=3;
-const ETFS=["SOXS","SOXX","QQQ","SPY","DIA"], CRYPTO=["BTC","ETH"];
+const ETFS=["SOXS","SOXX","QQQ","SPY","DIA","TLT","IEF","SHY","HYG","LQD","USO","XLY","XLP","COF","SYF","AXP"], CRYPTO=["BTC","ETH"];
+const XM2=[
+ {k:"USO",name:"Oil",sub:"USO (WTI)"},
+ {k:"TLT",name:"Long bonds",sub:"TLT 20y+"},
+ {k:"IEF",name:"10y bonds",sub:"IEF 7–10y"},
+ {k:"SHY",name:"2y bonds",sub:"SHY 1–3y"},
+ {k:"HYG",name:"High-yield credit",sub:"HYG"},
+ {k:"LQD",name:"Investment-grade",sub:"LQD"},
+ {k:"XLY",name:"Consumer discr.",sub:"XLY"},
+ {k:"XLP",name:"Consumer staples",sub:"XLP"},
+ {k:"_CARD",name:"Card lenders",sub:"COF·SYF·AXP"}
+];
+const DUR={TLT:16.5,IEF:7.1,SHY:1.9,HYG:3.2,LQD:8.3};
+const FRED_IDS=["DFF","CPIAUCSL","CPILFESL","UNRATE","A191RL1Q225SBEA","ICSA","UMCSENT","NFCI","T10YIE","DGS3MO","DGS2","DGS10","DGS30","T10Y2Y","T10Y3M","BAMLH0A0HYM2","BAMLC0A0CM","SOFR","IORB","RRPONTSYD","WRESBAL","WALCL","WTREGEN","DRCCLACBS","CORCCACBS","TDSP","TOTALSL","GFDEGDQ188S","DCOILWTICO"];
+const PROXY_STORE="soxx_fred_proxy";
 const FH_SYMS=[...HOLDINGS.map(h=>h[0]),FUND,...ETFS];
 const SYMS=[...FH_SYMS,...CRYPTO];
 const FH_CRYPTO={"COINBASE:BTC-USD":"BTC","COINBASE:ETH-USD":"ETH"};
@@ -349,7 +393,7 @@ const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0});
 const TOT={cap:0,ch24:NaN,t:0}, FNG={v:NaN,label:"",t:0};
 const hist={}; SYMS.forEach(s=>hist[s]=[]);
 const cbC={BTC:{},ETH:{}};
-const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null};
+const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null,fred:null};
 let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", kSort="inf", dirty=true, mktState=null;
 const $=id=>document.getElementById(id);
 
@@ -425,6 +469,11 @@ async function initMemory(name){
   }
   try{if(navigator.storage&&navigator.storage.persist)persisted=await navigator.storage.persist()}catch(e){}
   await loadDay(etDate());
+  if(META.pruned!==etDate()){
+    try{const cut=nowM()-400*1440,t=db.transaction(["bars","meta"],"readwrite"),st=t.objectStore("bars");
+      [...SYMS,"_IDX"].forEach(s=>st.delete(IDBKeyRange.bound([s,0],[s,cut])));
+      META.pruned=etDate();t.objectStore("meta").put({k:"pruned",v:META.pruned})}catch(e){}
+  }
   fillRecall();memStats();memStatus();
 }
 async function loadPrior(d){
@@ -615,6 +664,7 @@ function priceAgo(k,mins){
   return findAt(hist[k]||[],M0,"c");
 }
 function winRet(k,w){
+  if(k==="_CARD"){const a=["COF","SYF","AXP"].map(s=>winRet(s,w));return{r:meanF(a.map(x=>x.r)),approx:a.some(x=>x.approx)}}
   const p=priceNow(k);if(!(p>0))return{r:NaN};
   if(w==="Day"){
     if(k==="_IDX")return{r:p-1};
@@ -677,6 +727,9 @@ function fearGreed(cm,pos){
   add("Crypto momentum",sq(t("BTC","24h"),0.04),"BTC 24h "+fmtPct(t("BTC","24h")));
   const qn=quant();if(isFinite(qn.pct))add("Volatility (low = greed)",100*(1-qn.pct),`${Math.round(qn.pct*100)}th pct`);
   if(isFinite(FNG.v))add("Crypto Fear & Greed",FNG.v,FNG.label);
+  const bm=bondsModel();if(isFinite(bm.credLive))add("Junk bond demand",sq(bm.credLive,0.003),"HYG vs IEF "+fmtPct(bm.credLive));
+  const sh=dayPct("SPY")-dayPct("TLT");add("Safe-haven demand (low = fear)",sq(sh,0.012),"SPY−TLT "+fmtPct(sh));
+  const nm=newsModel();if(isFinite(nm.score))add("News sentiment",50+50*nm.score,`${nm.n1h} headlines in 1h`);
   const score=C.length?C.reduce((a,c)=>a+c.v,0)/C.length:NaN;
   const label=!isFinite(score)?"--":score<25?"Extreme fear":score<45?"Fear":score<=55?"Neutral":score<=75?"Greed":"Extreme greed";
   return{score,label,C};
@@ -685,7 +738,10 @@ function decide(){
   const cm=crossMarket(),pos=positioning(),fg=fearGreed(cm,pos),ls=leadSignal(),lv=soxlLevels(),cr=crowd();
   const use1h=isFinite(cm.win["1h"].align),lw=use1h?"1h":"Day";
   const a1=cm.win[lw].align,a3=cm.win["30m"].align,rho=isFinite(cm.win[lw].rho)?cm.win[lw].rho:cm.win["30m"].rho,net=isFinite(pos["1h"].net)?pos["1h"].net:pos.Day.net;
-  const parts=[[a1,0.3],[a3,0.2],[rho,0.2],[isFinite(fg.score)?(fg.score-50)/50:NaN,0.15],[isFinite(net)?2*(net-0.5):NaN,0.15]];
+  const mac=macroModel(),bon=bondsModel(),con=consumerModel(),oil=oilModel(),mic=microModel(),nws=newsModel();
+  const ratesLive=isFinite(bon.y10.d)?-sc(bon.y10.d,0.06):NaN, credLive=sc(bon.credLive,0.003);
+  const parts=[[a1,0.3],[a3,0.2],[rho,0.2],[isFinite(fg.score)?(fg.score-50)/50:NaN,0.15],[isFinite(net)?2*(net-0.5):NaN,0.15],
+    [ratesLive,0.1],[credLive,0.08],[nws.score,0.1],[con.score,0.05],[oil.score,0.04],[mac.score,0.05],[bon.score,0.05],[mic.score,0.03]];
   let s=0,w=0;parts.forEach(([v,k])=>{if(isFinite(v)){s+=v*k;w+=k}});
   const bias=w>=0.3?s/w:NaN;
   let regime="Collecting data";const a3x=a3;
@@ -709,7 +765,18 @@ function decide(){
   if(isFinite(fg.score)&&fg.score>=80)flags.push("Extreme greed: crowded long, reversal risk is higher");
   if(isFinite(fg.score)&&fg.score<=20)flags.push("Extreme fear: crowded short, snap-back risk is higher");
   if(isFinite(ls.gap)&&Math.abs(ls.gap)>0.005)flags.push(`SOXL is ${ls.gap>0?"above":"below"} its implied value by ${fmtPct(Math.abs(ls.gap))}`);
-  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw};
+  if(isFinite(bon.y10.d)&&bon.y10.d>0.06)flags.push(`10y yield up about ${(bon.y10.d*100).toFixed(0)}bp today: pressure on chip valuations`);
+  if(isFinite(bon.y10.d)&&bon.y10.d<-0.06)flags.push(`10y yield down about ${(-bon.y10.d*100).toFixed(0)}bp today: support for growth stocks`);
+  if(isFinite(bon.credLive)&&bon.credLive<-0.003)flags.push("Credit is weak today: high-yield bonds lag Treasuries");
+  if(isFinite(bon.hy)&&isFinite(bon.hy20)&&bon.hy-bon.hy20>0.3)flags.push(`High-yield spreads widened ${((bon.hy-bon.hy20)*100).toFixed(0)}bp in 20 days`);
+  if(isFinite(bon.curve)&&bon.curve<0)flags.push("Yield curve (10y−2y) is inverted");
+  if(isFinite(bon.fund)&&bon.fund>5)flags.push(`Funding stress: SOFR is ${bon.fund.toFixed(0)}bp above IORB`);
+  if(isFinite(bon.nlCh)&&bon.nlCh<-0.02)flags.push("Net liquidity fell more than 2% in 4 weeks");
+  if(isFinite(oil.u)&&Math.abs(oil.u)>0.03)flags.push(`Oil ${oil.u>0?"spike":"drop"} today (${fmtPct(oil.u)}): ${oil.u>0?"inflation and rates risk":"lower inflation pressure"}`);
+  if(con.parts[0][1]<-0.3)flags.push("Card delinquencies are rising year over year");
+  if(nws.shock.length)flags.push(`Negative chip headline in the last 15 min: "${nws.shock[0].h.slice(0,90)}${nws.shock[0].h.length>90?"…":""}"`);
+  if(mic.nearW>0.05)flags.push(`Earnings event risk: ${mic.near.map(e=>e.s).join(", ")} report within 2 days (${Math.round(mic.nearW*100)}% of the index)`);
+  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive};
 }
 
 /* ---------- external data: Coinbase, CoinGecko, alternative.me ---------- */
@@ -753,6 +820,232 @@ function startExternal(){
 function stopExternal(){
   clearInterval(cbTimer);clearInterval(cgTimer);clearInterval(fngTimer);
   try{if(cbWs){cbWs.onclose=null;cbWs.close()}}catch(e){}cbWs=null;
+}
+
+/* ---------- FRED (through your Cloudflare Worker) ---------- */
+let FRED={}, fredT=0, fredTimer=null, fredState=null;
+try{const c=JSON.parse(lsGet("soxx_fred")||"null");if(c&&c.series){FRED=c.series;fredT=c.t}}catch(e){}
+const fredProxy=()=>(lsGet(PROXY_STORE)||"").trim().replace(/\/+$/,"");
+async function fetchFred(){
+  if(demo)return;
+  const p=fredProxy();if(!p){fredState="not set";srcOk.fred=null;return}
+  try{
+    const r=await fetch(`${p}/fred?ids=${FRED_IDS.join(",")}&limit=60`);if(!r.ok)throw 0;
+    const j=await r.json();let n=0;
+    for(const id in j.series){const s=j.series[id];if(s&&s.obs&&s.obs.length){FRED[id]=s.obs;n++}}
+    if(!n)throw 0;
+    fredT=Date.now();fredState="ok";srcOk.fred=true;lsSet("soxx_fred",JSON.stringify({t:fredT,series:FRED}));
+  }catch(e){fredState="error";srcOk.fred=false}
+}
+function demoFred(){
+  const d=(i,step)=>new Date(Date.now()-i*step*86400000).toISOString().slice(0,10);
+  const S=(arr,step)=>arr.map((v,i)=>[d(i+1,step),v]);
+  const lin=(n,start,inc,noise=0)=>Array.from({length:n},(_,i)=>+(start-i*inc+(Math.random()-0.5)*noise).toFixed(4));
+  return{DFF:S(lin(60,3.88,0),1),CPIAUCSL:S(lin(30,324.5,0.75,0.2),30),CPILFESL:S(lin(30,330.1,0.8,0.2),30),
+    UNRATE:S([4.3,4.3,4.2,4.2,4.1,4.1,4.2,4.0,4.0,4.1,4.0,3.9,4.0,4.0],30),A191RL1Q225SBEA:S([2.1,1.6,2.4,3.0],91),
+    ICSA:S(lin(20,228000,-800,6000),7),UMCSENT:S([58.2,55.1,61.7,60.7],30),NFCI:S(lin(10,-0.52,0.01),7),
+    T10YIE:S(lin(60,2.32,0.001,0.01),1),DGS3MO:S(lin(60,3.95,0.002,0.01),1),DGS2:S(lin(60,3.55,0.002,0.02),1),
+    DGS10:S(lin(60,4.12,0.001,0.02),1),DGS30:S(lin(60,4.68,0.001,0.02),1),T10Y2Y:S(lin(60,0.57,0,0.01),1),T10Y3M:S(lin(60,0.17,0,0.01),1),
+    BAMLH0A0HYM2:S(lin(60,3.05,-0.006,0.03),1),BAMLC0A0CM:S(lin(60,0.82,-0.001,0.01),1),SOFR:S(lin(60,3.92,0,0.01),1),IORB:S(lin(60,3.9,0),1),
+    RRPONTSYD:S(lin(60,45,-0.5,5),1),WRESBAL:S(lin(10,3150000,-5000),7),WALCL:S(lin(10,6580000,-8000),7),WTREGEN:S(lin(10,860000,3000,20000),7),
+    DRCCLACBS:S([3.05,3.12,3.08,3.17,3.21],91),CORCCACBS:S([4.31,4.45,4.38,4.62,4.70],91),TDSP:S([11.31,11.28,11.25,11.22,11.20],91),
+    TOTALSL:S(lin(14,5080000,9000),30),GFDEGDQ188S:S([119.4,120.1,118.9,121.6,120.8],91),DCOILWTICO:S(lin(60,61.5,0.05,0.8),1)};
+}
+function startMacro(){
+  stopMacro();
+  try{const c=JSON.parse(lsGet("soxx_fred")||"null");FRED=c&&c.series||{};fredT=c?c.t:0}catch(e){FRED={};fredT=0}
+  MICRO={d:"",m:{},r:{}};EARN=[];loadMicroCache();
+  try{JSON.parse(lsGet("soxx_news")||"[]").forEach(n=>{if(Date.now()/1000-n.t<86400&&!newsSeen.has(n.id)){newsSeen.add(n.id);NEWS.push(n)}})}catch(e){}
+  fetchFred();fredTimer=setInterval(fetchFred,20*60000);
+}
+function stopMacro(){clearInterval(fredTimer)}
+const fv=(id,i=0)=>FRED[id]&&FRED[id][i]?FRED[id][i][1]:NaN;
+const fd=id=>FRED[id]&&FRED[id][0]?FRED[id][0][0]:"";
+const fAvg=(id,a,b)=>{const s=FRED[id];if(!s||s.length<b)return NaN;let t=0;for(let i=a;i<b;i++)t+=s[i][1];return t/(b-a)};
+const fYoY=id=>{const a=fv(id,0),b=fv(id,12);return a>0&&b>0?a/b-1:NaN};
+const fYoYat=(id,k)=>{const a=fv(id,k),b=fv(id,k+12);return a>0&&b>0?a/b-1:NaN};
+const dayPct=s=>Q[s]&&Q[s].pc>0&&Q[s].c>0?Q[s].c/Q[s].pc-1:NaN;
+const sc=(x,s)=>isFinite(x)?Math.tanh(x/s):NaN;
+const meanF=a=>{const v=a.filter(isFinite);return v.length?v.reduce((x,y)=>x+y,0)/v.length:NaN};
+function ago(dateStr){if(!dateStr)return"";const d=(Date.now()-new Date(dateStr+"T12:00:00Z").getTime())/86400000;return d<1.5?"1d":d<45?Math.round(d)+"d":Math.round(d/30)+"mo"}
+
+function macroModel(){
+  const cpi=fYoY("CPIAUCSL"),cpi3=fYoYat("CPIAUCSL",3),core=fYoY("CPILFESL");
+  const un=fv("UNRATE"),unMin=FRED.UNRATE?Math.min(...FRED.UNRATE.slice(1,13).map(x=>x[1])):NaN;
+  const cl4=fAvg("ICSA",0,4),cl4p=fAvg("ICSA",8,12);
+  const nfci=fv("NFCI"),gdp=fv("A191RL1Q225SBEA"),real10=fv("DGS10")-fv("T10YIE");
+  const parts=[
+    ["Inflation trend",sc(cpi3-cpi,0.004)],
+    ["Labor market",isFinite(un)&&isFinite(unMin)?-sc(un-unMin-0.2,0.25):NaN],
+    ["Jobless claims trend",isFinite(cl4)&&isFinite(cl4p)?-sc(cl4/cl4p-1,0.05):NaN],
+    ["Financial conditions",isFinite(nfci)?-sc(nfci+0.3,0.25):NaN],
+    ["Growth",sc(gdp-1.5,1.5)],
+    ["Real 10y rate",isFinite(real10)?-sc(real10-1.8,0.6):NaN]
+  ];
+  const rows=[
+    ["Fed funds (effective)",fmtN(fv("DFF"),2)+"%",fd("DFF")],
+    ["CPI inflation (YoY)",isFinite(cpi)?(cpi*100).toFixed(2)+"%"+(isFinite(cpi3)?` <span class="sub">${cpi<cpi3?"↓":"↑"} from ${(cpi3*100).toFixed(2)}% 3m ago</span>`:""):"--",fd("CPIAUCSL")],
+    ["Core CPI (YoY)",isFinite(core)?(core*100).toFixed(2)+"%":"--",fd("CPILFESL")],
+    ["Unemployment",isFinite(un)?un.toFixed(1)+"%"+(isFinite(unMin)?` <span class="sub">low ${unMin.toFixed(1)}%</span>`:""):"--",fd("UNRATE")],
+    ["Jobless claims (4w avg)",isFinite(cl4)?Math.round(cl4/1000)+"k"+(isFinite(cl4p)?` <span class="sub">${cl4>cl4p?"↑":"↓"} ${fmtPct(cl4/cl4p-1,1)}</span>`:""):"--",fd("ICSA")],
+    ["Real GDP growth (q/q ann.)",isFinite(gdp)?gdp.toFixed(1)+"%":"--",fd("A191RL1Q225SBEA")],
+    ["Consumer sentiment (UMich)",fmtN(fv("UMCSENT"),1),fd("UMCSENT")],
+    ["Financial conditions (NFCI)",isFinite(nfci)?nfci.toFixed(2)+(nfci<0?" loose":" tight"):"--",fd("NFCI")],
+    ["10y breakeven inflation",isFinite(fv("T10YIE"))?fv("T10YIE").toFixed(2)+"%":"--",fd("T10YIE")],
+    ["Real 10y yield",isFinite(real10)?real10.toFixed(2)+"%":"--",fd("DGS10")]
+  ];
+  return{score:meanF(parts.map(p=>p[1])),parts,rows};
+}
+function liveYield(id,etf){const y=fv(id),p=dayPct(etf);return isFinite(y)&&isFinite(p)?{y:y-p/DUR[etf]*100,d:-p/DUR[etf]*100}:{y,d:NaN}}
+function bondsModel(){
+  const y2=liveYield("DGS2","SHY"),y10=liveYield("DGS10","IEF"),y30=liveYield("DGS30","TLT");
+  const hy=fv("BAMLH0A0HYM2"),hy20=fv("BAMLH0A0HYM2",20),ig=fv("BAMLC0A0CM"),ig20=fv("BAMLC0A0CM",20);
+  const hyg=dayPct("HYG"),ief=dayPct("IEF");
+  const credLive=isFinite(hyg)&&isFinite(ief)?hyg-ief*DUR.HYG/DUR.IEF:NaN;
+  const hyLive=isFinite(hy)&&isFinite(credLive)?hy-credLive/DUR.HYG*100:hy;
+  const sofr=fv("SOFR"),iorb=fv("IORB"),fund=isFinite(sofr)&&isFinite(iorb)?(sofr-iorb)*100:NaN;
+  const nl=(i,j)=>fv("WALCL",i)-fv("WTREGEN",i)-fv("RRPONTSYD",j)*1000;
+  const nlNow=nl(0,0),nl4=nl(4,20),nlCh=isFinite(nlNow)&&isFinite(nl4)?nlNow/nl4-1:NaN;
+  const curve=isFinite(y10.y)&&isFinite(y2.y)?y10.y-y2.y:fv("T10Y2Y");
+  const parts=[
+    ["Rates today",isFinite(y10.d)?-sc(y10.d,0.06):NaN],
+    ["Credit spreads trend",isFinite(hy)&&isFinite(hy20)?-sc(hy-hy20,0.3):NaN],
+    ["Credit today (HYG vs IEF)",sc(credLive,0.003)],
+    ["Funding stress (SOFR−IORB)",isFinite(fund)?-sc(fund-2,4):NaN],
+    ["Net liquidity (4w)",sc(nlCh,0.01)]
+  ];
+  const rows=[
+    ["2y Treasury",fmtYield(y2),fd("DGS2")],
+    ["10y Treasury",fmtYield(y10),fd("DGS10")],
+    ["30y Treasury",fmtYield(y30),fd("DGS30")],
+    ["3m Treasury",isFinite(fv("DGS3MO"))?fv("DGS3MO").toFixed(2)+"%":"--",fd("DGS3MO")],
+    ["Curve 10y−2y",isFinite(curve)?`<span class="${curve<0?"down":""}">${(curve*100).toFixed(0)} bp</span>${curve<0?' <span class="sub">inverted</span>':""}`:"--","live"],
+    ["Curve 10y−3m",isFinite(fv("T10Y3M"))?(fv("T10Y3M")*100).toFixed(0)+" bp":"--",fd("T10Y3M")],
+    ["High-yield spread (OAS)",isFinite(hy)?`${hyLive.toFixed(2)}%${isFinite(credLive)?' <span class="sub">live est.</span>':""} <span class="sub">20d ${hy-hy20>=0?"+":""}${((hy-hy20)*100).toFixed(0)}bp</span>`:"--",fd("BAMLH0A0HYM2")],
+    ["Investment-grade spread",isFinite(ig)?`${ig.toFixed(2)}% <span class="sub">20d ${ig-ig20>=0?"+":""}${((ig-ig20)*100).toFixed(0)}bp</span>`:"--",fd("BAMLC0A0CM")],
+    ["SOFR − IORB (funding)",isFinite(fund)?`<span class="${fund>5?"down":""}">${fund.toFixed(0)} bp</span>`:"--",fd("SOFR")],
+    ["Fed reverse repo",isFinite(fv("RRPONTSYD"))?"$"+fv("RRPONTSYD").toFixed(0)+"B":"--",fd("RRPONTSYD")],
+    ["Bank reserves",isFinite(fv("WRESBAL"))?"$"+(fv("WRESBAL")/1e6).toFixed(2)+"T":"--",fd("WRESBAL")],
+    ["Net liquidity (Fed − TGA − RRP)",isFinite(nlNow)?"$"+(nlNow/1e6).toFixed(2)+"T"+(isFinite(nlCh)?` <span class="${cls(nlCh)}">${fmtPct(nlCh,1)} 4w</span>`:""):"--",fd("WALCL")]
+  ];
+  return{score:meanF(parts.map(p=>p[1])),parts,rows,y10,credLive,hy,hy20,curve,fund,nlCh};
+}
+function fmtYield(o){if(!isFinite(o.y))return"--";return o.y.toFixed(2)+"%"+(isFinite(o.d)?` <span class="${o.d>0?"down":"up"}">${o.d>=0?"+":""}${(o.d*100).toFixed(1)}bp</span> <span class="sub">live est.</span>`:"")}
+function consumerModel(){
+  const dq=fv("DRCCLACBS"),dq4=fv("DRCCLACBS",4),co=fv("CORCCACBS"),co4=fv("CORCCACBS",4);
+  const ds=fv("TDSP"),ds4=fv("TDSP",4),cc=fYoY("TOTALSL"),fed=fv("GFDEGDQ188S"),fed4=fv("GFDEGDQ188S",4);
+  const xly=dayPct("XLY"),xlp=dayPct("XLP"),cyc=isFinite(xly)&&isFinite(xlp)?xly-xlp:NaN;
+  const card=meanF(["COF","SYF","AXP"].map(dayPct)),cardRel=isFinite(card)&&isFinite(dayPct("SPY"))?card-dayPct("SPY"):NaN;
+  const parts=[
+    ["Card delinquency trend",isFinite(dq)&&isFinite(dq4)?-sc(dq-dq4,0.3):NaN],
+    ["Charge-off trend",isFinite(co)&&isFinite(co4)?-sc(co-co4,0.5):NaN],
+    ["Debt service burden",isFinite(ds)&&isFinite(ds4)?-sc(ds-ds4,0.3):NaN],
+    ["Consumer today (XLY−XLP)",sc(cyc,0.008)],
+    ["Card lenders today (vs SPY)",sc(cardRel,0.01)]
+  ];
+  const rows=[
+    ["Card delinquency rate",isFinite(dq)?`${dq.toFixed(2)}%${isFinite(dq4)?` <span class="${dq>dq4?"down":"up"}">${dq-dq4>=0?"+":""}${(dq-dq4).toFixed(2)} y/y</span>`:""}`:"--",fd("DRCCLACBS")],
+    ["Card charge-off rate",isFinite(co)?`${co.toFixed(2)}%${isFinite(co4)?` <span class="${co>co4?"down":"up"}">${co-co4>=0?"+":""}${(co-co4).toFixed(2)} y/y</span>`:""}`:"--",fd("CORCCACBS")],
+    ["Household debt service ratio",isFinite(ds)?`${ds.toFixed(2)}% of income${isFinite(ds4)?` <span class="sub">${ds>ds4?"↑":"↓"} y/y</span>`:""}`:"--",fd("TDSP")],
+    ["Consumer credit growth (YoY)",isFinite(cc)?fmtPct(cc,1):"--",fd("TOTALSL")],
+    ["Federal debt to GDP",isFinite(fed)?`${fed.toFixed(1)}%${isFinite(fed4)?` <span class="sub">${fed-fed4>=0?"+":""}${(fed-fed4).toFixed(1)} y/y</span>`:""}`:"--",fd("GFDEGDQ188S")],
+    ["Consumer discr. vs staples (today)",`<span class="${cls(cyc)}">${fmtPct(cyc)}</span>`,"live"],
+    ["Card lenders vs S&P (today)",`<span class="${cls(cardRel)}">${fmtPct(cardRel)}</span>`,"live"]
+  ];
+  return{score:meanF(parts.map(p=>p[1])),parts,rows,cyc,cardRel};
+}
+function oilModel(){
+  const w=fv("DCOILWTICO"),u=dayPct("USO"),live=isFinite(w)&&isFinite(u)?w*(1+u):w;
+  const w20=fv("DCOILWTICO",20);
+  return{w,live,u,ch20:isFinite(w)&&isFinite(w20)?w/w20-1:NaN,score:isFinite(u)?-sc(u-0.01,0.02)*0.5+(isFinite(w)&&isFinite(w20)?-sc(w/w20-1-0.05,0.1)*0.5:0):NaN};
+}
+
+/* ---------- micro: fundamentals, analysts, earnings (Finnhub, cached daily) ---------- */
+let MICRO={d:"",m:{},r:{}}, EARN=[];
+function loadMicroCache(){try{const c=JSON.parse(lsGet("soxx_micro")||"null");if(c&&c.d)MICRO=c}catch(e){}try{const e=JSON.parse(lsGet("soxx_earn")||"null");if(e)EARN=e}catch(e){}}
+function saveMicro(){lsSet("soxx_micro",JSON.stringify(MICRO))}
+function nextMicroTask(){
+  if(fhQ.off.metric&&fhQ.off.rec)return null;
+  const d=etDate();if(MICRO.d!==d){MICRO={d,m:{},r:{},prevM:MICRO.m,prevR:MICRO.r}}
+  for(const [s] of HOLDINGS){if(!fhQ.off.metric&&MICRO.m[s]===undefined)return["metric",s];if(!fhQ.off.rec&&MICRO.r[s]===undefined)return["rec",s]}
+  return null;
+}
+async function runMicroTask([t,s]){
+  try{
+    if(t==="metric"){const j=await fhGet(`stock/metric?symbol=${s}&metric=all`,"metric");const m=j&&j.metric||{};
+      MICRO.m[s]={pe:m.peTTM??m.peBasicExclExtraTTM??null,rg:m.revenueGrowthTTMYoy??null,gm:m.grossMarginTTM??null,nm:m.netProfitMarginTTM??null,de:m["totalDebt/totalEquityQuarterly"]??m["totalDebt/totalEquityAnnual"]??null,cr:m.currentRatioQuarterly??null}}
+    else{const j=await fhGet(`stock/recommendation?symbol=${s}`,"rec");const r=Array.isArray(j)&&j[0];MICRO.r[s]=r?{b:(r.strongBuy||0)+(r.buy||0),h:r.hold||0,s:(r.sell||0)+(r.strongSell||0)}:null}
+  }catch(e){if(t==="metric")MICRO.m[s]=MICRO.m[s]??null;else MICRO.r[s]=MICRO.r[s]??null}
+  saveMicro();
+}
+async function fetchEarnings(){
+  const a=etDate(),b=etDate(Date.now()+14*86400000);
+  const j=await fhGet(`calendar/earnings?from=${a}&to=${b}`,"earn");
+  const set=new Set(SYMS);EARN=((j&&j.earningsCalendar)||[]).filter(e=>set.has(e.symbol)).map(e=>({s:e.symbol,d:e.date,h:e.hour,est:e.epsEstimate}));
+  lsSet("soxx_earn",JSON.stringify(EARN));
+}
+function microModel(){
+  const m=compute(),w={};m.rows.forEach(r=>w[r.s]=r.w);
+  const src=MICRO.m&&Object.keys(MICRO.m).length?MICRO:{m:MICRO.prevM||{},r:MICRO.prevR||{}};
+  let ey=0,wE=0,rg=0,wR=0,gm=0,wG=0,de=0,wD=0,bs=0,wB=0,cov=0;
+  for(const [s] of HOLDINGS){const x=src.m&&src.m[s],y=src.r&&src.r[s],ww=w[s]||0;if(x)cov++;
+    if(x&&x.pe>0){ey+=ww/x.pe;wE+=ww}
+    if(x&&isFinite(x.rg)&&x.rg!==null){rg+=ww*x.rg;wR+=ww}
+    if(x&&isFinite(x.gm)&&x.gm!==null){gm+=ww*x.gm;wG+=ww}
+    if(x&&isFinite(x.de)&&x.de!==null&&x.de>=0){de+=ww*x.de;wD+=ww}
+    if(y&&y.b+y.h+y.s>0){bs+=ww*y.b/(y.b+y.h+y.s);wB+=ww}}
+  const pe=wE>0.3?wE/ey:NaN,RG=wR>0.3?rg/wR:NaN,GM=wG>0.3?gm/wG:NaN,DE=wD>0.3?de/wD:NaN,BS=wB>0.3?bs/wB:NaN;
+  const today=etDate(),soon=EARN.filter(e=>w[e.s]>0&&e.d>=today).sort((a,b)=>a.d<b.d?-1:1);
+  const near=soon.filter(e=>(new Date(e.d)-new Date(today))/86400000<=2);
+  const nearW=near.reduce((a,e)=>a+(w[e.s]||0),0);
+  const parts=[["Revenue growth",sc(RG-10,20)],["Valuation (P/E)",isFinite(pe)?-sc(pe-35,15):NaN],["Analyst support",isFinite(BS)?sc(BS-0.6,0.15):NaN],["Balance sheets (debt/equity)",isFinite(DE)?-sc(DE-0.6,0.5):NaN]];
+  return{score:meanF(parts.map(p=>p[1])),parts,pe,RG,GM,DE,BS,cov,soon,near,nearW};
+}
+
+/* ---------- news (Finnhub, scored in the browser) ---------- */
+const NEWS=[], newsSeen=new Set();
+try{JSON.parse(lsGet("soxx_news")||"[]").forEach(n=>{if(Date.now()/1000-n.t<86400&&!newsSeen.has(n.id)){newsSeen.add(n.id);NEWS.push(n)}})}catch(e){}
+const POS=["beat","beats","surge","surges","soar","soars","record","upgrade","upgraded","raises","raised","rally","rallies","strong","growth","approve","approved","deal","wins","jumps","gains","rebound","outperform","bullish","boost","boosts","expands","rate cut","cuts rates","easing","stimulus","cools","cooling","eases","ease","eased","improve","improves","optimism","higher guidance","buyback","partnership","demand"];
+const NEG=["miss","misses","plunge","plunges","slump","slumps","downgrade","downgraded","cuts guidance","lowers","ban","bans","tariff","tariffs","export control","restrictions","probe","lawsuit","recession","layoffs","default","defaults","selloff","sell-off","falls","drops","slides","tumbles","warns","warning","weak","weaker","bearish","rate hike","hikes","hotter","sticky inflation","crisis","war","sanctions","shutdown","delinquen","bankrupt","fraud","glut","shortfall","slowdown","fears","concern"];
+const TOPICS=[
+ ["Semis/AI",/\b(chip|chips|semiconductor|semis|nvidia|amd|tsmc|micron|intel|broadcom|asml|qualcomm|marvell|arm|hbm|gpu|ai\b|data center|foundry|wafer)/i,1],
+ ["Rates/Fed",/\b(fed|fomc|powell|rate|rates|yield|yields|treasury|treasuries|bond|bonds)\b/i,0.7],
+ ["Oil/energy",/\b(oil|crude|opec|brent|wti|gasoline|natural gas|energy)\b/i,0.6],
+ ["Credit/debt",/\b(credit|debt|default|loan|loans|delinquen|lender|lenders|bank|banks|spread|junk|downgrade)/i,0.6],
+ ["Macro",/\b(inflation|cpi|pce|jobs|payroll|payrolls|gdp|unemployment|retail sales|consumer|recession|economy)\b/i,0.6],
+ ["Trade/policy",/\b(tariff|tariffs|export|china|sanction|sanctions|trade|white house|congress|regulation)\b/i,0.8]
+];
+function scoreHeadline(h){
+  const t=" "+h.toLowerCase()+" ";let p=0,n=0;
+  POS.forEach(w=>{if(t.includes(w))p++});NEG.forEach(w=>{if(t.includes(w))n++});
+  const s=p+n?(p-n)/Math.sqrt(p+n+1):0;
+  const tags=TOPICS.filter(([,re])=>re.test(h)).map(([n])=>n);
+  const rel=Math.max(0.3,...TOPICS.filter(([,re])=>re.test(h)).map(([,,w])=>w));
+  return{s:clamp(s,-1,1),tags,rel};
+}
+function addNews(items,src){
+  let added=0;
+  (items||[]).forEach(it=>{
+    const id=String(it.id||it.url||it.headline);if(!it.headline||newsSeen.has(id))return;
+    newsSeen.add(id);const sc2=scoreHeadline(it.headline+" "+(it.summary||"").slice(0,200));
+    NEWS.push({id,t:it.datetime||Math.floor(Date.now()/1000),h:it.headline,src:it.source||src,url:it.url||"",rel:it.related||"",...sc2,co:src==="company"});added++;
+  });
+  NEWS.sort((a,b)=>b.t-a.t);const cut=Date.now()/1000-86400;while(NEWS.length&&(NEWS.length>300||NEWS[NEWS.length-1].t<cut))NEWS.pop();
+  if(added&&!demo){try{lsSet("soxx_news",JSON.stringify(NEWS.slice(0,150)))}catch(e){}}
+}
+async function fetchNews(){const j=await fhGet("news?category=general","news");addNews(j,"general")}
+let cnRR=0;
+async function fetchCompanyNews(){
+  const top=[...HOLDINGS].sort((a,b)=>b[2]*b[3]-a[2]*a[3]).slice(0,8).map(h=>h[0]);
+  const s=top[cnRR++%top.length],to=etDate(),from=etDate(Date.now()-86400000);
+  const j=await fhGet(`company-news?symbol=${s}&from=${from}&to=${to}`,"cnews");addNews((j||[]).slice(0,20),"company");
+}
+function newsModel(){
+  const now=Date.now()/1000;let sw=0,ss=0,sw1=0,ss1=0;const heat={};
+  NEWS.forEach(n=>{const age=(now-n.t)/60;if(age<0||age>1440)return;const dec=Math.pow(0.5,age/90),w=n.rel*dec*(n.co?1.2:1);
+    sw+=w;ss+=w*n.s;if(age<=60){sw1+=n.rel;ss1+=n.rel*n.s}n.tags.forEach(t=>heat[t]=(heat[t]||0)+dec)});
+  const shock=NEWS.filter(n=>(now-n.t)<900&&n.s<=-0.5&&n.tags.includes("Semis/AI"));
+  return{score:sw>0.5?ss/sw:NaN,s1h:sw1>0?ss1/sw1:NaN,n1h:NEWS.filter(n=>now-n.t<3600).length,heat,shock};
 }
 
 /* ---------- core compute ---------- */
@@ -909,6 +1202,42 @@ function renderAnalysis(){
   renderCross();
 }
 
+const fmtS=x=>isFinite(x)?(x>=0?"+":"")+x.toFixed(2):"--";
+function scoreHead(id,x){const e=$(id);if(!e)return;e.innerHTML=isFinite(x)?`<span class="${x>0.25?"up":x<-0.25?"down":""}">${fmtS(x)}</span> <span class="sub">${x>0.25?"supportive":x<-0.25?"headwind":"neutral"}</span>`:'<span class="sub">--</span>'}
+function rowsTbl(rows){return`<tr><th class="l">Measure</th><th>Value</th><th>As of</th></tr>`+rows.map(([a,b,c])=>`<tr><td>${a}</td><td>${b}</td><td class="sum">${c==="live"?'<span class="ok">live</span>':c?ago(c):"--"}</td></tr>`).join("")}
+function renderMacro(D){
+  const noFred=!Object.keys(FRED).length;
+  const fredMsg=demo?"":noFred?`<div class="note">${fredProxy()?"FRED proxy did not answer yet. Check System health.":"Add your FRED proxy URL (API key button) to fill the official data. Live rows work now."}</div>`:"";
+  scoreHead("macS",D.mac.score);$("macT").innerHTML=rowsTbl(D.mac.rows);$("macN").innerHTML=fredMsg;
+  scoreHead("bonS",D.bon.score);$("bonT").innerHTML=rowsTbl(D.bon.rows);$("bonN").innerHTML=fredMsg;
+  scoreHead("conS",D.con.score);$("conT").innerHTML=rowsTbl(D.con.rows);$("conN").innerHTML=fredMsg;
+  const o=D.oil,mi=D.mic;scoreHead("micS",meanF([o.score,mi.score]));
+  const m=compute(),w={};m.rows.forEach(r=>w[r.s]=r.w);
+  $("micT").innerHTML=rowsTbl([
+    ["WTI crude (official)",isFinite(o.w)?fmtPx(o.w):"--",fd("DCOILWTICO")],
+    ["WTI crude (live est. from USO)",isFinite(o.live)&&isFinite(o.u)?`${fmtPx(o.live)} <span class="${cls(o.u)}">${fmtPct(o.u)}</span>`:"--","live"],
+    ["WTI 20-day change",fmtPct(o.ch20,1),fd("DCOILWTICO")],
+    ["Semis 30: P/E (weighted)",fmtN(mi.pe,1),mi.cov?"live":""],
+    ["Semis 30: revenue growth TTM",isFinite(mi.RG)?mi.RG.toFixed(1)+"%":"--",mi.cov?"live":""],
+    ["Semis 30: gross margin",isFinite(mi.GM)?mi.GM.toFixed(1)+"%":"--",mi.cov?"live":""],
+    ["Semis 30: debt / equity",fmtN(mi.DE,2),mi.cov?"live":""],
+    ["Analysts: buy share",isFinite(mi.BS)?Math.round(mi.BS*100)+"%":"--",mi.cov?"live":""],
+    ["Fundamentals loaded",`${mi.cov} of 30`,""]
+  ]).replace(/<td class="sum"><\/td>/g,"<td class=\"sum\"></td>");
+  $("earnL").innerHTML=mi.soon.length?mi.soon.slice(0,6).map(e=>`<span class="chip">${e.s} <b>${e.d.slice(5)}</b> ${e.h==="bmo"?"pre":e.h==="amc"?"post":""} · ${w[e.s]?(w[e.s]*100).toFixed(1)+"%":""}</span>`).join(""):'<span class="sub">No holdings report in the next 14 days (or calendar not loaded)</span>';
+
+  const cell=o2=>!o2||!isFinite(o2.r)?'<td class="sum">--</td>':`<td class="${cls(o2.r)}">${o2.approx?"≈":""}${fmtPct(o2.r)}</td>`;
+  $("xm2Tbl").innerHTML=`<tr><th class="l">Live proxy</th><th>Price</th>${WINS.map(([w2])=>`<th>${w2}</th>`).join("")}</tr>`+
+    XM2.map(x=>`<tr><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="_CARD"?"":fmtPx(priceNow(x.k))}</td>${WINS.map(([w2])=>cell(winRet(x.k,w2))).join("")}</tr>`).join("");
+
+  const nm=D.nws;scoreHead("nwsS",nm.score);
+  $("nwsHeat").innerHTML=Object.entries(nm.heat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span class="chip">${k} <b>${v.toFixed(1)}</b></span>`).join("")+`<span class="chip">1h <b>${fmtS(nm.s1h)}</b> · ${nm.n1h} items</span>`;
+  const now=Date.now()/1000;
+  const list=NEWS.filter(n=>n.rel>=0.6||n.co).slice(0,18);
+  $("nwsList").innerHTML=list.length?list.map(n=>{const a=Math.round((now-n.t)/60);
+    return`<div class="nrow"><span class="ndot" style="background:${n.s>0.15?"var(--up)":n.s<-0.15?"var(--down)":"var(--mute)"}"></span><span class="sub">${a<60?a+"m":Math.round(a/60)+"h"}</span><span class="nh">${n.url?`<a href="${n.url.replace(/"/g,"&quot;")}" target="_blank" rel="noopener">${esc(n.h)}</a>`:esc(n.h)} <span class="sub">${esc(n.src||"")}${n.rel&&n.co?" · "+esc(n.rel):""}</span>${n.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</span></div>`}).join(""):'<div class="sub">Waiting for headlines…</div>';
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function fmtBig(x){return!(x>0)?"--":x>=1e12?"$"+(x/1e12).toFixed(3)+"T":x>=1e9?"$"+(x/1e9).toFixed(2)+"B":fmtPx(x)}
 function renderCross(){
   const D=decide(),cm=D.cm,pos=D.pos,fg=D.fg;
@@ -925,8 +1254,11 @@ function renderCross(){
     chip("Align 30m",isFinite(D.a3)?(D.a3>0?"↑ ":"↓ ")+Math.round(Math.abs(D.a3)*100)+"%":"--"),
     chip("Beta order "+D.lw,fmtN(D.rho,2)),
     chip("Order flow 1h",isFinite(D.net)?Math.round(D.net*100)+"% buy":"--"),
-    chip("Learned 1m bias",fmtPct(D.ls.pred,3)+" · "+D.ls.conf)
+    chip("Learned 1m bias",fmtPct(D.ls.pred,3)+" · "+D.ls.conf),
+    chip("Rates today",fmtS(D.ratesLive)),chip("Credit today",fmtS(D.credLive)),chip("News",fmtS(D.nws.score)),
+    chip("Consumer",fmtS(D.con.score)),chip("Oil",fmtS(D.oil.score)),chip("Macro",fmtS(D.mac.score)),chip("Funding/bonds",fmtS(D.bon.score)),chip("Micro",fmtS(D.mic.score))
   ].join("");
+  renderMacro(D);
   $("dFlags").innerHTML=D.flags.map(f=>`<li>${f}</li>`).join("");
 
   const cell=o=>!o||!isFinite(o.r)?'<td class="sum">--</td>':`<td class="${cls(o.r)}">${o.approx?"≈":""}${fmtPct(o.r)}</td>`;
@@ -1005,7 +1337,10 @@ function renderInsights(){
     ["Trades received",h.ticks.toLocaleString()],
     ["Reconnects / poll errors",`${h.rec} / ${h.perr}`],
     ["Open forecasts",h.pend],
-    ["Data sources",Object.entries({Finnhub:srcOk.finnhub,Coinbase:srcOk.coinbase,CoinGecko:srcOk.coingecko,"Crypto F&G":srcOk.fng}).map(([n,v])=>`<span class="${demo?"":v===true?"ok":v===false?"bad":""}">${n}${demo?"":v===false?" ✕":v===true?" ✓":""}</span>`).join(" · ")+(demo?" (demo)":"")]
+    ["Finnhub calls (last 60 s)",`${fhUsed()} / 55`+(Object.keys(fhQ.off).length?` <span class="meh">no access: ${Object.keys(fhQ.off).join(", ")}</span>`:"")],
+    ["FRED data",demo?"demo":fredT?`updated ${Math.round((Date.now()-fredT)/60000)} min ago · ${Object.keys(FRED).length}/${FRED_IDS.length} series`:(fredState||"not set")],
+    ["Headlines (24h)",NEWS.length],
+    ["Data sources",Object.entries({Finnhub:srcOk.finnhub,Coinbase:srcOk.coinbase,CoinGecko:srcOk.coingecko,"Crypto F&G":srcOk.fng,FRED:srcOk.fred}).map(([n,v])=>`<span class="${demo?"":v===true?"ok":v===false?"bad":""}">${n}${demo?"":v===false?" ✕":v===true?" ✓":""}</span>`).join(" · ")+(demo?" (demo)":"")]
   ]);
 }
 
@@ -1100,31 +1435,40 @@ function onTick(s,p,v){
   health.lastUpd[s]=Date.now();health.ticks++;
   updBar(s,p,v);dirty=true;
 }
+/* Finnhub scheduler: one call each 1.1 s at most, max 55 calls per minute (free limit is 60) */
+const fhQ={calls:[],backoff:0,rr:0,jobs:{},off:{},busy:0,n:0};
+function fhUsed(){const t=Date.now();fhQ.calls=fhQ.calls.filter(x=>t-x<60000);return fhQ.calls.length}
+async function fhGet(path,tag){
+  fhQ.calls.push(Date.now());fhQ.busy++;fhQ.n++;
+  try{
+    const r=await fetch(`https://finnhub.io/api/v1/${path}${path.includes("?")?"&":"?"}token=${apiKey}`);
+    if(r.status===429){fhQ.backoff=Date.now()+15000;throw new Error("rate")}
+    if(r.status===401)throw new Error("auth");
+    if(r.status===403){if(tag)fhQ.off[tag]=true;throw new Error(tag==="quote"?"auth":"noaccess")}
+    if(!r.ok)throw new Error("http"+r.status);
+    srcOk.finnhub=true;return await r.json();
+  }finally{fhQ.busy--}
+}
+function fhTick(){
+  if(demo||!apiKey||Date.now()<fhQ.backoff||fhUsed()>=55||fhQ.busy>2)return;
+  const now=Date.now();
+  const jobs=[["status",60000,marketStatus],["news",90000,fetchNews],["cnews",150000,fetchCompanyNews],["earn",6*3600000,fetchEarnings]];
+  for(const [k,iv,fn] of jobs){if(!fhQ.off[k]&&now-(fhQ.jobs[k]||0)>=iv){fhQ.jobs[k]=now;fn().catch(()=>{});return}}
+  const mt=nextMicroTask();
+  if(mt&&fhUsed()<45){runMicroTask(mt).catch(()=>{});return}
+  const s=FH_SYMS[fhQ.rr++%FH_SYMS.length];
+  fetchQuote(s).catch(e=>{health.pollErr++;if(e.message==="auth"){setFeed("err","Feed: bad API key");openModal("That key did not work. Check it and try again.")}});
+}
 async function fetchQuote(s){
-  const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(s)}&token=${apiKey}`);
-  if(r.status===401||r.status===403)throw new Error("auth");
-  if(r.status===429)throw new Error("rate");
-  const j=await r.json();
-  srcOk.finnhub=true;
+  const j=await fhGet(`quote?symbol=${encodeURIComponent(s)}`,"quote");
   if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
     if(j.c>0&&!(q.c>0&&fresh)){q.c=j.c;updBar(s,j.c,0)}
     health.lastUpd[s]=Math.max(health.lastUpd[s]||0,fresh?0:Date.now())}
 }
-async function pollAll(){
-  for(const s of FH_SYMS){
-    if(demo||!apiKey)return;
-    try{await fetchQuote(s)}catch(e){
-      if(e.message==="auth"){setFeed("err","Feed: bad API key");openModal("That key did not work. Check it and try again.");return}
-      health.pollErr++;
-      if(e.message==="rate")await new Promise(r=>setTimeout(r,2000));
-    }
-    dirty=true;await new Promise(r=>setTimeout(r,120));
-  }
-}
 async function marketStatus(){
   if(demo){$("mktDot").className="dot warn";$("mktTxt").textContent="Demo data";memStatus();return}
-  try{const j=await(await fetch(`https://finnhub.io/api/v1/stock/market-status?exchange=US&token=${apiKey}`)).json();
+  try{const j=await fhGet("stock/market-status?exchange=US","status");
     mktState=j.session?j.session==="regular":!!j.isOpen;
     $("mktDot").className="dot "+(j.isOpen?"live":"");
     $("mktTxt").textContent="Market: "+(j.isOpen?(j.session||"open"):"closed");
@@ -1142,7 +1486,8 @@ function connectWS(){
 function resetLive(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
   clearInterval(pollTimer);clearInterval(demoTimer);
-  stopExternal();
+  stopExternal();stopMacro();
+  NEWS.length=0;newsSeen.clear();
   SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s];delete tickSign[s];hist[s]=[]});
   hist._IDX=[];cbC.BTC={};cbC.ETH={};Object.assign(TOT,{cap:0,ch24:NaN,t:0});Object.assign(FNG,{v:NaN,label:"",t:0});
   for(const k in srcOk)srcOk[k]=null;prevRP=NaN;lastRP=NaN;
@@ -1153,10 +1498,10 @@ function resetLive(){
 async function startLive(){
   resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");
   await initMemory("soxx_sniper_live");
-  startExternal();
-  await marketStatus();
-  pollAll().then(()=>{if(!demo&&apiKey)connectWS()});
-  pollTimer=setInterval(()=>{pollAll();marketStatus()},60000);
+  startExternal();startMacro();
+  fhQ.jobs={};fhQ.rr=0;
+  connectWS();
+  pollTimer=setInterval(fhTick,1100);
 }
 async function startDemo(){
   resetLive();demo=true;apiKey=null;loadSeries();
@@ -1164,7 +1509,13 @@ async function startDemo(){
   HOLDINGS.forEach(h=>{const q=Q[h[0]];q.pc=h[3];q.c=h[3];q.h=h[3];q.l=h[3]});
   Object.assign(Q[FUND],{pc:FUND_DEMO_PC,c:FUND_DEMO_PC,h:FUND_DEMO_PC,l:FUND_DEMO_PC});
   totHist=[];
-  const DPC={SOXS:46.65,SOXX:502,QQQ:612,SPY:688,DIA:471,BTC:108500,ETH:3950};
+  const DPC={SOXS:46.65,SOXX:502,QQQ:612,SPY:688,DIA:471,BTC:108500,ETH:3950,TLT:88.2,IEF:96.1,SHY:82.6,HYG:80.5,LQD:110.2,USO:72.3,XLY:225.4,XLP:79.1,COF:221.5,SYF:70.2,AXP:331.8};
+  FRED=demoFred();fredT=Date.now();fredState="demo";
+  MICRO={d:etDate(),m:{},r:{}};HOLDINGS.forEach(([s])=>{MICRO.m[s]={pe:18+Math.random()*45,rg:-5+Math.random()*60,gm:40+Math.random()*35,de:0.1+Math.random()*1.1,cr:2};MICRO.r[s]={b:Math.round(18+Math.random()*25),h:Math.round(4+Math.random()*12),s:Math.round(Math.random()*3)}});
+  EARN=[{s:"TXN",d:etDate(Date.now()+86400000),h:"amc"},{s:"LRCX",d:etDate(Date.now()+2*86400000),h:"amc"},{s:"KLAC",d:etDate(Date.now()+8*86400000),h:"amc"},{s:"NXPI",d:etDate(Date.now()+12*86400000),h:"bmo"}];
+  const DH=["Nvidia shares rally on record AI chip demand","Treasury yields climb after hotter inflation data","Oil drops as OPEC raises output","Credit card delinquencies ease in third quarter","US weighs new export controls on chip equipment to China","Micron beats estimates and raises guidance","Fed officials signal patience on rate cuts","High-yield bond spreads tighten as demand stays strong","Consumer spending slows as retail sales miss forecasts","TSMC says AI server demand remains strong"];
+  addNews(DH.slice(0,6).map((h,i)=>({id:"demo"+i,datetime:Math.floor(Date.now()/1000)-i*600-60,headline:"Demo: "+h,source:"demo"})),"general");
+  let dn=6;
   const M0=nowM();
   for(const s in DPC){const q=Q[s];q.pc=DPC[s];q.c=DPC[s];q.o=DPC[s];q.h=DPC[s];q.l=DPC[s];
     hist[s].push({m:M0-1440,c:DPC[s]*(1+(Math.random()-0.5)*0.03),v:0,dv:0});
@@ -1172,7 +1523,7 @@ async function startDemo(){
     hist[s].sort((a,b)=>a.m-b.m);}
   Object.assign(TOT,{cap:3.8e12,ch24:1.2});Object.assign(FNG,{v:58,label:"Greed"});
   totHist.push({m:M0-minsSinceMidnightET(),cap:3.76e12});
-  const mkt={v:0},cry={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
+  const mkt={v:0},cry={v:0},oil={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
   let lagIdx=0;const vol=()=>Math.round(100+Math.random()*2000);
   const drift=(s,tgtR)=>{const q=Q[s];const tgt=q.pc*(1+tgtR+(Math.random()-0.5)*0.0015);onTick(s,+(q.c+(tgt-q.c)*0.35).toFixed(2),vol())};
   demoTimer=setInterval(()=>{
@@ -1182,16 +1533,22 @@ async function startDemo(){
     onTick(FUND,+(FUND_DEMO_PC*(1+lagIdx+(Math.random()-0.5)*0.002)).toFixed(2),Math.round(200+Math.random()*3000));
     drift("SOXS",-lagIdx);drift("SOXX",m.idx);drift("QQQ",mkt.v*0.45);drift("SPY",mkt.v*0.33);drift("DIA",mkt.v*0.22);
     drift("BTC",cry.v);drift("ETH",cry.v*1.3);
+    oil.v+=(Math.random()-0.5)*0.0005;
+    drift("TLT",-mkt.v*0.3);drift("IEF",-mkt.v*0.15);drift("SHY",-mkt.v*0.02);drift("HYG",mkt.v*0.25);drift("LQD",mkt.v*0.05);
+    drift("USO",oil.v);drift("XLY",mkt.v*0.5);drift("XLP",mkt.v*0.15);drift("COF",mkt.v*0.7);drift("SYF",mkt.v*0.8);drift("AXP",mkt.v*0.6);
+    if(Math.random()<1/600){const h=DH[dn++%DH.length];addNews([{id:"demo"+dn+"_"+Date.now(),datetime:Math.floor(Date.now()/1000),headline:"Demo: "+h,source:"demo"}],"general")}
     TOT.cap=3.8e12*(1+cry.v*0.95);if(Math.random()<0.02)pushTot();
   },1000);
   setFeed("warn","Feed: demo");marketStatus();
 }
 
 /* ---------- controls ---------- */
-function openModal(msg){$("keyErr").textContent=msg||"";$("keyIn").value=apiKey||"";$("modal").classList.add("show")}
+function openModal(msg){$("keyErr").textContent=msg||"";$("keyIn").value=apiKey||"";$("proxyIn").value=fredProxy();$("modal").classList.add("show")}
 $("keyBtn").onclick=()=>openModal();
 $("closeModal").onclick=()=>$("modal").classList.remove("show");
 $("saveKey").onclick=()=>{const k=$("keyIn").value.trim();if(!k){$("keyErr").textContent="Enter a key first.";return}
+  const px=$("proxyIn").value.trim();if(px&&!/^https:\/\/[^\s/]+/.test(px)){$("keyErr").textContent="The proxy URL must start with https://";return}
+  lsSet(PROXY_STORE,px);
   apiKey=k;lsSet(KEY_STORE,k);$("modal").classList.remove("show");startLive()};
 $("keyIn").oninput=()=>$("keyErr").textContent="";
 $("demoBtn").onclick=()=>{$("modal").classList.remove("show");startDemo()};
