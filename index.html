@@ -487,7 +487,7 @@ const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0});
 const TOT={cap:0,ch24:NaN,t:0}, FNG={v:NaN,label:"",t:0};
 const hist={}; SYMS.forEach(s=>hist[s]=[]);
 const cbC={BTC:{},ETH:{}};
-const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null,fred:null,hist:null};
+const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null,fred:null,hist:null,ext:null};
 let kHours="reg";
 let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", kSort="inf", dirty=true, mktState=null;
 const $=id=>document.getElementById(id);
@@ -614,6 +614,25 @@ function offMode(){
   return{ph,label:wd===0||wd===6?"recording · weekend (crypto)":"recording · overnight (crypto)"};
 }
 const recording=()=>!!db&&leader&&!demo;
+
+/* ---------- live extended-hours prices through the Worker (Finnhub free has no pre/post trades) ---------- */
+const EXT_MAIN=[FUND], EXT_MORE=["SOXS","SOXX","QQQ","SPY","DIA","NVDA","AMD","AVGO","MU","INTC","TSM","BTC-USD"];
+let extTimer=null,extN=0;const extVol={},extInfo={ok:null,src:"",err:""};
+async function extTick(force){
+  if(demo)return;const p=fredProxy();if(!p)return;
+  const ph=phaseAt(Date.now());if(!force&&ph==="regular")return;
+  const list=(extN++%4===0?[...EXT_MAIN,...EXT_MORE.filter(s=>s!=="BTC-USD")]:EXT_MAIN);
+  try{
+    const j=await(await fetch(`${p}/ext?t=${list.join(",")}`)).json();let n=0;
+    for(const s in j.quotes){const x=j.quotes[s],q=Q[s];if(!q||!(x.price>0))continue;n++;
+      if(x.regularClose>0)q.regClose=x.regularClose;q.xsess=x.session;q.xt=x.time;q.xsrc=x.src;
+      const key=s+"|"+x.time,prev=extVol[s]&&extVol[s].k===key?extVol[s].v:0,dv=Math.max(0,(x.vol||0)-prev);extVol[s]={k:key,v:x.vol||0};
+      if(x.session==="pre"||x.session==="post"||x.price!==q.c)onTick(s,x.price,dv);
+    }
+    extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
+  }catch(e){extInfo.ok=false;extInfo.err="Worker /ext did not answer (update the Worker code)";srcOk.ext=false}
+}
+function startExt(){clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),15000)}
 
 /* ---------- off-hours memory: extended-hours learning, overnight recording ---------- */
 function offHours(M,d,bars,r){
@@ -1621,18 +1640,19 @@ function renderExtBar(){
   if(ph==="pre"){base=q.pc;baseLab="prior close";lab="Pre-market · SOXL";from=etEpochMin(d,240)}
   else{
     const before4=etInfo(now).min<240;const cd=before4?addDays(d,-1):d;
-    base=findAt(hist[FUND]||[],etEpochMin(cd,959),"c");if(!(base>0))base=q.qc>0?q.qc:q.pc;
+    base=q.regClose>0?q.regClose:findAt(hist[FUND]||[],etEpochMin(cd,959),"c");if(!(base>0))base=q.qc>0?q.qc:q.pc;
     baseLab="4:00 pm close";lab=ph==="post"?"After-hours · SOXL":"After-hours (closed) · SOXL";from=etEpochMin(cd,960);
   }
   const ch=base>0?P-base:NaN,pct=base>0?P/base-1:NaN;
   let hi=-Infinity,lo=Infinity,usd=0;(hist[FUND]||[]).forEach(b=>{if(b.m>=from){hi=Math.max(hi,b.c);lo=Math.min(lo,b.c);usd+=b.c*(b.v||0)}});
   const cb=cur[FUND];if(cb&&cb.m>=from){hi=Math.max(hi,cb.h);lo=Math.min(lo,cb.l);usd+=cb.c*cb.v}
-  const ago=q.lt?Math.round((now-q.lt)/1000):null;
+  const tLast=q.xt||q.lt,ago=tLast?Math.round((now-tLast)/1000):null;
   $("ebLab").textContent=lab;
   $("ebPx").textContent=fmtPx(P);
   $("ebCh").innerHTML=isFinite(ch)?`<span class="${cls(ch)}">${ch>=0?"+":"−"}$${Math.abs(ch).toFixed(2)} (${fmtPct(pct)})</span>`:"--";
   $("ebSub").innerHTML=`vs ${baseLab} ${fmtPx(base)}`+(isFinite(hi)?`<br>range ${fmtPx(lo)} – ${fmtPx(hi)}${usd>0?" · $ volume "+fmtBig(usd):""}`:"")+
-    `<br>${ago==null?"waiting for the first trade":ago<90?`last trade ${ago}s ago`:`last trade ${Math.round(ago/60)} min ago`}`+(ph==="pre"&&q.pc>0?"":"");
+    `<br>${ago==null?(fredProxy()?"waiting for the first quote":"add the Worker URL (API key button) for live extended-hours prices"):(ago<90?`last trade ${ago}s ago`:`last trade ${Math.round(ago/60)} min ago`)+(q.xsrc?` · source ${q.xsrc==="yahoo"?"Yahoo Finance":"Nasdaq"}`:"")}`+
+    (extInfo.ok===false&&extInfo.err?`<br><span class="down">${esc(extInfo.err)}</span>`:"");
   document.title=`SOXL ${fmtPx(P)} ${isFinite(pct)?fmtPct(pct):""} ${ph==="pre"?"PM":"AH"}`;
 }
 function render(){
@@ -1960,7 +1980,7 @@ function renderInsights(){
     ["FRED data",demo?"demo":fredT?`updated ${Math.round((Date.now()-fredT)/60000)} min ago · ${Object.keys(FRED).length}/${FRED_IDS.length} series`:(fredState||"not set")],
     ["Headlines (24h)",NEWS.length],
     ["Price history (SOXL, 5-min)",histState.status==="loading"?`<span class="meh">loading ${histState.done}/${histState.total}${histState.msg?" · "+histState.msg:""}</span>`:histState.status==="error"?`<span class="bad">${esc(histState.msg)}</span>`:`${SESS.length} sessions${SESS.length?" · "+SESS[0].d+" to "+SESS[SESS.length-1].d:""}${histState.status==="no proxy"?" · add the Worker URL":""}`],
-    ["Data sources",Object.entries({Finnhub:srcOk.finnhub,Coinbase:srcOk.coinbase,CoinGecko:srcOk.coingecko,"Crypto F&G":srcOk.fng,FRED:srcOk.fred,History:srcOk.hist}).map(([n,v])=>`<span class="${demo?"":v===true?"ok":v===false?"bad":""}">${n}${demo?"":v===false?" ✕":v===true?" ✓":""}</span>`).join(" · ")+(demo?" (demo)":"")]
+    ["Data sources",Object.entries({Finnhub:srcOk.finnhub,Coinbase:srcOk.coinbase,CoinGecko:srcOk.coingecko,"Crypto F&G":srcOk.fng,FRED:srcOk.fred,History:srcOk.hist,"Extended-hours prices":srcOk.ext}).map(([n,v])=>`<span class="${demo?"":v===true?"ok":v===false?"bad":""}">${n}${demo?"":v===false?" ✕":v===true?" ✓":""}</span>`).join(" · ")+(demo?" (demo)":"")]
   ]);
 }
 
@@ -2116,7 +2136,7 @@ function connectWS(){
 }
 function resetLive(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
-  clearInterval(pollTimer);clearInterval(demoTimer);
+  clearInterval(pollTimer);clearInterval(demoTimer);clearInterval(extTimer);
   stopExternal();stopMacro();
   NEWS.length=0;newsSeen.clear();BLK.length=0;clearInterval(histTimer);SESS=[];ST=null;demoToday=null;RECENT=[];recentT=0;histState={status:"idle",done:0,total:0,msg:""};
   SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s];delete tickSign[s];hist[s]=[]});
@@ -2130,6 +2150,7 @@ async function startLive(){
   resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");loadQuoteCache();
   await initMemory("soxx_sniper_live");
   startExternal();startMacro();
+  startExt();
   await loadSess();syncHistory().then(fetchRecent);clearInterval(histTimer);histTimer=setInterval(()=>{syncHistory().then(fetchRecent)},30*60000);
   fhQ.jobs={};fhQ.rr=0;
   connectWS();
