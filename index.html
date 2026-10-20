@@ -392,7 +392,7 @@ function finalizeMinute(M){
       }
       const KI=getK("_IDX");if(isFinite(idxR)){addS(KI.c,idxR,y);addS(KI.ce,idxR,y,LAM);KI.mins++}
       if(isFinite(prevIdxR)){addS(KI.l,prevIdxR,y);addS(KI.le,prevIdxR,y,LAM)}touched.add("_IDX");
-      const KS=getK(FUND);KS.mins++;if(prevR[FUND]!=null){addS(KS.l,prevR[FUND],y);addS(KS.le,prevR[FUND],y,LAM)}touched.add(FUND);
+      const KS=getK(FUND);KS.mins++;KS.first=KS.first||M;KS.last=M;if(prevR[FUND]!=null){addS(KS.l,prevR[FUND],y);addS(KS.le,prevR[FUND],y,LAM)}touched.add(FUND);
       const KG=getK("_GAP");if(isFinite(prevGap)){addS(KG.l,prevGap,y);addS(KG.le,prevGap,y,LAM);KG.mins++}touched.add("_GAP");
       META.minutes=(META.minutes||0)+1;
     }
@@ -431,9 +431,10 @@ function soxlSigma(){
 function leadSignal(){
   const si=statOf(getK("_IDX").le), sg=statOf(getK("_GAP").le);
   const m=compute();const gap=m.live&&isFinite(m.fr)?m.fr-m.imp:NaN;
-  const pIdx=isFinite(si.beta)&&isFinite(lastIdxR)?si.beta*lastIdxR:0;
-  const pGap=isFinite(sg.beta)&&isFinite(gap)?sg.beta*gap:0;
   const tI=isFinite(si.corr)?Math.abs(si.corr)*Math.sqrt(si.n):0, tG=isFinite(sg.corr)?Math.abs(sg.corr)*Math.sqrt(sg.n):0;
+  const kI=tI>=2?si.n/(si.n+200):0, kG=tG>=2?sg.n/(sg.n+200):0;
+  const pIdx=isFinite(si.beta)&&isFinite(lastIdxR)?kI*si.beta*lastIdxR:0;
+  const pGap=isFinite(sg.beta)&&isFinite(gap)?kG*sg.beta*gap:0;
   const conf=Math.max(tI,tG);
   return{pred:pIdx+pGap,pIdx,pGap,gap,si,sg,conf:conf>=4?"high":conf>=2?"medium":"low"};
 }
@@ -461,7 +462,7 @@ function soxlLevels(){
     if(last&&Math.abs(l.price/last.price-1)<0.001){if(l.score>last.score)last.price=l.price;last.score=Math.max(last.score,l.score)+0.3*Math.min(last.score,l.score);last.labels.push(...l.labels);last.pool=last.pool||l.pool}
     else M.push({...l,labels:[...l.labels]})});
   const {sig,src}=soxlSigma(), ls=leadSignal();
-  const mu=clamp(ls.pGap+ls.pIdx/5,-0.5*sig,0.5*sig);
+  const mu=clamp(ls.pGap+ls.pIdx/5,-0.25*sig,0.25*sig);
   M.forEach(l=>{l.dir=l.price>P?1:-1;l.d=Math.abs(Math.log(l.price/P));const m2=l.dir*mu;l.p30=pTouch(l.d,m2,sig,30);l.eta=tMedian(l.d,m2,sig);l.label=[...new Set(l.labels)].join(" + ")});
   const sig2=M.filter(l=>l.score>=1.5);
   const up=sig2.filter(l=>l.dir>0).sort((a,b)=>a.d-b.d)[0]||null;
