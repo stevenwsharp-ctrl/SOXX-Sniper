@@ -91,6 +91,16 @@ table.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 .calbar .a{position:absolute;top:0;bottom:0;left:0;background:var(--violet);border-radius:4px;opacity:.85}
 .calbar .p{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
 .ok{color:var(--up)}.bad{color:var(--down)}.meh{color:var(--amber)}
+.decision{border-color:rgba(155,107,255,.45);background:linear-gradient(180deg,rgba(155,107,255,.07),transparent 60%),var(--panel)}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.stance{font-family:var(--mono);font-size:28px;font-weight:600;line-height:1.15}
+.biasbar,.fgbar{position:relative;height:10px;border-radius:5px;margin:12px 0 6px;background:linear-gradient(90deg,#ff4d5e,#3a4352 50%,#19d38a)}
+.biasbar span,.fgbar span{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px var(--bg);left:50%;transition:left .6s ease}
+.chip{font-family:var(--mono);font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--dim)}
+.chip b{font-weight:600;color:var(--ink)}
+.flags{margin:10px 0 0;padding-left:18px;font-size:13px;color:var(--amber);line-height:1.7}
+.fgw{display:flex;align-items:center;gap:14px}
+.tbl td.sum{color:var(--dim)}
 .tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(155,107,255,.15);color:#c4abff;margin-left:4px}
 .modal{position:fixed;inset:0;background:rgba(3,5,8,.82);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
 .modal.show{display:flex}
@@ -128,6 +138,33 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     <div class="card"><div class="label">Implied SOXL (3× index)</div><div class="big" id="impPct">--</div><div class="mid" id="impPx">Implied price --</div></div>
     <div class="card"><div class="label">SOXL actual</div><div class="big" id="soxPx">--</div><div class="mid" id="soxPct">--</div></div>
     <div class="card"><div class="label">Tracking gap</div><div class="big" id="gap">--</div><div class="mid">SOXL actual − implied</div></div>
+  </section>
+
+  <section class="card decision" style="margin-bottom:12px">
+    <div class="dgrid">
+      <div><div class="label">Decision read · SOXL</div><div class="stance" id="dStance">--</div><div class="mid" id="dRegime">--</div></div>
+      <div><div class="label">Bias (−1 to +1)</div><div class="biasbar"><span id="dMark"></span></div><div class="mid" id="dBias">--</div></div>
+      <div><div class="label">Favored threshold</div><div class="stance" id="dFav" style="font-size:22px">--</div><div class="mid" id="dFavL">--</div></div>
+      <div><div class="label">Fear and greed</div><div class="stance" id="dFg" style="font-size:22px">--</div><div class="mid" id="dFgL">--</div></div>
+    </div>
+    <div class="row" id="dEvid" style="margin-top:12px"></div>
+    <ul class="flags" id="dFlags"></ul>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="label">Cross-market · 24h / day / 1h / 30m</div>
+      <div class="tw"><table class="tbl" id="xmTbl"></table></div>
+      <div class="note">Dow, S&P 500 and Nasdaq 100 use their ETFs (DIA, SPY, QQQ). Day: stocks compare to the prior close, crypto to midnight ET. 24h for stocks needs a stored session; "≈" means prior close. Alignment: how many markets point in the same risk direction (SOXS counts inverted). Beta order: rank correlation of returns with the expected risk ladder SOXL › SOXX › QQQ › SPY › DIA › SOXS. +1 = clean risk-on order, −1 = clean risk-off order, near 0 = rotation.</div>
+    </div>
+    <div class="card">
+      <div class="label">Fear and greed · composite</div>
+      <div class="fgw"><div class="score" id="fgScore" style="color:var(--ink)">--</div><div><div class="stance" id="fgLabel" style="font-size:18px">--</div><div class="sub" id="fgN">--</div></div></div>
+      <div class="fgbar"><span id="fgMark"></span></div>
+      <div class="kv" id="fgKv"></div>
+      <div class="label" style="margin-top:16px">Positioning flow</div>
+      <div class="tw"><table class="tbl" id="posTbl"></table></div>
+    </div>
   </section>
 
   <section class="grid2">
@@ -289,10 +326,30 @@ const HOLDINGS=[
  ["STM","STMicroelectronics (ADR)",3718027,45.61]
 ];
 const FUND="SOXL", FUND_DEMO_PC=98.65, LEV=3;
-const SYMS=[...HOLDINGS.map(h=>h[0]),FUND];
+const ETFS=["SOXS","SOXX","QQQ","SPY","DIA"], CRYPTO=["BTC","ETH"];
+const FH_SYMS=[...HOLDINGS.map(h=>h[0]),FUND,...ETFS];
+const SYMS=[...FH_SYMS,...CRYPTO];
+const FH_CRYPTO={"COINBASE:BTC-USD":"BTC","COINBASE:ETH-USD":"ETH"};
+const XM=[
+ {k:"DIA",name:"Dow",sub:"DIA ETF",rank:2,risk:1},
+ {k:"SPY",name:"S&P 500",sub:"SPY ETF",rank:3,risk:1},
+ {k:"QQQ",name:"Nasdaq 100",sub:"QQQ ETF",rank:4,risk:1},
+ {k:"_IDX",name:"Semis 30",sub:"weighted index",rank:null,risk:1},
+ {k:"SOXX",name:"SOXX",sub:"semis ETF",rank:5,risk:1},
+ {k:"SOXL",name:"SOXL",sub:"3× bull",rank:6,risk:1},
+ {k:"SOXS",name:"SOXS",sub:"3× bear",rank:1,risk:-1},
+ {k:"BTC",name:"Bitcoin",sub:"BTC-USD",rank:null,risk:1},
+ {k:"ETH",name:"Ethereum",sub:"ETH-USD",rank:null,risk:1},
+ {k:"TOTAL",name:"Total crypto",sub:"market cap",rank:null,risk:1}
+];
+const WINS=[["24h",1440],["Day",null],["1h",60],["30m",30]];
 const KEY_STORE="soxl_tracker_finnhub_key";
 const LAM=Math.pow(0.5,1/1950);
-const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,h:0,l:0,flash:0});
+const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0});
+const TOT={cap:0,ch24:NaN,t:0}, FNG={v:NaN,label:"",t:0};
+const hist={}; SYMS.forEach(s=>hist[s]=[]);
+const cbC={BTC:{},ETH:{}};
+const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null};
 let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", kSort="inf", dirty=true, mktState=null;
 const $=id=>document.getElementById(id);
 
@@ -305,7 +362,7 @@ const fmtPx=x=>isFinite(x)&&x>0?"$"+x.toLocaleString("en-US",{minimumFractionDig
 const fmtN=(x,d=2)=>isFinite(x)?x.toFixed(d):"--";
 const cls=x=>x>0?"up":x<0?"down":"";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const fmtEta=t=>!isFinite(t)?"> this session":t<1?"< 1 min":t<60?"~"+Math.round(t)+" min":"~"+(t/60).toFixed(1)+" h";
+const fmtEta=t=>!isFinite(t)?"> session":t<1?"< 1 min":t<60?"~"+Math.round(t)+" min":"~"+(t/60).toFixed(1)+" h";
 
 /* ---------- math ---------- */
 function erf(x){const t=1/(1+0.3275911*Math.abs(x));const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return x>=0?y:-y}
@@ -349,8 +406,10 @@ function getK(s){return KN[s]||(KN[s]={s,c:mkS(),ce:mkS(),l:mkS(),le:mkS(),mins:
 
 /* live session state */
 let curDay="", todayBars=[], dayRec={}, prof={}, vwPV=0, vwV=0, prior=null;
-const cur={}, pend={}, lastPx={}, prevC={}, prevMin={};
-let prevR={}, prevIdxR=NaN, prevGap=NaN, lastM=null, lastIdxR=NaN, prevPred=NaN;
+const cur={}, pend={}, lastPx={}, prevC={}, prevMin={}, tickSign={};
+function pushHist(s,b){const h=hist[s];if(!h)return;if(h.length&&h[h.length-1].m>=b.m)return;h.push({m:b.m,c:b.c,v:b.v,dv:b.dv||0});if(h.length>3000)h.splice(0,h.length-3000)}
+let prevR={}, prevIdxR=NaN, prevGap=NaN, lastM=null, lastIdxR=NaN, prevPred=NaN, prevRP=NaN, lastRP=NaN;
+hist._IDX=[];
 let fcPend=[], pastDays=[];
 const health={reconnects:0,pollErr:0,lastUpd:{},lat:NaN,ticks:0};
 
@@ -379,6 +438,12 @@ async function loadDay(d){
   fcPend=Array.isArray(META.fc)?META.fc:[];
   const sd=dayRec[FUND];prof=(sd&&sd.prof)||{};vwPV=(sd&&sd.pv)||0;vwV=(sd&&sd.vv)||0;
   await loadPrior(d);
+  for(const s of [FUND,...ETFS,...CRYPTO,"_IDX"]){
+    let rows=(await idbAll("bars",IDBKeyRange.only([s,d]),"sd"));
+    if(prior&&s!=="_IDX")rows=(await idbAll("bars",IDBKeyRange.only([s,prior.d]),"sd")).concat(rows);
+    const live=hist[s]||[];hist[s]=rows.sort((a,b)=>a.m-b.m).map(b=>({m:b.m,c:b.c,v:b.v,dv:b.dv||0}));
+    live.forEach(b=>pushHist(s,b));
+  }
 }
 function sessionOpen(){
   if(demo)return true;
@@ -398,19 +463,22 @@ function memStatus(){
 /* ---------- bars from trades ---------- */
 function updBar(s,p,v){
   const M=Math.floor(Date.now()/60000);let b=cur[s];
-  if(!b||b.m!==M){if(b&&b.m<M)pend[s]=b;cur[s]={m:M,o:p,h:p,l:p,c:p,v:v||0}}
-  else{b.h=Math.max(b.h,p);b.l=Math.min(b.l,p);b.c=p;b.v+=v||0}
+  const lp=lastPx[s];let sg=lp>0?Math.sign(p-lp):0;if(sg===0)sg=tickSign[s]||0;else tickSign[s]=sg;
+  const dv=(v||0)*sg;
+  if(!b||b.m!==M){if(b&&b.m<M)pend[s]=b;cur[s]={m:M,o:p,h:p,l:p,c:p,v:v||0,dv}}
+  else{b.h=Math.max(b.h,p);b.l=Math.min(b.l,p);b.c=p;b.v+=v||0;b.dv+=dv}
   lastPx[s]=p;
   if(s===FUND&&v>0&&learning()){const k=(Math.round(p/0.05)*0.05).toFixed(2);prof[k]=(prof[k]||0)+v;vwPV+=p*v;vwV+=v}
 }
 function finalizeMinute(M){
   const d=etDate(M*60000);
-  if(d!==curDay){curDay=d;todayBars=[];dayRec={};prof={};vwPV=0;vwV=0;prevR={};prevIdxR=NaN;prevGap=NaN;loadPrior(d)}
+  if(d!==curDay){curDay=d;todayBars=[];hist._IDX=[];dayRec={};prof={};vwPV=0;vwV=0;prevR={};prevIdxR=NaN;prevGap=NaN;loadPrior(d)}
   const learn=learning(), bars={}, r={};
   for(const s of SYMS){
     let b=(pend[s]&&pend[s].m===M)?pend[s]:(cur[s]&&cur[s].m===M?cur[s]:null);
-    if(!b){const c=lastPx[s];if(!(c>0))continue;b={m:M,o:c,h:c,l:c,c,v:0}}
-    bars[s]={s,m:M,d,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v};
+    if(!b){const c=lastPx[s];if(!(c>0))continue;b={m:M,o:c,h:c,l:c,c,v:0,dv:0}}
+    bars[s]={s,m:M,d,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v,dv:b.dv||0};
+    pushHist(s,bars[s]);
     if(prevMin[s]===M-1&&prevC[s]>0)r[s]=b.c/prevC[s]-1;
     prevC[s]=b.c;prevMin[s]=M;
   }
@@ -418,6 +486,9 @@ function finalizeMinute(M){
   let idxR=0,ws=0;m.rows.forEach(row=>{if(r[row.s]!=null){idxR+=row.w*r[row.s];ws+=row.w}});
   idxR=ws>0.5?idxR/ws:NaN;lastIdxR=idxR;
   const gapNow=m.live&&isFinite(m.fr)?m.fr-m.imp:NaN;
+  if(m.live){const ib={s:"_IDX",m:M,d,o:1+m.idx,h:1+m.idx,l:1+m.idx,c:1+m.idx,v:0,dv:0};pushHist("_IDX",ib);if(learning())bars._IDX=ib}
+  let rpS=0,rpN=0;for(const s of ["DIA","SPY","QQQ","BTC","ETH"]){const st=statOf(getK(s).ce);if(r[s]!=null&&st.n>=30&&st.sdx>0){rpS+=r[s]/st.sdx;rpN++}}
+  const rpNow=rpN>=3?rpS/rpN:NaN;lastRP=rpNow;
   if(learn){
     const y=r[FUND], touched=new Set();
     if(y!=null&&isFinite(y)){
@@ -430,12 +501,17 @@ function finalizeMinute(M){
       if(isFinite(prevIdxR)){addS(KI.l,prevIdxR,y);addS(KI.le,prevIdxR,y,LAM)}touched.add("_IDX");
       const KS=getK(FUND);KS.mins++;KS.first=KS.first||M;KS.last=M;if(prevR[FUND]!=null){addS(KS.l,prevR[FUND],y);addS(KS.le,prevR[FUND],y,LAM)}touched.add(FUND);
       const KG=getK("_GAP");if(isFinite(prevGap)){addS(KG.l,prevGap,y);addS(KG.le,prevGap,y,LAM);KG.mins++}touched.add("_GAP");
+      for(const s of [...ETFS,...CRYPTO]){const K=getK(s);
+        if(r[s]!=null){addS(K.c,r[s],y);addS(K.ce,r[s],y,LAM);K.mins++;K.first=K.first||M;K.last=M;touched.add(s)}
+        if(prevR[s]!=null){addS(K.l,prevR[s],y);addS(K.le,prevR[s],y,LAM);touched.add(s)}}
+      const KX=getK("_XM");if(isFinite(prevRP)){addS(KX.l,prevRP,y);addS(KX.le,prevRP,y,LAM);KX.mins++;touched.add("_XM")}
       if(isFinite(prevPred)){const KP=getK("_PRED");addS(KP.c,prevPred,y);addS(KP.ce,prevPred,y,LAM);KP.mins++;touched.add("_PRED");
         if(prevPred!==0&&y!==0){META.dirN=(META.dirN||0)+1;if(Math.sign(prevPred)===Math.sign(y))META.dirHit=(META.dirHit||0)+1}}
       if(isFinite(prevGap)&&isFinite(gapNow)){const KA=getK("_GAPAR");addS(KA.c,prevGap,gapNow);addS(KA.ce,prevGap,gapNow,LAM);KA.mins++;touched.add("_GAPAR")}
       const DS=dayRec._DAY||(dayRec._DAY={s:"_DAY",d,lev:mkS(),n:0,rv2:0,ri2:0,g2:0,gn:0});
       if(isFinite(idxR)){addS(DS.lev,idxR,y);DS.ri2+=idxR*idxR}
-      DS.n++;DS.rv2+=y*y;if(isFinite(gapNow)){DS.g2+=gapNow*gapNow;DS.gn++}
+      DS.n++;DS.rv2+=y*y;
+      if(bars[FUND])DS.bd=(DS.bd||0)+bars[FUND].c*bars[FUND].v;if(bars.SOXS)DS.sd=(DS.sd||0)+bars.SOXS.c*bars.SOXS.v;if(isFinite(gapNow)){DS.g2+=gapNow*gapNow;DS.gn++}
       META.minutes=(META.minutes||0)+1;
     }
     if(bars[FUND])resolveForecasts(M,bars[FUND]);
@@ -450,7 +526,7 @@ function finalizeMinute(M){
   }
   if(!learn)prevPred=NaN;
   prevR={};for(const s in r)prevR[s]=r[s];
-  prevIdxR=idxR;prevGap=gapNow;
+  prevIdxR=idxR;prevGap=gapNow;prevRP=rpNow;
   delete pend[FUND];for(const s in pend)if(pend[s].m<=M)delete pend[s];
   memStatus();
 }
@@ -526,6 +602,159 @@ function sysHealth(){
   return{open,stale,cov:DS&&expect?clamp(DS.n/expect,0,1):NaN,learned:DS?DS.n:0,lat:health.lat,rec:health.reconnects,perr:health.pollErr,ticks:health.ticks,leader,pend:fcPend.length};
 }
 
+/* ---------- cross-market: windows, alignment, ordering, flow, fear and greed ---------- */
+let totHist=[];try{totHist=JSON.parse(lsGet("soxx_tot_hist")||"[]")}catch(e){totHist=[]}
+const nowM=()=>Math.floor(Date.now()/60000);
+function minsSinceMidnightET(){const [h,m]=etParts(Date.now()).hm.split(":").map(Number);return h*60+m}
+function findAt(arr,M0,key){let best=null;for(let i=arr.length-1;i>=0;i--){if(arr[i].m<=M0){best=arr[i];break}}return best&&M0-best.m<=6?best[key]:NaN}
+function priceNow(k){if(k==="TOTAL")return TOT.cap;if(k==="_IDX"){const m=compute();return m.live?1+m.idx:NaN}return Q[k]?Q[k].c:NaN}
+function priceAgo(k,mins){
+  const M0=nowM()-mins;
+  if(k==="TOTAL")return findAt(totHist,M0,"cap");
+  if(CRYPTO.includes(k)){const map=cbC[k];for(let j=0;j<=6;j++){if(map[M0-j]>0)return map[M0-j]}}
+  return findAt(hist[k]||[],M0,"c");
+}
+function winRet(k,w){
+  const p=priceNow(k);if(!(p>0))return{r:NaN};
+  if(w==="Day"){
+    if(k==="_IDX")return{r:p-1};
+    if(CRYPTO.includes(k)||k==="TOTAL"){const a=priceAgo(k,minsSinceMidnightET());return{r:a>0?p/a-1:NaN}}
+    return{r:Q[k].pc>0?p/Q[k].pc-1:NaN};
+  }
+  if(w==="24h"){
+    if(k==="_IDX")return{r:NaN};
+    if(k==="TOTAL")return{r:isFinite(TOT.ch24)?TOT.ch24/100:NaN};
+    const a=priceAgo(k,1440);if(a>0)return{r:p/a-1};
+    if(!CRYPTO.includes(k)&&Q[k].pc>0)return{r:p/Q[k].pc-1,approx:true};
+    return{r:NaN};
+  }
+  const mins=w==="1h"?60:30;
+  if(k==="_IDX"){const a=findAt(hist._IDX,nowM()-mins,"c");return{r:a>0?p/a-1:NaN}}
+  const a=priceAgo(k,mins);return{r:a>0?p/a-1:NaN};
+}
+function spearman(xs,ys){
+  const rk=a=>{const idx=a.map((v,i)=>[v,i]).sort((p,q)=>p[0]-q[0]);const r=new Array(a.length);idx.forEach(([,i],j)=>r[i]=j);return r};
+  const rx=rk(xs),ry=rk(ys),n=xs.length;let d2=0;for(let i=0;i<n;i++)d2+=(rx[i]-ry[i])**2;return 1-6*d2/(n*(n*n-1));
+}
+function crossMarket(){
+  const tbl={};XM.forEach(x=>{tbl[x.k]={};WINS.forEach(([w])=>tbl[x.k][w]=winRet(x.k,w))});
+  const win={};
+  WINS.forEach(([w])=>{
+    let s=0,n=0;XM.forEach(x=>{const r=tbl[x.k][w].r;if(isFinite(r)&&r!==0){s+=Math.sign(r)*x.risk;n++}});
+    const lad=XM.filter(x=>x.rank&&isFinite(tbl[x.k][w].r));
+    win[w]={align:n?s/n:NaN,n,up:n?Math.round((s+n)/2):0,rho:lad.length>=4?spearman(lad.map(x=>tbl[x.k][w].r),lad.map(x=>x.rank)):NaN};
+  });
+  return{tbl,win};
+}
+function flowWin(s,mins){
+  const h=hist[s]||[],M0=mins==null?nowM()-minsSinceMidnightET():nowM()-mins;
+  let dol=0,v=0,dv=0;for(let i=h.length-1;i>=0&&h[i].m>M0;i--){dol+=h[i].c*h[i].v;v+=h[i].v;dv+=h[i].dv}
+  return{dol,v,press:v>0?(dv/v+1)/2:NaN};
+}
+function positioning(){
+  const out={};
+  [["Day",null],["1h",60],["30m",30]].forEach(([w,mn])=>{
+    const L=flowWin(FUND,mn),S=flowWin("SOXS",mn),X=flowWin("SOXX",mn);
+    const share=L.dol+S.dol>0?L.dol/(L.dol+S.dol):NaN;
+    const net=isFinite(L.press)&&isFinite(S.press)?(L.press+(1-S.press))/2:isFinite(L.press)?L.press:NaN;
+    out[w]={share,net,lp:L.press,sp:S.press,xp:X.press};
+  });
+  const base=pastDays.filter(x=>x.d!==curDay&&x.bd>0&&x.sd>0).map(x=>x.bd/(x.bd+x.sd));
+  out.base=base.length>=3?base.reduce((a,b)=>a+b,0)/base.length:NaN;
+  out.baseN=base.length;
+  return out;
+}
+const sq=(x,s)=>50+50*Math.tanh(x/s);
+function fearGreed(cm,pos){
+  const C=[],t=(k,w)=>cm.tbl[k]?cm.tbl[k][w].r:NaN,add=(n,v,raw)=>{if(isFinite(v))C.push({n,v:clamp(v,0,100),raw})};
+  const cr=crowd();if(cr)add("Semis breadth",50+50*cr.wb,fmtN(cr.wb*100,0)+"% weighted");
+  const ref=isFinite(pos.base)?pos.base:pos.Day.share;
+  if(isFinite(pos["1h"].share)&&isFinite(ref))add("Bull vs bear ETF flow",sq(pos["1h"].share-ref,0.08),`SOXL ${Math.round(pos["1h"].share*100)}% of $ (1h)`);
+  if(isFinite(pos["1h"].net))add("Order-flow pressure",pos["1h"].net*100,`${Math.round(pos["1h"].net*100)}% buy-side (1h)`);
+  const g=t("QQQ","Day")-t("DIA","Day");add("Growth vs value",sq(g,0.008),"QQQ−DIA "+fmtPct(g));
+  const sl=t("SOXX","Day")-t("SPY","Day");add("Semis leadership",sq(sl,0.012),"SOXX−SPY "+fmtPct(sl));
+  add("Market momentum",sq(t("SPY","Day"),0.01),"SPY "+fmtPct(t("SPY","Day")));
+  add("Crypto momentum",sq(t("BTC","24h"),0.04),"BTC 24h "+fmtPct(t("BTC","24h")));
+  const qn=quant();if(isFinite(qn.pct))add("Volatility (low = greed)",100*(1-qn.pct),`${Math.round(qn.pct*100)}th pct`);
+  if(isFinite(FNG.v))add("Crypto Fear & Greed",FNG.v,FNG.label);
+  const score=C.length?C.reduce((a,c)=>a+c.v,0)/C.length:NaN;
+  const label=!isFinite(score)?"--":score<25?"Extreme fear":score<45?"Fear":score<=55?"Neutral":score<=75?"Greed":"Extreme greed";
+  return{score,label,C};
+}
+function decide(){
+  const cm=crossMarket(),pos=positioning(),fg=fearGreed(cm,pos),ls=leadSignal(),lv=soxlLevels(),cr=crowd();
+  const use1h=isFinite(cm.win["1h"].align),lw=use1h?"1h":"Day";
+  const a1=cm.win[lw].align,a3=cm.win["30m"].align,rho=isFinite(cm.win[lw].rho)?cm.win[lw].rho:cm.win["30m"].rho,net=isFinite(pos["1h"].net)?pos["1h"].net:pos.Day.net;
+  const parts=[[a1,0.3],[a3,0.2],[rho,0.2],[isFinite(fg.score)?(fg.score-50)/50:NaN,0.15],[isFinite(net)?2*(net-0.5):NaN,0.15]];
+  let s=0,w=0;parts.forEach(([v,k])=>{if(isFinite(v)){s+=v*k;w+=k}});
+  const bias=w>=0.3?s/w:NaN;
+  let regime="Collecting data";const a3x=a3;
+  if(isFinite(a1)){
+    const a3=isFinite(a3x)?a3x:a1;
+    if(a1>=0.6&&a3>=0.6&&rho>0.4)regime="Risk-on: aligned and in beta order";
+    else if(a1<=-0.6&&a3<=-0.6&&rho<-0.4)regime="Risk-off: aligned and in beta order";
+    else if(Math.sign(a1)!==Math.sign(a3)&&Math.abs(a3)>=0.4)regime=`Turning: 30m disagrees with ${lw==="1h"?"1h":"the day"}`;
+    else if(isFinite(rho)&&Math.abs(rho)<0.3)regime="Rotation: markets out of beta order";
+    else regime="Mixed";
+  }
+  const stance=!isFinite(bias)?"--":bias>0.25?"Lean up":bias<-0.25?"Lean down":"Neutral / range";
+  let fav=null;if(lv){fav=bias>0.25?lv.up:bias<-0.25?lv.dn:[lv.up,lv.dn].filter(Boolean).sort((a,b)=>a.eta-b.eta)[0]||null}
+  const flags=[];const t=(k,wn)=>cm.tbl[k][wn].r;
+  if(cr&&cr.narrow)flags.push("Narrow semis breadth: a few heavy stocks carry the move");
+  if(isFinite(t("BTC","1h"))&&isFinite(t("QQQ","1h"))&&Math.sign(t("BTC","1h"))!==Math.sign(t("QQQ","1h")))flags.push("Crypto disagrees with Nasdaq on 1h");
+  if(isFinite(t("SOXX","1h"))&&isFinite(t("SPY","1h"))&&Math.sign(t("SOXX","1h"))!==Math.sign(t("SPY","1h")))flags.push("Semis diverge from the S&P on 1h");
+  const ref=isFinite(pos.base)?pos.base:pos.Day.share;
+  if(isFinite(pos["30m"].share)&&isFinite(ref)&&pos["30m"].share<ref-0.05)flags.push("Bear ETF (SOXS) money flow is rising");
+  if(isFinite(pos["30m"].share)&&isFinite(ref)&&pos["30m"].share>ref+0.05)flags.push("Bull ETF (SOXL) money flow is rising");
+  if(isFinite(fg.score)&&fg.score>=80)flags.push("Extreme greed: crowded long, reversal risk is higher");
+  if(isFinite(fg.score)&&fg.score<=20)flags.push("Extreme fear: crowded short, snap-back risk is higher");
+  if(isFinite(ls.gap)&&Math.abs(ls.gap)>0.005)flags.push(`SOXL is ${ls.gap>0?"above":"below"} its implied value by ${fmtPct(Math.abs(ls.gap))}`);
+  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw};
+}
+
+/* ---------- external data: Coinbase, CoinGecko, alternative.me ---------- */
+let cbWs=null,cbTimer=null,cgTimer=null,fngTimer=null,cb5=0;
+async function fetchCB(){
+  for(const s of CRYPTO){
+    try{
+      const r=await fetch(`https://api.exchange.coinbase.com/products/${s}-USD/candles?granularity=60`);if(!r.ok)throw 0;
+      const a=await r.json();a.forEach(c=>{cbC[s][Math.floor(c[0]/60)]=c[4]});
+      if(a.length&&!(Date.now()-(health.lastUpd[s]||0)<60000)){Q[s].c=a[0][4];health.lastUpd[s]=Date.now();updBar(s,a[0][4],0)}
+      if(Date.now()-cb5>290000){const r5=await fetch(`https://api.exchange.coinbase.com/products/${s}-USD/candles?granularity=300`);if(r5.ok){(await r5.json()).forEach(c=>{cbC[s][Math.floor(c[0]/60)]=c[4]})}}
+      const lim=nowM()-1600;for(const k in cbC[s])if(+k<lim)delete cbC[s][k];
+      srcOk.coinbase=true;
+    }catch(e){srcOk.coinbase=false}
+  }
+  if(Date.now()-cb5>290000)cb5=Date.now();
+  dirty=true;
+}
+function connectCB(){
+  try{if(cbWs){cbWs.onclose=null;cbWs.close()}}catch(e){}
+  try{cbWs=new WebSocket("wss://ws-feed.exchange.coinbase.com")}catch(e){srcOk.coinbase=false;return}
+  cbWs.onopen=()=>cbWs.send(JSON.stringify({type:"subscribe",product_ids:["BTC-USD","ETH-USD"],channels:["ticker"]}));
+  cbWs.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="ticker"&&j.price){onTick(j.product_id.split("-")[0],+j.price,+(j.last_size||0));srcOk.coinbase=true}}catch(e){}};
+  cbWs.onclose=()=>{if(!demo)setTimeout(()=>{if(!demo)connectCB()},5000)};
+}
+async function fetchCG(){
+  try{const r=await fetch("https://api.coingecko.com/api/v3/global");if(!r.ok)throw 0;const j=(await r.json()).data;
+    TOT.cap=j.total_market_cap.usd;TOT.ch24=j.market_cap_change_percentage_24h_usd;TOT.t=Date.now();srcOk.coingecko=true;pushTot();
+  }catch(e){srcOk.coingecko=false}
+}
+function pushTot(){const M=nowM();if(totHist.length&&totHist[totHist.length-1].m>=M)return;totHist.push({m:M,cap:TOT.cap});totHist=totHist.filter(x=>x.m>M-1600);if(!demo)lsSet("soxx_tot_hist",JSON.stringify(totHist))}
+async function fetchFNG(){
+  try{const r=await fetch("https://api.alternative.me/fng/?limit=1");if(!r.ok)throw 0;const j=(await r.json()).data[0];
+    FNG.v=+j.value;FNG.label=j.value_classification;FNG.t=Date.now();srcOk.fng=true}catch(e){srcOk.fng=false}
+}
+function startExternal(){
+  stopExternal();
+  fetchCB();connectCB();fetchCG();fetchFNG();
+  cbTimer=setInterval(fetchCB,60000);cgTimer=setInterval(fetchCG,120000);fngTimer=setInterval(fetchFNG,1800000);
+}
+function stopExternal(){
+  clearInterval(cbTimer);clearInterval(cgTimer);clearInterval(fngTimer);
+  try{if(cbWs){cbWs.onclose=null;cbWs.close()}}catch(e){}cbWs=null;
+}
+
 /* ---------- core compute ---------- */
 function compute(){
   let tot=0,rows=[];
@@ -550,11 +779,13 @@ function leadSignal(){
   const si=statOf(getK("_IDX").le), sg=statOf(getK("_GAP").le);
   const m=compute();const gap=m.live&&isFinite(m.fr)?m.fr-m.imp:NaN;
   const tI=isFinite(si.corr)?Math.abs(si.corr)*Math.sqrt(si.n):0, tG=isFinite(sg.corr)?Math.abs(sg.corr)*Math.sqrt(sg.n):0;
-  const kI=tI>=2?si.n/(si.n+200):0, kG=tG>=2?sg.n/(sg.n+200):0;
+  const sx=statOf(getK("_XM").le), tX=isFinite(sx.corr)?Math.abs(sx.corr)*Math.sqrt(sx.n):0;
+  const kI=tI>=2?si.n/(si.n+200):0, kG=tG>=2?sg.n/(sg.n+200):0, kX=tX>=2?sx.n/(sx.n+200):0;
   const pIdx=isFinite(si.beta)&&isFinite(lastIdxR)?kI*si.beta*lastIdxR:0;
   const pGap=isFinite(sg.beta)&&isFinite(gap)?kG*sg.beta*gap:0;
-  const conf=Math.max(tI,tG);
-  return{pred:pIdx+pGap,pIdx,pGap,gap,si,sg,conf:conf>=4?"high":conf>=2?"medium":"low"};
+  const pX=isFinite(sx.beta)&&isFinite(lastRP)?kX*sx.beta*lastRP:0;
+  const conf=Math.max(tI,tG,tX);
+  return{pred:pIdx+pGap+pX,pIdx,pGap,pX,gap,si,sg,sx,conf:conf>=4?"high":conf>=2?"medium":"low"};
 }
 function soxlLevels(){
   const P=Q[FUND].c;if(!(P>0))return null;
@@ -580,7 +811,7 @@ function soxlLevels(){
     if(last&&Math.abs(l.price/last.price-1)<0.001){if(l.score>last.score)last.price=l.price;last.score=Math.max(last.score,l.score)+0.3*Math.min(last.score,l.score);last.labels.push(...l.labels);last.pool=last.pool||l.pool}
     else M.push({...l,labels:[...l.labels]})});
   const sv=soxlSigma(),kS=META.sigScale||1,sig=sv.sig*kS,src=sv.src+(Math.abs(kS-1)>0.005?" ×"+kS.toFixed(2)+" tuned":""), ls=leadSignal();
-  const mu=clamp(ls.pGap+ls.pIdx/5,-0.25*sig,0.25*sig);
+  const mu=clamp(ls.pGap+(ls.pIdx+ls.pX)/5,-0.25*sig,0.25*sig);
   M.forEach(l=>{l.dir=l.price>P?1:-1;l.d=Math.abs(Math.log(l.price/P));const m2=l.dir*mu;l.p30=pTouch(l.d,m2,sig,30);l.eta=tMedian(l.d,m2,sig);l.label=[...new Set(l.labels)].join(" + ")});
   const sig2=M.filter(l=>l.score>=1.5);
   const up=sig2.filter(l=>l.dir>0).sort((a,b)=>a.d-b.d)[0]||null;
@@ -657,12 +888,13 @@ function renderAnalysis(){
     ["Confidence",ls.conf],
     ["From index momentum",fmtPct(ls.pIdx,3)],
     ["From gap pull",fmtPct(ls.pGap,3)],
+    ["From cross-market pulse",fmtPct(ls.pX,3)+` (n=${ls.sx.n|0})`],
     ["Index→SOXL lead beta",fmtN(ls.si.beta,2)+` (n=${ls.si.n|0})`],
     ["Gap→SOXL pull beta",fmtN(ls.sg.beta,3)+` (n=${ls.sg.n|0})`],
     ["SOXL 1-min σ",(sg.sig*100).toFixed(3)+"% ("+sg.src+")"],
     ["Drift used for odds",lv?fmtPct(lv.mu,4)+"/min":"--"]
   ].map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join("");
-  const leads=HOLDINGS.map(h=>({s:h[0],st:statOf(getK(h[0]).le)})).filter(x=>x.st.n>=60&&isFinite(x.st.corr)&&x.st.corr>0).sort((a,b)=>b.st.corr-a.st.corr).slice(0,5);
+  const leads=[...HOLDINGS.map(h=>h[0]),...ETFS,...CRYPTO].map(s=>({s,st:statOf(getK(s).le)})).filter(x=>x.st.n>=60&&isFinite(x.st.corr)&&x.st.corr>0).sort((a,b)=>b.st.corr-a.st.corr).slice(0,5);
   const enough=getK(FUND).mins>=60;
   $("leadKv").innerHTML=leads.length?leads.map(x=>`<span>${x.s}</span><span class="${x.st.corr*Math.sqrt(x.st.n)>=2?"ok":"meh"}">lead ${fmtN(x.st.corr,3)} · n ${x.st.n|0}</span>`).join(""):enough?'<span>No stock leads yet</span><span>SOXL reacts in the same minute</span>':'<span>Learning…</span><span>needs 60+ min</span>';
 
@@ -674,8 +906,48 @@ function renderAnalysis(){
   $("knTbl").innerHTML=`<tr><th class="l">Stock</th><th>Weight</th><th>Minutes</th><th>Corr</th><th>Beta</th><th>Lead</th><th>1m σ</th><th>Influence</th></tr>`+
     kr.map(r=>`<tr><td>${r.s}</td><td>${(r.w*100).toFixed(2)}%</td><td>${r.mins}</td><td>${fmtN(r.c.corr,2)}</td><td>${fmtN(r.c.beta,2)}</td><td class="${r.l.n>=60?cls(r.l.corr):""}">${fmtN(r.l.corr,3)}</td><td>${isFinite(r.c.sdx)?(r.c.sdx*100).toFixed(3)+"%":"--"}</td><td>${(r.inf*100).toFixed(2)}</td></tr>`).join("");
   renderInsights();
+  renderCross();
 }
 
+function fmtBig(x){return!(x>0)?"--":x>=1e12?"$"+(x/1e12).toFixed(3)+"T":x>=1e9?"$"+(x/1e9).toFixed(2)+"B":fmtPx(x)}
+function renderCross(){
+  const D=decide(),cm=D.cm,pos=D.pos,fg=D.fg;
+  $("dStance").textContent=D.stance;$("dStance").className="stance "+(D.bias>0.25?"up":D.bias<-0.25?"down":"");
+  $("dRegime").textContent=D.regime;
+  $("dMark").style.left=isFinite(D.bias)?`calc(${((D.bias+1)/2*100).toFixed(1)}% - 2px)`:"calc(50% - 2px)";
+  $("dBias").textContent=isFinite(D.bias)?(D.bias>=0?"+":"")+D.bias.toFixed(2)+(Math.abs(D.bias)>=0.5?" strong":Math.abs(D.bias)>=0.25?" moderate":" weak"):"needs more data";
+  if(D.fav){$("dFav").textContent=fmtPx(D.fav.price);$("dFav").className="stance "+(D.fav.dir>0?"up":"down");$("dFavL").textContent=`${D.fav.dir>0?"↑":"↓"} ${D.fav.label} · ${Math.round(D.fav.p30*100)}%/30m · ${fmtEta(D.fav.eta)}`}
+  else{$("dFav").textContent="--";$("dFavL").textContent="--"}
+  $("dFg").textContent=isFinite(fg.score)?Math.round(fg.score):"--";$("dFgL").textContent=fg.label+(fg.C.length?` · ${fg.C.length} inputs`:"");
+  const chip=(a,b)=>`<span class="chip">${a} <b>${b}</b></span>`;
+  $("dEvid").innerHTML=[
+    chip("Align "+D.lw,isFinite(D.a1)?(D.a1>0?"↑ ":"↓ ")+Math.round(Math.abs(D.a1)*100)+"%":"--"),
+    chip("Align 30m",isFinite(D.a3)?(D.a3>0?"↑ ":"↓ ")+Math.round(Math.abs(D.a3)*100)+"%":"--"),
+    chip("Beta order "+D.lw,fmtN(D.rho,2)),
+    chip("Order flow 1h",isFinite(D.net)?Math.round(D.net*100)+"% buy":"--"),
+    chip("Learned 1m bias",fmtPct(D.ls.pred,3)+" · "+D.ls.conf)
+  ].join("");
+  $("dFlags").innerHTML=D.flags.map(f=>`<li>${f}</li>`).join("");
+
+  const cell=o=>!o||!isFinite(o.r)?'<td class="sum">--</td>':`<td class="${cls(o.r)}">${o.approx?"≈":""}${fmtPct(o.r)}</td>`;
+  let h=`<tr><th class="l">Market</th><th>Price</th>${WINS.map(([w])=>`<th>${w}</th>`).join("")}</tr>`;
+  XM.forEach(x=>{const p=priceNow(x.k);
+    h+=`<tr><td>${x.name} <span class="sub">${x.sub}</span></td><td>${x.k==="TOTAL"?fmtBig(p):x.k==="_IDX"?"":fmtPx(p)}</td>${WINS.map(([w])=>cell(cm.tbl[x.k][w])).join("")}</tr>`});
+  h+=`<tr><td class="sum">Alignment</td><td></td>${WINS.map(([w])=>{const a=cm.win[w];return`<td class="${cls(a.align)}">${isFinite(a.align)?(a.align>0?"↑ ":"↓ ")+(a.align>0?a.up:a.n-a.up)+"/"+a.n:"--"}</td>`}).join("")}</tr>`;
+  h+=`<tr><td class="sum">Beta order (ρ)</td><td></td>${WINS.map(([w])=>{const r=cm.win[w].rho;return`<td class="${r>0.4?"up":r<-0.4?"down":"meh"}">${fmtN(r,2)}</td>`}).join("")}</tr>`;
+  $("xmTbl").innerHTML=h;
+
+  $("fgScore").textContent=isFinite(fg.score)?Math.round(fg.score):"--";
+  $("fgScore").style.color=!isFinite(fg.score)?"var(--ink)":fg.score<45?"var(--down)":fg.score>55?"var(--up)":"var(--ink)";
+  $("fgLabel").textContent=fg.label;$("fgN").textContent=`${fg.C.length} live inputs · 0 = extreme fear, 100 = extreme greed`;
+  $("fgMark").style.left=isFinite(fg.score)?`calc(${fg.score.toFixed(1)}% - 2px)`:"calc(50% - 2px)";
+  $("fgKv").innerHTML=fg.C.length?kvHtml(fg.C.map(c=>[c.n,`<span class="${c.v>55?"up":c.v<45?"down":""}">${Math.round(c.v)}</span> <span class="sub">${c.raw}</span>`])):kvHtml([["Inputs","waiting for data"]]);
+  const pc=x=>isFinite(x)?Math.round(x*100)+"%":"--";
+  $("posTbl").innerHTML=`<tr><th class="l">Flow</th><th>Day</th><th>1h</th><th>30m</th></tr>`+
+    [["SOXL share of SOXL+SOXS $",w=>pc(pos[w].share)],["SOXL buy-side volume",w=>pc(pos[w].lp)],["SOXS buy-side volume",w=>pc(pos[w].sp)],["SOXX buy-side volume",w=>pc(pos[w].xp)],["Net bull pressure",w=>`<span class="${pos[w].net>0.53?"up":pos[w].net<0.47?"down":""}">${pc(pos[w].net)}</span>`]]
+    .map(([n,f])=>`<tr><td>${n}</td>${["Day","1h","30m"].map(w=>`<td>${f(w)}</td>`).join("")}</tr>`).join("")+
+    `<tr><td class="sum">Usual SOXL $ share</td><td colspan="3">${isFinite(pos.base)?pc(pos.base)+` (${pos.baseN} sessions)`:"needs 3 stored sessions"}</td></tr>`;
+}
 function kvHtml(rows){return rows.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join("")}
 function renderInsights(){
   const at=attunement();
@@ -732,7 +1004,8 @@ function renderInsights(){
     ["Trade feed latency",isFinite(h.lat)?`<span class="${h.lat<2000?"ok":"meh"}">${Math.round(h.lat)} ms</span>`:"--"],
     ["Trades received",h.ticks.toLocaleString()],
     ["Reconnects / poll errors",`${h.rec} / ${h.perr}`],
-    ["Open forecasts",h.pend]
+    ["Open forecasts",h.pend],
+    ["Data sources",Object.entries({Finnhub:srcOk.finnhub,Coinbase:srcOk.coinbase,CoinGecko:srcOk.coingecko,"Crypto F&G":srcOk.fng}).map(([n,v])=>`<span class="${demo?"":v===true?"ok":v===false?"bad":""}">${n}${demo?"":v===false?" ✕":v===true?" ✓":""}</span>`).join(" · ")+(demo?" (demo)":"")]
   ]);
 }
 
@@ -832,13 +1105,14 @@ async function fetchQuote(s){
   if(r.status===401||r.status===403)throw new Error("auth");
   if(r.status===429)throw new Error("rate");
   const j=await r.json();
-  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
+  srcOk.finnhub=true;
+  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
     if(j.c>0&&!(q.c>0&&fresh)){q.c=j.c;updBar(s,j.c,0)}
     health.lastUpd[s]=Math.max(health.lastUpd[s]||0,fresh?0:Date.now())}
 }
 async function pollAll(){
-  for(const s of SYMS){
+  for(const s of FH_SYMS){
     if(demo||!apiKey)return;
     try{await fetchQuote(s)}catch(e){
       if(e.message==="auth"){setFeed("err","Feed: bad API key");openModal("That key did not work. Check it and try again.");return}
@@ -860,21 +1134,26 @@ async function marketStatus(){
 function connectWS(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}}
   ws=new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
-  ws.onopen=()=>{SYMS.forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));setFeed("live","Feed: live")};
-  ws.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="trade"&&j.data){const agg={};j.data.forEach(t=>{const a=agg[t.s]||(agg[t.s]={p:0,v:0});a.p=t.p;a.v+=t.v||0;if(t.t>0){const L=Date.now()-t.t;if(L>-5000&&L<600000)health.lat=isFinite(health.lat)?health.lat*0.95+L*0.05:L}});for(const s in agg)onTick(s,agg[s].p,agg[s].v)}}catch(e){}};
+  ws.onopen=()=>{[...FH_SYMS,...Object.keys(FH_CRYPTO)].forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));setFeed("live","Feed: live")};
+  ws.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="trade"&&j.data){const agg={};j.data.forEach(t=>{const sym=FH_CRYPTO[t.s]||t.s;if(FH_CRYPTO[t.s]&&srcOk.coinbase&&Date.now()-(health.lastUpd[sym]||0)<10000)return;const a=agg[sym]||(agg[sym]={p:0,v:0});a.p=t.p;a.v+=t.v||0;if(t.t>0){const L=Date.now()-t.t;if(L>-5000&&L<600000)health.lat=isFinite(health.lat)?health.lat*0.95+L*0.05:L}});for(const s in agg)onTick(s,agg[s].p,agg[s].v)}}catch(e){}};
   ws.onerror=()=>setFeed("warn","Feed: reconnecting");
   ws.onclose=()=>{health.reconnects++;if(!demo&&apiKey){setFeed("warn","Feed: reconnecting");setTimeout(()=>{if(!demo&&apiKey)connectWS()},5000)}};
 }
 function resetLive(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
   clearInterval(pollTimer);clearInterval(demoTimer);
-  SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s]});
+  stopExternal();
+  SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s];delete tickSign[s];hist[s]=[]});
+  hist._IDX=[];cbC.BTC={};cbC.ETH={};Object.assign(TOT,{cap:0,ch24:NaN,t:0});Object.assign(FNG,{v:NaN,label:"",t:0});
+  for(const k in srcOk)srcOk[k]=null;prevRP=NaN;lastRP=NaN;
+  try{totHist=demo?[]:JSON.parse(lsGet("soxx_tot_hist")||"[]")}catch(e){totHist=[]}
   prevR={};prevIdxR=NaN;prevGap=NaN;lastIdxR=NaN;lastM=null;mktState=null;prevPred=NaN;
   Object.assign(health,{reconnects:0,pollErr:0,lastUpd:{},lat:NaN,ticks:0});
 }
 async function startLive(){
   resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");
   await initMemory("soxx_sniper_live");
+  startExternal();
   await marketStatus();
   pollAll().then(()=>{if(!demo&&apiKey)connectWS()});
   pollTimer=setInterval(()=>{pollAll();marketStatus()},60000);
@@ -884,13 +1163,26 @@ async function startDemo(){
   await initMemory("soxx_sniper_demo");
   HOLDINGS.forEach(h=>{const q=Q[h[0]];q.pc=h[3];q.c=h[3];q.h=h[3];q.l=h[3]});
   Object.assign(Q[FUND],{pc:FUND_DEMO_PC,c:FUND_DEMO_PC,h:FUND_DEMO_PC,l:FUND_DEMO_PC});
-  const mkt={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
-  let lagIdx=0;
+  totHist=[];
+  const DPC={SOXS:46.65,SOXX:502,QQQ:612,SPY:688,DIA:471,BTC:108500,ETH:3950};
+  const M0=nowM();
+  for(const s in DPC){const q=Q[s];q.pc=DPC[s];q.c=DPC[s];q.o=DPC[s];q.h=DPC[s];q.l=DPC[s];
+    hist[s].push({m:M0-1440,c:DPC[s]*(1+(Math.random()-0.5)*0.03),v:0,dv:0});
+    if(CRYPTO.includes(s))hist[s].push({m:M0-minsSinceMidnightET(),c:DPC[s]*(1+(Math.random()-0.5)*0.015),v:0,dv:0});
+    hist[s].sort((a,b)=>a.m-b.m);}
+  Object.assign(TOT,{cap:3.8e12,ch24:1.2});Object.assign(FNG,{v:58,label:"Greed"});
+  totHist.push({m:M0-minsSinceMidnightET(),cap:3.76e12});
+  const mkt={v:0},cry={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
+  let lagIdx=0;const vol=()=>Math.round(100+Math.random()*2000);
+  const drift=(s,tgtR)=>{const q=Q[s];const tgt=q.pc*(1+tgtR+(Math.random()-0.5)*0.0015);onTick(s,+(q.c+(tgt-q.c)*0.35).toFixed(2),vol())};
   demoTimer=setInterval(()=>{
-    mkt.v+=(Math.random()-0.5)*0.0012;
+    mkt.v+=(Math.random()-0.5)*0.0003;cry.v+=(Math.random()-0.5)*0.0004+(Math.random()-0.5)*0.0002*Math.sign(mkt.v);
     HOLDINGS.forEach(h=>{if(Math.random()<0.6){const q=Q[h[0]];const tgt=q.pc*(1+mkt.v*beta[h[0]]+(Math.random()-0.5)*0.004);onTick(h[0],+(q.c+(tgt-q.c)*0.3).toFixed(2),Math.round(Math.random()*500))}});
     const m=compute();lagIdx+=(m.imp-lagIdx)*0.25;
     onTick(FUND,+(FUND_DEMO_PC*(1+lagIdx+(Math.random()-0.5)*0.002)).toFixed(2),Math.round(200+Math.random()*3000));
+    drift("SOXS",-lagIdx);drift("SOXX",m.idx);drift("QQQ",mkt.v*0.45);drift("SPY",mkt.v*0.33);drift("DIA",mkt.v*0.22);
+    drift("BTC",cry.v);drift("ETH",cry.v*1.3);
+    TOT.cap=3.8e12*(1+cry.v*0.95);if(Math.random()<0.02)pushTot();
   },1000);
   setFeed("warn","Feed: demo");marketStatus();
 }
