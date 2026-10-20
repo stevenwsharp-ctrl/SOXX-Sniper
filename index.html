@@ -106,6 +106,15 @@ table.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 .ndot{width:8px;height:8px;border-radius:50%;display:inline-block}
 .nh a{color:var(--ink);text-decoration:none}.nh a:hover{color:var(--accent)}
 .quad .tbl td:first-child{white-space:normal}
+.stiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
+.st{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.st .k{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dim)}
+.st .v{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:2px}
+.st .s{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.hist-box{margin-top:12px;border:1px solid rgba(155,107,255,.35);border-radius:12px;padding:12px;background:rgba(155,107,255,.05);font-size:13px;line-height:1.6}
+.hist-box .big2{font-family:var(--mono);font-size:22px;font-weight:600}
+.tbl tr.hl td{background:rgba(155,107,255,.10)}
+.hbar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle}
 .quad.wide{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
 .tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(155,107,255,.15);color:#c4abff;margin-left:4px}
 .modal{position:fixed;inset:0;background:rgba(3,5,8,.82);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
@@ -170,6 +179,46 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="kv" id="fgKv"></div>
       <div class="label" style="margin-top:16px">Positioning flow</div>
       <div class="tw"><table class="tbl" id="posTbl"></table></div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Today's session map · SOXL</div><span class="chip" id="phPill">--</span></div>
+      <div class="stiles" id="sTiles"></div>
+      <div class="hist-box" id="sModel"></div>
+    </div>
+    <div class="card">
+      <div class="label">Smart money</div>
+      <div class="kv" id="smKv"></div>
+      <div class="note">Smart Money Index: the first 30 minutes are mostly emotional retail and overnight orders; the last hour is mostly institutions. SMI = last-hour move − first-30-min move, summed over days. Large prints are single trades of $250k or more in SOXL (bull) or SOXS (bear), signed by the tick rule. No free source shows institutional orders directly; these are proxies.</div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="label">Gap playbook · how SOXL trades after each type of gap</div>
+      <div class="tw"><table class="tbl" id="gapTbl"></table></div>
+      <div class="note" id="gapNote"></div>
+    </div>
+    <div class="card">
+      <div class="label">Opens, closes and extended hours · what leads to what</div>
+      <div class="tw"><table class="tbl" id="relTbl"></table></div>
+      <div class="note">Corr: correlation across all stored days. t: significance; |t| ≥ 2 is reliable, smaller is noise. Positive = continuation, negative = reversal. Beta: the average follow-through for each 1% of the first move.</div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="label">Time of day · where SOXL moves and makes its highs and lows</div>
+      <div class="tw"><table class="tbl" id="todTbl"></table></div>
+      <div class="kv" id="orbKv" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <div class="label">Overnight vs intraday vs smart money · cumulative (log)</div>
+      <div class="legend"><span><i style="background:#ffb547"></i>Overnight (close → open)</span><span><i style="background:#4da3ff"></i>Intraday (open → close)</span><span><i style="background:#9b6bff"></i>Smart Money Index</span></div>
+      <div class="chartwrap" style="height:260px"><canvas id="cumChart"></canvas></div>
+      <div class="kv" id="extKv" style="margin-top:12px"></div>
     </div>
   </section>
 
@@ -311,7 +360,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <li>Paste it below.</li>
     </ol>
     <input type="text" id="keyIn" placeholder="Your Finnhub API key" autocomplete="off" spellcheck="false">
-    <p style="margin:4px 0 0">Optional: your FRED proxy (Cloudflare Worker) URL, for macro, bonds, funding and consumer credit data.</p>
+    <p style="margin:4px 0 0">Optional: your Cloudflare Worker URL. It supplies FRED data (macro, bonds, funding, consumer credit) and, with POLYGON_KEY set, 2 years of SOXL history with extended hours.</p>
     <input type="text" id="proxyIn" placeholder="https://soxx-sniper-fred.yourname.workers.dev" autocomplete="off" spellcheck="false">
     <div class="err" id="keyErr"></div>
     <div class="row">
@@ -393,7 +442,7 @@ const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0});
 const TOT={cap:0,ch24:NaN,t:0}, FNG={v:NaN,label:"",t:0};
 const hist={}; SYMS.forEach(s=>hist[s]=[]);
 const cbC={BTC:{},ETH:{}};
-const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null,fred:null};
+const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null,fred:null,hist:null};
 let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", kSort="inf", dirty=true, mktState=null;
 const $=id=>document.getElementById(id);
 
@@ -435,16 +484,20 @@ function stdev(a){if(a.length<2)return NaN;const m=a.reduce((x,y)=>x+y,0)/a.leng
 /* ---------- memory bank (IndexedDB) ---------- */
 let db=null, dbName="", KN={}, META={}, leader=false, persisted=false;
 const heldLocks={};
-function idbOpen(name){return new Promise((res,rej)=>{const q=indexedDB.open(name,1);
-  q.onupgradeneeded=()=>{const d=q.result;const b=d.createObjectStore("bars",{keyPath:["s","m"]});b.createIndex("sd",["s","d"]);
-    d.createObjectStore("know",{keyPath:"s"});d.createObjectStore("days",{keyPath:["s","d"]});d.createObjectStore("meta",{keyPath:"k"})};
+function idbOpen(name){return new Promise((res,rej)=>{const q=indexedDB.open(name,2);
+  q.onupgradeneeded=()=>{const d=q.result,has=n=>d.objectStoreNames.contains(n);
+    if(!has("bars")){const b=d.createObjectStore("bars",{keyPath:["s","m"]});b.createIndex("sd",["s","d"])}
+    if(!has("know"))d.createObjectStore("know",{keyPath:"s"});
+    if(!has("days"))d.createObjectStore("days",{keyPath:["s","d"]});
+    if(!has("meta"))d.createObjectStore("meta",{keyPath:"k"});
+    if(!has("sess"))d.createObjectStore("sess",{keyPath:["s","d"]})};
   q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 function idbAll(store,range,index){return new Promise(res=>{if(!db)return res([]);try{const s=db.transaction(store).objectStore(store);const q=(index?s.index(index):s).getAll(range);q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([])}catch(e){res([])}})}
 function idbGet(store,key){return new Promise(res=>{if(!db)return res(null);try{const q=db.transaction(store).objectStore(store).get(key);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(e){res(null)}})}
 function idbCount(store){return new Promise(res=>{if(!db)return res(0);try{const q=db.transaction(store).objectStore(store).count();q.onsuccess=()=>res(q.result);q.onerror=()=>res(0)}catch(e){res(0)}})}
 function idbWrite(map){return new Promise(res=>{if(!db)return res(false);try{const names=Object.keys(map);const t=db.transaction(names,"readwrite");
   names.forEach(n=>{const s=t.objectStore(n);map[n].forEach(v=>s.put(v))});t.oncomplete=()=>res(true);t.onerror=()=>res(false)}catch(e){res(false)}})}
-function idbClear(){return new Promise(res=>{if(!db)return res();const t=db.transaction(["bars","know","days","meta"],"readwrite");["bars","know","days","meta"].forEach(n=>t.objectStore(n).clear());t.oncomplete=res;t.onerror=res})}
+function idbClear(){return new Promise(res=>{if(!db)return res();const st=["bars","know","days","meta","sess"];const t=db.transaction(st,"readwrite");st.forEach(n=>t.objectStore(n).clear());t.oncomplete=res;t.onerror=res})}
 
 function getK(s){return KN[s]||(KN[s]={s,c:mkS(),ce:mkS(),l:mkS(),le:mkS(),mins:0,first:0,last:0})}
 
@@ -514,6 +567,7 @@ function updBar(s,p,v){
   const M=Math.floor(Date.now()/60000);let b=cur[s];
   const lp=lastPx[s];let sg=lp>0?Math.sign(p-lp):0;if(sg===0)sg=tickSign[s]||0;else tickSign[s]=sg;
   const dv=(v||0)*sg;
+  if((s===FUND||s==="SOXS")&&v>0&&p*v>=BLOCK_USD){BLK.push({t:Date.now(),s,usd:p*v,sg});if(BLK.length>6000)BLK.splice(0,1000)}
   if(!b||b.m!==M){if(b&&b.m<M)pend[s]=b;cur[s]={m:M,o:p,h:p,l:p,c:p,v:v||0,dv}}
   else{b.h=Math.max(b.h,p);b.l=Math.min(b.l,p);b.c=p;b.v+=v||0;b.dv+=dv}
   lastPx[s]=p;
@@ -574,6 +628,7 @@ function finalizeMinute(M){
     idbWrite({bars:Object.values(bars),know:[...touched].map(s=>KN[s]),days:Object.values(dayRec),meta:Object.entries(META).map(([k,v])=>({k,v}))});
   }
   if(!learn)prevPred=NaN;
+  if(!learn&&leader&&db&&!demo){const ph=phaseAt(M*60000);if(ph==="pre"||ph==="post"){const ext=[FUND,"SOXS","SOXX","QQQ"].filter(s=>bars[s]&&bars[s].v>0).map(s=>({...bars[s],x:1}));if(ext.length)idbWrite({bars:ext})}}
   prevR={};for(const s in r)prevR[s]=r[s];
   prevIdxR=idxR;prevGap=gapNow;prevRP=rpNow;
   delete pend[FUND];for(const s in pend)if(pend[s].m<=M)delete pend[s];
@@ -740,8 +795,12 @@ function decide(){
   const a1=cm.win[lw].align,a3=cm.win["30m"].align,rho=isFinite(cm.win[lw].rho)?cm.win[lw].rho:cm.win["30m"].rho,net=isFinite(pos["1h"].net)?pos["1h"].net:pos.Day.net;
   const mac=macroModel(),bon=bondsModel(),con=consumerModel(),oil=oilModel(),mic=microModel(),nws=newsModel();
   const ratesLive=isFinite(bon.y10.d)?-sc(bon.y10.d,0.06):NaN, credLive=sc(bon.credLive,0.003);
+  const T=todaySess(),stS=sessStats(),Mo=T.model;
+  let sessPart=NaN;if(Mo&&isNum(Mo.E)&&isNum(Mo.sd)&&Mo.target!=="next day's gap"){const anUp=Mo.an?2*(Mo.an.up-0.5):NaN;sessPart=meanF([Math.tanh(Mo.E/(0.25*Mo.sd)),anUp])}
+  const bf=blockFlow(60),smartPart=meanF([isNum(bf.ratio)&&bf.n>=5?bf.ratio:NaN,stS.n>=40?sc(stS.smi20,0.05):NaN]);
   const parts=[[a1,0.3],[a3,0.2],[rho,0.2],[isFinite(fg.score)?(fg.score-50)/50:NaN,0.15],[isFinite(net)?2*(net-0.5):NaN,0.15],
-    [ratesLive,0.1],[credLive,0.08],[nws.score,0.1],[con.score,0.05],[oil.score,0.04],[mac.score,0.05],[bon.score,0.05],[mic.score,0.03]];
+    [ratesLive,0.1],[credLive,0.08],[nws.score,0.1],[con.score,0.05],[oil.score,0.04],[mac.score,0.05],[bon.score,0.05],[mic.score,0.03],
+    [sessPart,0.12],[smartPart,0.08]];
   let s=0,w=0;parts.forEach(([v,k])=>{if(isFinite(v)){s+=v*k;w+=k}});
   const bias=w>=0.3?s/w:NaN;
   let regime="Collecting data";const a3x=a3;
@@ -776,7 +835,12 @@ function decide(){
   if(con.parts[0][1]<-0.3)flags.push("Card delinquencies are rising year over year");
   if(nws.shock.length)flags.push(`Negative chip headline in the last 15 min: "${nws.shock[0].h.slice(0,90)}${nws.shock[0].h.length>90?"…":""}"`);
   if(mic.nearW>0.05)flags.push(`Earnings event risk: ${mic.near.map(e=>e.s).join(", ")} report within 2 days (${Math.round(mic.nearW*100)}% of the index)`);
-  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive};
+  if(T.bucket&&T.bucket.n>=15&&Math.abs(T.gap)>=0.015)flags.push(`${T.gapInd?"Indicated gap":"Gap"} ${fmtPct(T.gap)}: in ${T.bucket.n} past days like this, the gap filled ${Math.round(T.bucket.fill*100)}% of the time and the day continued in the gap direction ${Math.round(T.bucket.cont*100)}% of the time`);
+  if(isNum(T.ahRet)&&Math.abs(T.ahRet)>0.02)flags.push(`Large after-hours move last evening (${fmtPct(T.ahRet)})`);
+  if(Mo&&Mo.an&&Mo.an.n>=15&&Math.abs(Mo.an.up-0.5)>=0.2)flags.push(`History: ${Mo.an.n} similar days went ${Mo.an.up>0.5?"up":"down"} ${Math.round(Math.max(Mo.an.up,1-Mo.an.up)*100)}% of the time for the ${Mo.target}`);
+  if(stS.n>=40&&/Accumulation|Distribution/.test(stS.div))flags.push("Smart Money Index: "+stS.div);
+  if(bf.n>=5&&Math.abs(bf.ratio)>=0.3)flags.push(`Large prints (≥$250k) in the last hour lean ${bf.ratio>0?"bullish":"bearish"}: net ${fmtBig(Math.abs(bf.net))} ${bf.ratio>0?"to the bull side":"to the bear side"}`);
+  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive,T,stS,sessPart,smartPart,bf};
 }
 
 /* ---------- external data: Coinbase, CoinGecko, alternative.me ---------- */
@@ -1048,6 +1112,198 @@ function newsModel(){
   return{score:sw>0.5?ss/sw:NaN,s1h:sw1>0?ss1/sw1:NaN,n1h:NEWS.filter(n=>now-n.t<3600).length,heat,shock};
 }
 
+/* ---------- sessions: extended hours, opens, closes, smart money ---------- */
+const HIST_SYM="SOXL", BLOCK_USD=250000;
+let SESS=[], ST=null, stKey="", histState={status:"idle",done:0,total:0,msg:""}, histTimer=null, demoToday=null;
+const BLK=[];
+const isNum=x=>typeof x==="number"&&isFinite(x);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function isDST(ms){
+  const y=new Date(ms).getUTCFullYear(),nth=(m,n)=>{const w=new Date(Date.UTC(y,m,1)).getUTCDay();return 1+((7-w)%7)+(n-1)*7};
+  return ms>=Date.UTC(y,2,nth(2,2),7)&&ms<Date.UTC(y,10,nth(10,1),6);
+}
+function etInfo(ms){const l=new Date(ms-(isDST(ms)?4:5)*3600000);return{d:l.toISOString().slice(0,10),min:l.getUTCHours()*60+l.getUTCMinutes(),wd:l.getUTCDay()}}
+function etEpochMin(d,min){const base=Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))+min*60000;return Math.floor((base+(isDST(base+5*3600000)?4:5)*3600000)/60000)}
+function phaseAt(ms){const e=etInfo(ms);if(e.wd===0||e.wd===6)return"closed";return e.min<240?"closed":e.min<570?"pre":e.min<960?"regular":e.min<1200?"post":"closed"}
+function addDays(d,n){const x=new Date(d+"T12:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)}
+
+function buildSessions(bars,prevLast){
+  const by=new Map();
+  for(const b of bars){const e=etInfo(b[0]);if(e.min<240||e.min>=1200)continue;let g=by.get(e.d);
+    if(!g){g={d:e.d,wd:e.wd,P:[],R:[],A:[]};by.set(e.d,g)}(e.min<570?g.P:e.min<960?g.R:g.A).push({m:e.min,o:b[1],h:b[2],l:b[3],c:b[4],v:b[5]||0})}
+  const out=[];let prev=prevLast||null;
+  for(const g of [...by.values()].sort((a,b)=>a.d<b.d?-1:1)){
+    const R=g.R;if(R.length<30)continue;
+    const o=R[0].o,c=R[R.length-1].c;let h=-1e18,l=1e18,hm=0,lm=0;
+    R.forEach(b=>{if(b.h>h){h=b.h;hm=b.m}if(b.l<l){l=b.l;lm=b.m}});
+    const at=m=>{let x=null;for(const b of R){if(b.m<=m)x=b;else break}return x?x.c:NaN};
+    const orB=R.filter(b=>b.m<600),orH=Math.max(...orB.map(b=>b.h)),orL=Math.min(...orB.map(b=>b.l));
+    let brk=0,brkM=null;for(const b of R){if(b.m<600)continue;if(b.h>orH){brk=1;brkM=b.m;break}if(b.l<orL){brk=-1;brkM=b.m;break}}
+    const bk=[];for(let k=0;k<13;k++){const a=k===0?o:at(565+30*k),z=at(595+30*k);bk.push(a>0&&z>0?+(z/a-1).toFixed(5):null)}
+    const s={s:HIST_SYM,d:g.d,wd:g.wd,o,h,l,c,hm,lm,c10:at(595),c1030:at(625),c15:at(895),c1530:at(925),
+      pmLast:g.P.length?g.P[g.P.length-1].c:null,ahLast:g.A.length?g.A[g.A.length-1].c:null,
+      pmV:g.P.reduce((a,b)=>a+b.v*b.c,0),ahV:g.A.reduce((a,b)=>a+b.v*b.c,0),rV:R.reduce((a,b)=>a+b.v*b.c,0),
+      orH,orL,brk,brkM,b:bk,c0:null,ah0:null,fill:null};
+    if(prev&&addDays(prev.d,6)>=g.d){
+      s.c0=prev.c;s.ah0=isNum(prev.ahLast)?prev.ahLast:null;
+      if(o>s.c0){for(const b of R)if(b.l<=s.c0){s.fill=b.m;break}}else if(o<s.c0){for(const b of R)if(b.h>=s.c0){s.fill=b.m;break}}
+    }
+    out.push(s);prev=s;
+  }
+  return out;
+}
+function derive(s,n){
+  const r=(a,b)=>isNum(a)&&isNum(b)&&b>0?a/b-1:NaN,base=isNum(s.ah0)?s.ah0:s.c0;
+  return{d:s.d,wd:s.wd,gap:r(s.o,s.c0),ahRet:r(s.ah0,s.c0),pmRet:r(s.pmLast,base),oc:r(s.c,s.o),cc:r(s.c,s.c0),
+    f30:r(s.c10,s.o),f60:r(s.c1030,s.o),rest30:r(s.c,s.c10),rest60:r(s.c,s.c1030),l60:r(s.c,s.c15),l30:r(s.c,s.c1530),
+    nGap:n?r(n.o,s.c):NaN,nAh:r(s.ahLast,s.c),nF30:n?r(n.c10,n.o):NaN,fill:s.fill,brk:s.brk,o:s.o,c:s.c,orH:s.orH,orL:s.orL,hm:s.hm,lm:s.lm,b:s.b,pmV:s.pmV,ahV:s.ahV,rV:s.rV};
+}
+function corrT(D,kx,ky){
+  let n=0,sx=0,sy=0,sxx=0,syy=0,sxy=0;
+  D.forEach(d=>{const x=d[kx],y=d[ky];if(isNum(x)&&isNum(y)){n++;sx+=x;sy+=y;sxx+=x*x;syy+=y*y;sxy+=x*y}});
+  if(n<20)return{n,r:NaN,t:NaN,beta:NaN};
+  const vx=n*sxx-sx*sx,vy=n*syy-sy*sy,cv=n*sxy-sx*sy,r=cv/Math.sqrt(vx*vy);
+  return{n,r,t:r*Math.sqrt((n-2)/Math.max(1e-9,1-r*r)),beta:cv/vx};
+}
+const median=a=>{const v=a.filter(isNum).sort((x,y)=>x-y);return v.length?v[Math.floor(v.length/2)]:NaN};
+const mean=a=>{const v=a.filter(isNum);return v.length?v.reduce((x,y)=>x+y,0)/v.length:NaN};
+const sd=a=>{const v=a.filter(isNum);if(v.length<3)return NaN;const m=mean(v);return Math.sqrt(v.reduce((x,y)=>x+(y-m)*(y-m),0)/(v.length-1))};
+const GAPB=[[-Infinity,-0.04,"Down more than 4%"],[-0.04,-0.015,"Down 1.5–4%"],[-0.015,-0.005,"Down 0.5–1.5%"],[-0.005,0.005,"Flat (±0.5%)"],[0.005,0.015,"Up 0.5–1.5%"],[0.015,0.04,"Up 1.5–4%"],[0.04,Infinity,"Up more than 4%"]];
+const REL=[["ahRet","pmRet","After-hours → next pre-market"],["gap","oc","Overnight gap → open to close"],["pmRet","f30","Pre-market → first 30 min"],
+  ["f30","rest30","First 30 min → rest of day"],["f60","rest60","First hour → rest of day"],["l60","nAh","Last hour → that evening's after-hours"],
+  ["l60","nGap","Last hour → next day's gap"],["oc","nGap","Open to close → next day's gap"],["l30","nF30","Last 30 min → next day's first 30 min"]];
+function sessStats(){
+  const key=SESS.length+"|"+(SESS.length?SESS[SESS.length-1].d:"");if(ST&&stKey===key)return ST;
+  const D=[];for(let i=0;i<SESS.length;i++){if(isNum(SESS[i].c0))D.push(derive(SESS[i],SESS[i+1]))}
+  const gapT=GAPB.map(([a,b,lab])=>{const g=D.filter(d=>isNum(d.gap)&&d.gap>=a&&d.gap<b);const nz=g.filter(d=>Math.abs(d.gap)>=0.005);
+    return{lab,a,b,n:g.length,fill:nz.length?nz.filter(d=>d.fill!=null).length/nz.length:NaN,fillT:median(nz.filter(d=>d.fill!=null).map(d=>d.fill-570)),
+      oc:mean(g.map(d=>d.oc)),cont:nz.length?nz.filter(d=>Math.sign(d.oc)===Math.sign(d.gap)).length/nz.length:NaN,cc:mean(g.map(d=>d.cc)),up:g.length?g.filter(d=>d.oc>0).length/g.length:NaN}});
+  const rel=REL.map(([x,y,lab])=>({x,y,lab,...corrT(D,x,y)}));
+  const tod=Array.from({length:13},(_,k)=>({k,abs:mean(D.map(d=>d.b[k]==null?NaN:Math.abs(d.b[k]))),avg:mean(D.map(d=>d.b[k]==null?NaN:d.b[k])),
+    hod:D.length?D.filter(d=>Math.floor((d.hm-570)/30)===k).length/D.length:NaN,lod:D.length?D.filter(d=>Math.floor((d.lm-570)/30)===k).length/D.length:NaN}));
+  const up=D.filter(d=>d.brk===1),dn=D.filter(d=>d.brk===-1);
+  const orb={n:D.length,upFirst:D.length?up.length/D.length:NaN,dnFirst:D.length?dn.length/D.length:NaN,
+    upHold:up.length?up.filter(d=>d.c>d.orH).length/up.length:NaN,dnHold:dn.length?dn.filter(d=>d.c<d.orL).length/dn.length:NaN};
+  let co=0,ci=0,cs=0;const cum=[];
+  D.forEach(d=>{if(isNum(d.gap)&&isNum(d.oc)){co+=Math.log(1+d.gap);ci+=Math.log(1+d.oc)}if(isNum(d.f30)&&isNum(d.l60))cs+=Math.log(1+d.l60)-Math.log(1+d.f30);
+    cum.push([new Date(d.d+"T21:00:00Z").getTime(),co,ci,cs])});
+  const last20=D.slice(-20),smi20=last20.reduce((a,d)=>a+(isNum(d.f30)&&isNum(d.l60)?Math.log(1+d.l60)-Math.log(1+d.f30):0),0),px20=last20.reduce((a,d)=>a+(isNum(d.cc)?Math.log(1+d.cc):0),0);
+  const div=!last20.length?"--":smi20>0.02&&px20<-0.02?"Accumulation: smart-money hours buy while price falls":smi20<-0.02&&px20>0.02?"Distribution: smart-money hours sell while price rises":smi20>0&&px20>0?"Confirmed up: late-day buying supports the trend":smi20<0&&px20<0?"Confirmed down: late-day selling supports the trend":"Neutral";
+  const dow=[1,2,3,4,5].map(w=>({w,oc:mean(D.filter(d=>d.wd===w).map(d=>d.oc)),gap:mean(D.filter(d=>d.wd===w).map(d=>d.gap)),n:D.filter(d=>d.wd===w).length}));
+  const vg=sd(D.map(d=>d.gap)),vo=sd(D.map(d=>d.oc));
+  const ext={pmShare:mean(D.map(d=>d.pmV/(d.pmV+d.ahV+d.rV))),ahShare:mean(D.map(d=>d.ahV/(d.pmV+d.ahV+d.rV))),ovVar:isNum(vg)&&isNum(vo)?vg*vg/(vg*vg+vo*vo):NaN,sdGap:vg,sdOc:vo,
+    bigAh:D.filter(d=>Math.abs(d.ahRet)>0.02).length};
+  ST={D,gapT,rel,tod,orb,cum,co,ci,cs,smi20,px20,div,dow,ext,n:D.length,first:D.length?D[0].d:"",last:D.length?D[D.length-1].d:""};stKey=key;return ST;
+}
+function ols2(D,k1,k2,ky){
+  const rows=D.filter(d=>isNum(d[k1])&&isNum(d[k2])&&isNum(d[ky]));const n=rows.length;if(n<40)return null;
+  let a=[[0,0,0],[0,0,0],[0,0,0]],b=[0,0,0];
+  rows.forEach(d=>{const x=[1,d[k1],d[k2]];for(let i=0;i<3;i++){b[i]+=x[i]*d[ky];for(let j=0;j<3;j++)a[i][j]+=x[i]*x[j]}});
+  const inv=m=>{const[A,B,C]=m,det=A[0]*(B[1]*C[2]-B[2]*C[1])-A[1]*(B[0]*C[2]-B[2]*C[0])+A[2]*(B[0]*C[1]-B[1]*C[0]);if(Math.abs(det)<1e-18)return null;
+    return[[(B[1]*C[2]-B[2]*C[1])/det,(A[2]*C[1]-A[1]*C[2])/det,(A[1]*B[2]-A[2]*B[1])/det],[(B[2]*C[0]-B[0]*C[2])/det,(A[0]*C[2]-A[2]*C[0])/det,(A[2]*B[0]-A[0]*B[2])/det],[(B[0]*C[1]-B[1]*C[0])/det,(A[1]*C[0]-A[0]*C[1])/det,(A[0]*B[1]-A[1]*B[0])/det]]};
+  const ai=inv(a);if(!ai)return null;const beta=ai.map(r=>r[0]*b[0]+r[1]*b[1]+r[2]*b[2]);
+  let rss=0;rows.forEach(d=>{const e=d[ky]-(beta[0]+beta[1]*d[k1]+beta[2]*d[k2]);rss+=e*e});const s2=rss/(n-3);
+  return{beta,se:[0,1,2].map(i=>Math.sqrt(Math.max(0,s2*ai[i][i]))),sd:Math.sqrt(s2),n};
+}
+function analogs(D,feat,today,ky,k=20){
+  const rows=D.filter(d=>feat.every(f=>isNum(d[f]))&&isNum(d[ky]));if(rows.length<k+10)return null;
+  const z=feat.map(f=>{const v=rows.map(d=>d[f]);return{m:mean(v),s:sd(v)||1}});
+  const dist=rows.map(d=>({d,x:Math.sqrt(feat.reduce((a,f,i)=>a+((d[f]-today[f])/z[i].s)**2,0))})).sort((a,b)=>a.x-b.x).slice(0,k);
+  const ys=dist.map(o=>o.d[ky]);return{n:ys.length,med:median(ys),avg:mean(ys),up:ys.filter(y=>y>0).length/ys.length,days:dist.slice(0,5).map(o=>o.d.d)};
+}
+function priceAtET(d,min){return findAt(hist[FUND]||[],etEpochMin(d,min),"c")}
+function todaySess(){
+  const st=sessStats(),now=Date.now(),ph=demo?"regular":phaseAt(now),e=etInfo(now),d=e.d,P=Q[FUND].c,c0=Q[FUND].pc;
+  const prevS=SESS.length&&SESS[SESS.length-1].d<d?SESS[SESS.length-1]:null;
+  const T={phase:ph,c0,P,ah0:prevS&&isNum(prevS.ahLast)?prevS.ahLast:NaN};
+  if(demo&&demoToday)Object.assign(T,demoToday);
+  T.ahRet=isNum(T.ah0)&&c0>0?T.ah0/c0-1:NaN;
+  let o=T.o||NaN;if(!isNum(o)){const f=(hist[FUND]||[]).find(b=>b.m>=etEpochMin(d,570)&&b.m<etEpochMin(d,575));o=(ph==="regular"||ph==="post")&&Q[FUND].o>0?Q[FUND].o:f?f.c:NaN}
+  T.o=o;
+  T.pmRet=ph==="pre"&&P>0?P/(isNum(T.ah0)?T.ah0:c0)-1:isNum(T.pm)?T.pm/(isNum(T.ah0)?T.ah0:c0)-1:NaN;
+  T.gap=isNum(o)&&c0>0?o/c0-1:ph==="pre"&&P>0&&c0>0?P/c0-1:NaN;T.gapInd=ph==="pre";
+  T.c10=T.c10||priceAtET(d,599);T.c1030=T.c1030||priceAtET(d,629);T.c15=priceAtET(d,899);
+  T.f30=isNum(T.c10)&&isNum(o)?T.c10/o-1:NaN;T.f60=isNum(T.c1030)&&isNum(o)?T.c1030/o-1:NaN;
+  T.soFar=isNum(o)&&P>0&&ph==="regular"?P/o-1:NaN;T.l60=isNum(T.c15)&&P>0&&e.min>=900&&ph==="regular"?P/T.c15-1:NaN;
+  T.bucket=isNum(T.gap)?st.gapT.find(g=>T.gap>=g.a&&T.gap<g.b):null;
+  let M=null;const D=st.D;
+  if(st.n>=60){
+    if(ph==="pre"||(ph==="regular"&&!isNum(T.f30))){
+      const today={gap:T.gap,pmRet:T.pmRet,ahRet:T.ahRet},feat=["gap","pmRet","ahRet"].filter(f=>isNum(today[f]));
+      const an=feat.length?analogs(D,feat,today,"oc"):null,s2=sd(D.map(x=>x.oc));
+      M={target:"open to close",basis:"gap and extended hours",E:an?an.avg:NaN,sd:s2,an,ref:o||P};
+    }else if(ph==="regular"&&isNum(T.f30)&&!isNum(T.f60)){
+      const r=ols2(D,"gap","f30","rest30"),E=r?r.beta[0]+r.beta[1]*T.gap+r.beta[2]*T.f30:NaN;
+      M={target:"rest of day (from 10:00)",basis:"gap and first 30 min",E,sd:r?r.sd:NaN,t:r?r.beta[2]/r.se[2]:NaN,an:analogs(D,["gap","f30"],{gap:T.gap,f30:T.f30},"rest30"),ref:T.c10};
+    }else if(ph==="regular"&&isNum(T.f60)){
+      const r=ols2(D,"gap","f60","rest60"),E=r?r.beta[0]+r.beta[1]*T.gap+r.beta[2]*T.f60:NaN;
+      M={target:"rest of day (from 10:30)",basis:"gap and first hour",E,sd:r?r.sd:NaN,t:r?r.beta[2]/r.se[2]:NaN,an:analogs(D,["gap","f60"],{gap:T.gap,f60:T.f60},"rest60"),ref:T.c1030};
+    }else if(ph==="post"||ph==="closed"){
+      const r=ols2(D,"oc","l60","nGap"),dd=D.length?D[D.length-1]:null,ocT=isNum(o)&&P>0?P/o-1:dd?dd.oc:NaN,l60T=isNum(T.c15)&&P>0?P/T.c15-1:dd?dd.l60:NaN;
+      M={target:"next day's gap",basis:"today's open-to-close and last hour",E:r?r.beta[0]+r.beta[1]*ocT+r.beta[2]*l60T:NaN,sd:r?r.sd:NaN,t:r?r.beta[2]/r.se[2]:NaN,an:null,ref:P};
+    }
+  }
+  T.model=M;return T;
+}
+function blockFlow(mins){
+  const cut=Date.now()-mins*60000;let net=0,gross=0,n=0;
+  BLK.forEach(b=>{if(b.t<cut)return;const v=b.usd*b.sg*(b.s==="SOXS"?-1:1);net+=v;gross+=b.usd;n++});
+  return{net,gross,n,ratio:gross>0?net/gross:NaN};
+}
+async function loadSess(){SESS=(await idbAll("sess",IDBKeyRange.bound([HIST_SYM,""],[HIST_SYM,"￿"]))).sort((a,b)=>a.d<b.d?-1:1);ST=null}
+async function syncHistory(){
+  if(demo||!db)return;const p=fredProxy();if(!p){histState={status:"no proxy",done:0,total:0,msg:"Add the Worker URL"};return}
+  if(histState.status==="loading")return;
+  const today=etDate(),last=SESS.length?SESS[SESS.length-1].d:null;
+  if(META.histSync===today&&last)return;
+  const from=last?addDays(last,-4):addDays(today,-729);
+  const chunks=[];for(let a=from;a<=today;a=addDays(a,75)){const b=addDays(a,74);chunks.push([a,b>today?today:b])}
+  histState={status:"loading",done:0,total:chunks.length,msg:""};
+  const raw=[];
+  for(const [a,b] of chunks){
+    let tries=0,t0=Date.now();
+    for(;;){
+      try{
+        const r=await fetch(`${p}/hist?t=${HIST_SYM}&mult=5&span=minute&from=${a}&to=${b}`);const j=await r.json();
+        if(j.status==="ok"){j.bars.forEach(x=>raw.push(x));break}
+        if(j.status==="rate"&&tries++<4){histState.msg="waiting for rate limit";await sleep(65000);t0=Date.now();continue}
+        histState={status:"error",done:0,total:0,msg:(j.error||"HTTP "+r.status)+(j.code?` (${j.code})`:"")};srcOk.hist=false;return;
+      }catch(e){histState={status:"error",done:0,total:0,msg:"Worker did not answer /hist (update the Worker code)"};srcOk.hist=false;return}
+    }
+    histState.done++;histState.msg="";
+    await sleep(Math.max(0,16000-(Date.now()-t0)));
+  }
+  raw.sort((x,y)=>x[0]-y[0]);
+  const prevS=SESS.filter(s=>s.d<from).slice(-1)[0]||null;
+  const built=buildSessions(raw,prevS),nowHM=etParts(Date.now()).hm;
+  const keep=built.filter(s=>s.d<today||(s.d===today&&nowHM>="20:05"));
+  if(keep.length)await idbWrite({sess:keep});
+  META.histSync=today;idbWrite({meta:[{k:"histSync",v:today}]});
+  await loadSess();histState={status:"ok",done:chunks.length,total:chunks.length,msg:`${SESS.length} sessions`};srcOk.hist=true;
+}
+function demoSessions(){
+  const out=[];let c=60,ahPrev=60,d=etDate(),dates=[];
+  for(let i=0;dates.length<500;i++){d=addDays(d,-1);const w=new Date(d+"T12:00:00Z").getUTCDay();if(w>0&&w<6)dates.push(d)}
+  dates.reverse();const g=()=>{let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+  let prev=null;
+  dates.forEach(dt=>{
+    const c0=c,ahR=prev?ahPrev/c0-1:0,pmR=0.3*ahR+0.009*g(),gap=ahR+pmR+0.003*g(),o=c0*(1+gap);
+    const f30=0.15*gap+0.012*g(),c10=o*(1+f30),f60=f30+0.007*g(),c1030=o*(1+f60);
+    const rest30=-0.12*gap+0.1*f30+0.026*g(),cl=c10*(1+rest30),l60=0.4*rest30+0.009*g(),c15=cl/(1+l60),c1530=cl/(1+0.5*l60+0.004*g());
+    const pts=[o,c10,c1030,c15,c1530,cl],h=Math.max(...pts)*(1+Math.abs(0.004*g())),l=Math.min(...pts)*(1-Math.abs(0.004*g()));
+    const pick=()=>{const r=Math.random();return 570+30*(r<0.3?0:r<0.5?12:r<0.6?1:Math.floor(Math.random()*13))};
+    const orH=Math.max(o,c10)*(1+Math.abs(0.003*g())),orL=Math.min(o,c10)*(1-Math.abs(0.003*g())),brk=Math.random()<0.7?Math.sign(f30)||1:-(Math.sign(f30)||1);
+    const ahNext=cl*(1+0.4*l60*0.3+0.008*g());
+    const b=Array.from({length:13},(_,k)=>+((k===0?f30/2:k===1?f30/2:k===12?l60/2:k===11?l60/2:rest30/9)+0.004*g()).toFixed(5));
+    const s={s:HIST_SYM,d:dt,wd:new Date(dt+"T12:00:00Z").getUTCDay(),o,h,l,c:cl,hm:pick(),lm:pick(),c10,c1030,c15,c1530,pmLast:(prev?ahPrev:c0)*(1+pmR),ahLast:ahNext,
+      pmV:3e7*(1+Math.random()),ahV:2e7*(1+Math.random()),rV:1.5e9*(1+Math.random()),orH,orL,brk,brkM:600+Math.floor(Math.random()*120),b,c0:prev?c0:null,ah0:prev?ahPrev:null,
+      fill:prev&&Math.random()<Math.exp(-Math.abs(gap)/0.02)?570+Math.floor(Math.random()*240):null};
+    out.push(s);prev=s;c=cl;ahPrev=ahNext;
+  });
+  const k=FUND_DEMO_PC/c;out.forEach(s=>["o","h","l","c","c10","c1030","c15","c1530","pmLast","ahLast","orH","orL","c0","ah0"].forEach(f=>{if(isNum(s[f]))s[f]*=k}));
+  return out;
+}
+
 /* ---------- core compute ---------- */
 function compute(){
   let tot=0,rows=[];
@@ -1237,8 +1493,66 @@ function renderMacro(D){
   $("nwsList").innerHTML=list.length?list.map(n=>{const a=Math.round((now-n.t)/60);
     return`<div class="nrow"><span class="ndot" style="background:${n.s>0.15?"var(--up)":n.s<-0.15?"var(--down)":"var(--mute)"}"></span><span class="sub">${a<60?a+"m":Math.round(a/60)+"h"}</span><span class="nh">${n.url?`<a href="${n.url.replace(/"/g,"&quot;")}" target="_blank" rel="noopener">${esc(n.h)}</a>`:esc(n.h)} <span class="sub">${esc(n.src||"")}${n.rel&&n.co?" · "+esc(n.rel):""}</span>${n.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</span></div>`}).join(""):'<div class="sub">Waiting for headlines…</div>';
 }
+function renderSess(D){
+  const T=D.T,st=D.stS,M=T.model,P=Q[FUND].c;
+  const phT={pre:"Pre-market",regular:"Regular session",post:"After-hours",closed:"Market closed"}[T.phase]||T.phase;
+  $("phPill").innerHTML=`<b>${phT}</b>`;
+  const tile=(k,v,s,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||cls(v)}">${isNum(v)?fmtPct(v):"--"}</div><div class="s">${s||""}</div></div>`;
+  $("sTiles").innerHTML=
+    `<div class="st"><div class="k">Prior close</div><div class="v">${fmtPx(T.c0)}</div><div class="s">4:00 pm ET</div></div>`+
+    tile("After-hours",T.ahRet,"last evening")+tile("Pre-market",T.pmRet,T.phase==="pre"?"live":"before open")+
+    tile(T.gapInd?"Gap (indicated)":"Gap",T.gap,T.gapInd?"if it opened now":"open vs prior close")+
+    tile("First 30 min",T.f30,"9:30–10:00")+tile("First hour",T.f60,"9:30–10:30")+
+    tile("So far today",T.soFar,"from the open")+tile("Last hour",T.l60,"from 3:00 pm");
+  if(!st.n){$("sModel").innerHTML=`<b>History is loading or not set up.</b> ${demo?"":"Add your Massive (Polygon) key to the Worker as POLYGON_KEY. The page then loads about 2 years of 5-minute SOXL bars with pre-market and after-hours."}`}
+  else if(!M){$("sModel").innerHTML=`History has ${st.n} sessions (${st.first} to ${st.last}). ${st.n<60?"The model needs 60 or more.":"No model applies at this time."}`}
+  else{
+    const lo=M.ref>0&&isNum(M.E)&&isNum(M.sd)?M.ref*(1+M.E-M.sd):NaN,hi=M.ref>0&&isNum(M.E)&&isNum(M.sd)?M.ref*(1+M.E+M.sd):NaN;
+    $("sModel").innerHTML=`<div class="label" style="margin-bottom:4px">History says · ${M.target}</div>
+      <div><span class="big2 ${cls(M.E)}">${fmtPct(M.E)}</span> <span class="sub">expected, ±${isNum(M.sd)?(M.sd*100).toFixed(2):"--"}% (1σ) · based on ${M.basis} · ${st.n} sessions</span></div>
+      ${isNum(lo)?`<div>Likely ${M.target==="next day's gap"?"next open":"close"} range: <b>${fmtPx(lo)} – ${fmtPx(hi)}</b></div>`:""}
+      ${M.an?`<div>${M.an.n} most similar days: <b class="${M.an.up>0.55?"up":M.an.up<0.45?"down":""}">${Math.round(M.an.up*100)}% up</b>, median ${fmtPct(M.an.med)} <span class="sub">(e.g. ${M.an.days.slice(0,3).join(", ")})</span></div>`:""}
+      ${isNum(M.t)?`<div class="sub">Reliability of the main link: t = ${M.t.toFixed(1)} ${Math.abs(M.t)>=2?"(reliable)":"(weak; treat as noise)"}</div>`:""}`;
+  }
+  const bfx=w=>{const b=blockFlow(w);return b.n?`<span class="${cls(b.net)}">${b.net>=0?"+":"−"}${fmtBig(Math.abs(b.net))}</span> <span class="sub">${b.n} prints · ${Math.round((b.ratio+1)/2*100)}% bull</span>`:"--"};
+  const smiT=isNum(T.l60)||isNum(T.f30)?(isNum(T.l60)?T.l60:0)-(isNum(T.f30)?T.f30:0):NaN;
+  $("smKv").innerHTML=kvHtml([
+    ["SMI trend (20 sessions)",st.n>=20?`<span class="${cls(st.smi20)}">${fmtPct(st.smi20)}</span> vs price ${fmtPct(st.px20)}`:"--"],
+    ["Reading",st.n>=20?`<span class="${/Accumulation|Confirmed up/.test(st.div)?"up":/Distribution|Confirmed down/.test(st.div)?"down":""}">${st.div}</span>`:"needs 20 sessions"],
+    ["SMI today (last hour − first 30m)",isNum(smiT)?`<span class="${cls(smiT)}">${fmtPct(smiT)}</span>`:"--"],
+    ["Large prints, 30 min",bfx(30)],["Large prints, 1 hour",bfx(60)],["Large prints, today",bfx(16*60)]
+  ]);
+  const cur=T.bucket;
+  $("gapTbl").innerHTML=`<tr><th class="l">Gap</th><th>Days</th><th>Gap fills</th><th>Fill time</th><th>Continues</th><th>Open→close</th><th>Up days</th></tr>`+
+    st.gapT.map(g=>`<tr class="${cur&&cur.lab===g.lab?"hl":""}"><td>${g.lab}</td><td>${g.n}</td><td>${isNum(g.fill)?Math.round(g.fill*100)+"%":"--"}</td><td>${isNum(g.fillT)?"~"+Math.round(g.fillT)+" min":"--"}</td><td>${isNum(g.cont)?Math.round(g.cont*100)+"%":"--"}</td><td class="${cls(g.oc)}">${fmtPct(g.oc)}</td><td>${isNum(g.up)?Math.round(g.up*100)+"%":"--"}</td></tr>`).join("");
+  $("gapNote").textContent=st.n?`Fills: price returned to the prior close during the session. Continues: the open-to-close move went the same way as the gap. Highlighted row = today. ${st.n} sessions, ${st.first} to ${st.last}.`:"";
+  $("relTbl").innerHTML=`<tr><th class="l">Relationship</th><th>Corr</th><th>Beta</th><th>t</th><th>Days</th><th class="l">Reading</th></tr>`+
+    st.rel.map(r=>{const rel=isNum(r.t)&&Math.abs(r.t)>=2;return`<tr><td>${r.lab}</td><td class="${rel?cls(r.r):""}">${fmtN(r.r,2)}</td><td>${fmtN(r.beta,2)}</td><td>${fmtN(r.t,1)}</td><td>${r.n}</td><td class="l ${rel?"":"sum"}">${!isNum(r.t)?"--":!rel?"no reliable link":r.r>0?"continuation":"reversal"}</td></tr>`}).join("");
+  const mx=Math.max(...st.tod.map(t=>isNum(t.abs)?t.abs:0),1e-9);
+  const lab=k=>{const m=570+30*k,h=Math.floor(m/60),mi=m%60;return`${h>12?h-12:h}:${String(mi).padStart(2,"0")}`};
+  $("todTbl").innerHTML=`<tr><th class="l">From</th><th class="l">Typical move</th><th>Avg</th><th>High of day</th><th>Low of day</th></tr>`+
+    st.tod.map(t=>`<tr><td>${lab(t.k)}</td><td class="l"><span class="hbar" style="width:${isNum(t.abs)?Math.round(t.abs/mx*90):0}px"></span> ${isNum(t.abs)?(t.abs*100).toFixed(2)+"%":"--"}</td><td class="${cls(t.avg)}">${fmtPct(t.avg)}</td><td>${isNum(t.hod)?Math.round(t.hod*100)+"%":"--"}</td><td>${isNum(t.lod)?Math.round(t.lod*100)+"%":"--"}</td></tr>`).join("");
+  const o=st.orb,dw=["","Mon","Tue","Wed","Thu","Fri"];
+  $("orbKv").innerHTML=kvHtml([
+    ["Opening range (first 30 min) breaks up first",isNum(o.upFirst)?Math.round(o.upFirst*100)+"%":"--"],
+    ["… and closes above the range",isNum(o.upHold)?Math.round(o.upHold*100)+"%":"--"],
+    ["Breaks down first",isNum(o.dnFirst)?Math.round(o.dnFirst*100)+"%":"--"],
+    ["… and closes below the range",isNum(o.dnHold)?Math.round(o.dnHold*100)+"%":"--"],
+    ["Day of week (avg open→close)",st.dow.map(x=>`${dw[x.w]} <span class="${cls(x.oc)}">${fmtPct(x.oc,1)}</span>`).join(" · ")]
+  ]);
+  lineChart($("cumChart"),st.cum,[{i:1,c:"#ffb547"},{i:2,c:"#4da3ff"},{i:3,c:"#9b6bff",w:1.5}],"History loads after you add POLYGON_KEY to the Worker.");
+  const e=st.ext;
+  $("extKv").innerHTML=kvHtml([
+    ["Total overnight return (log)",`<span class="${cls(st.co)}">${fmtPct(st.co,1)}</span>`],
+    ["Total intraday return (log)",`<span class="${cls(st.ci)}">${fmtPct(st.ci,1)}</span>`],
+    ["Share of daily variance from overnight",isNum(e.ovVar)?Math.round(e.ovVar*100)+"%":"--"],
+    ["Typical gap (1σ) / typical open→close (1σ)",`${isNum(e.sdGap)?(e.sdGap*100).toFixed(2)+"%":"--"} / ${isNum(e.sdOc)?(e.sdOc*100).toFixed(2)+"%":"--"}`],
+    ["Pre-market / after-hours share of $ volume",`${isNum(e.ahShare)?(e.pmShare*100).toFixed(1)+"% / "+(e.ahShare*100).toFixed(1)+"%":"--"}`],
+    ["Evenings with after-hours move > 2%",st.n?`${e.bigAh} of ${st.n}`:"--"]
+  ]);
+}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-function fmtBig(x){return!(x>0)?"--":x>=1e12?"$"+(x/1e12).toFixed(3)+"T":x>=1e9?"$"+(x/1e9).toFixed(2)+"B":fmtPx(x)}
+function fmtBig(x){return!(x>0)?"$0":x>=1e12?"$"+(x/1e12).toFixed(3)+"T":x>=1e9?"$"+(x/1e9).toFixed(2)+"B":x>=1e6?"$"+(x/1e6).toFixed(2)+"M":x>=1e3?"$"+(x/1e3).toFixed(0)+"k":fmtPx(x)}
 function renderCross(){
   const D=decide(),cm=D.cm,pos=D.pos,fg=D.fg;
   $("dStance").textContent=D.stance;$("dStance").className="stance "+(D.bias>0.25?"up":D.bias<-0.25?"down":"");
@@ -1256,9 +1570,11 @@ function renderCross(){
     chip("Order flow 1h",isFinite(D.net)?Math.round(D.net*100)+"% buy":"--"),
     chip("Learned 1m bias",fmtPct(D.ls.pred,3)+" · "+D.ls.conf),
     chip("Rates today",fmtS(D.ratesLive)),chip("Credit today",fmtS(D.credLive)),chip("News",fmtS(D.nws.score)),
+    chip("Session history",fmtS(D.sessPart)),chip("Smart money",fmtS(D.smartPart)),
     chip("Consumer",fmtS(D.con.score)),chip("Oil",fmtS(D.oil.score)),chip("Macro",fmtS(D.mac.score)),chip("Funding/bonds",fmtS(D.bon.score)),chip("Micro",fmtS(D.mic.score))
   ].join("");
   renderMacro(D);
+  renderSess(D);
   $("dFlags").innerHTML=D.flags.map(f=>`<li>${f}</li>`).join("");
 
   const cell=o=>!o||!isFinite(o.r)?'<td class="sum">--</td>':`<td class="${cls(o.r)}">${o.approx?"≈":""}${fmtPct(o.r)}</td>`;
@@ -1340,7 +1656,8 @@ function renderInsights(){
     ["Finnhub calls (last 60 s)",`${fhUsed()} / 55`+(Object.keys(fhQ.off).length?` <span class="meh">no access: ${Object.keys(fhQ.off).join(", ")}</span>`:"")],
     ["FRED data",demo?"demo":fredT?`updated ${Math.round((Date.now()-fredT)/60000)} min ago · ${Object.keys(FRED).length}/${FRED_IDS.length} series`:(fredState||"not set")],
     ["Headlines (24h)",NEWS.length],
-    ["Data sources",Object.entries({Finnhub:srcOk.finnhub,Coinbase:srcOk.coinbase,CoinGecko:srcOk.coingecko,"Crypto F&G":srcOk.fng,FRED:srcOk.fred}).map(([n,v])=>`<span class="${demo?"":v===true?"ok":v===false?"bad":""}">${n}${demo?"":v===false?" ✕":v===true?" ✓":""}</span>`).join(" · ")+(demo?" (demo)":"")]
+    ["Price history (SOXL, 5-min)",histState.status==="loading"?`<span class="meh">loading ${histState.done}/${histState.total}${histState.msg?" · "+histState.msg:""}</span>`:histState.status==="error"?`<span class="bad">${esc(histState.msg)}</span>`:`${SESS.length} sessions${SESS.length?" · "+SESS[0].d+" to "+SESS[SESS.length-1].d:""}${histState.status==="no proxy"?" · add the Worker URL":""}`],
+    ["Data sources",Object.entries({Finnhub:srcOk.finnhub,Coinbase:srcOk.coinbase,CoinGecko:srcOk.coingecko,"Crypto F&G":srcOk.fng,FRED:srcOk.fred,History:srcOk.hist}).map(([n,v])=>`<span class="${demo?"":v===true?"ok":v===false?"bad":""}">${n}${demo?"":v===false?" ✕":v===true?" ✓":""}</span>`).join(" · ")+(demo?" (demo)":"")]
   ]);
 }
 
@@ -1360,7 +1677,7 @@ function lineChart(cv,data,keys,empty){
   g.strokeStyle="#1e2835";g.lineWidth=1;g.fillStyle="#5a6676";g.font="11px JetBrains Mono";
   for(let k=-2;k<=2;k++){const v=mx*k/2.3,y=Y(v);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((v*100).toFixed(1)+"%",4,y+4)}
   g.strokeStyle="#2c3a4c";g.beginPath();g.moveTo(L,Y(0));g.lineTo(W-R,Y(0));g.stroke();
-  const tl=t=>new Date(t).toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"});
+  const tl=t=>t1-t0>3*86400000?new Date(t).toLocaleDateString("en-US",{timeZone:"America/New_York",month:"short",year:"2-digit"}):new Date(t).toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"});
   g.fillText(tl(t0),L,H-6);const e=tl(t1);g.fillText(e,W-R-g.measureText(e).width,H-6);
   keys.forEach(k=>{g.strokeStyle=k.c;g.lineWidth=k.w||2;g.setLineDash(k.dash||[]);g.lineJoin="round";g.lineCap="round";g.beginPath();let st=false;
     data.forEach(p=>{if(p[k.i]==null){st=false;return}const x=X(p[0]),y=Y(p[k.i]);st?g.lineTo(x,y):g.moveTo(x,y);st=true});g.stroke();g.setLineDash([])});
@@ -1408,7 +1725,7 @@ async function drawRecall(){
 $("rcSym").onchange=drawRecall;$("rcDay").onchange=drawRecall;
 $("expBtn").onclick=async()=>{
   if(!db)return;
-  const out={app:"soxx-sniper",version:1,bank:dbName,exported:new Date().toISOString(),bars:await idbAll("bars"),know:await idbAll("know"),days:await idbAll("days"),meta:await idbAll("meta")};
+  const out={app:"soxx-sniper",version:1,bank:dbName,exported:new Date().toISOString(),bars:await idbAll("bars"),know:await idbAll("know"),days:await idbAll("days"),meta:await idbAll("meta"),sess:await idbAll("sess")};
   const blob=new Blob([JSON.stringify(out)],{type:"application/json"});const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);a.download=`soxx-sniper-memory-${etDate()}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 };
@@ -1416,7 +1733,8 @@ $("impBtn").onclick=()=>$("impFile").click();
 $("impFile").onchange=async e=>{
   const f=e.target.files[0];e.target.value="";if(!f||!db)return;
   try{const j=JSON.parse(await f.text());if(j.app!=="soxx-sniper")throw 0;
-    const ok=await idbWrite({bars:j.bars||[],know:j.know||[],days:j.days||[],meta:j.meta||[]});
+    const ok=await idbWrite({bars:j.bars||[],know:j.know||[],days:j.days||[],meta:j.meta||[],sess:j.sess||[]});
+    await loadSess();
     if(!ok)throw 0;
     KN={};(await idbAll("know")).forEach(k=>KN[k.s]=k);META={};(await idbAll("meta")).forEach(m=>META[m.k]=m.v);
     await loadDay(etDate());fillRecall();memStats();alert("Backup imported.");
@@ -1487,7 +1805,7 @@ function resetLive(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
   clearInterval(pollTimer);clearInterval(demoTimer);
   stopExternal();stopMacro();
-  NEWS.length=0;newsSeen.clear();
+  NEWS.length=0;newsSeen.clear();BLK.length=0;clearInterval(histTimer);SESS=[];ST=null;demoToday=null;histState={status:"idle",done:0,total:0,msg:""};
   SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s];delete tickSign[s];hist[s]=[]});
   hist._IDX=[];cbC.BTC={};cbC.ETH={};Object.assign(TOT,{cap:0,ch24:NaN,t:0});Object.assign(FNG,{v:NaN,label:"",t:0});
   for(const k in srcOk)srcOk[k]=null;prevRP=NaN;lastRP=NaN;
@@ -1499,6 +1817,7 @@ async function startLive(){
   resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");
   await initMemory("soxx_sniper_live");
   startExternal();startMacro();
+  await loadSess();syncHistory();clearInterval(histTimer);histTimer=setInterval(syncHistory,30*60000);
   fhQ.jobs={};fhQ.rr=0;
   connectWS();
   pollTimer=setInterval(fhTick,1100);
@@ -1511,6 +1830,8 @@ async function startDemo(){
   totHist=[];
   const DPC={SOXS:46.65,SOXX:502,QQQ:612,SPY:688,DIA:471,BTC:108500,ETH:3950,TLT:88.2,IEF:96.1,SHY:82.6,HYG:80.5,LQD:110.2,USO:72.3,XLY:225.4,XLP:79.1,COF:221.5,SYF:70.2,AXP:331.8};
   FRED=demoFred();fredT=Date.now();fredState="demo";
+  SESS=demoSessions();ST=null;histState={status:"ok",done:1,total:1,msg:"demo sessions"};
+  demoToday={ah0:FUND_DEMO_PC*1.008,pm:FUND_DEMO_PC*1.013,o:FUND_DEMO_PC*1.011,c10:FUND_DEMO_PC*1.019,c1030:FUND_DEMO_PC*1.016};
   MICRO={d:etDate(),m:{},r:{}};HOLDINGS.forEach(([s])=>{MICRO.m[s]={pe:18+Math.random()*45,rg:-5+Math.random()*60,gm:40+Math.random()*35,de:0.1+Math.random()*1.1,cr:2};MICRO.r[s]={b:Math.round(18+Math.random()*25),h:Math.round(4+Math.random()*12),s:Math.round(Math.random()*3)}});
   EARN=[{s:"TXN",d:etDate(Date.now()+86400000),h:"amc"},{s:"LRCX",d:etDate(Date.now()+2*86400000),h:"amc"},{s:"KLAC",d:etDate(Date.now()+8*86400000),h:"amc"},{s:"NXPI",d:etDate(Date.now()+12*86400000),h:"bmo"}];
   const DH=["Nvidia shares rally on record AI chip demand","Treasury yields climb after hotter inflation data","Oil drops as OPEC raises output","Credit card delinquencies ease in third quarter","US weighs new export controls on chip equipment to China","Micron beats estimates and raises guidance","Fed officials signal patience on rate cuts","High-yield bond spreads tighten as demand stays strong","Consumer spending slows as retail sales miss forecasts","TSMC says AI server demand remains strong"];
