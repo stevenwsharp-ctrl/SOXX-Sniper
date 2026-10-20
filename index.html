@@ -114,6 +114,17 @@ table.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 .hist-box{margin-top:12px;border:1px solid rgba(155,107,255,.35);border-radius:12px;padding:12px;background:rgba(155,107,255,.05);font-size:13px;line-height:1.6}
 .hist-box .big2{font-family:var(--mono);font-size:22px;font-weight:600}
 .tbl tr.hl td{background:rgba(155,107,255,.10)}
+.pflow{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.seg{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;line-height:1.5}
+.seg.now{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.seg.done{opacity:.75}
+.seg .nm{font-weight:600;font-size:13px}.seg .tm{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.seg .ar{font-family:var(--mono);font-size:18px;font-weight:600;margin:4px 0}
+.seg ul{margin:4px 0 0;padding-left:14px;color:var(--dim)}
+.player{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:8px 0;border-bottom:1px solid rgba(30,40,53,.6);font-size:13px}
+.player .who{font-weight:600}.player .rd{font-family:var(--mono);text-align:right}.player .ex{grid-column:1/-1;color:var(--dim);font-size:12px}
+.vr{display:inline-block;font-size:11px;padding:2px 7px;border-radius:6px;font-family:var(--mono)}
+.vr.Reliable{background:rgba(25,211,138,.15);color:var(--up)}.vr.Likely{background:rgba(77,163,255,.15);color:var(--accent)}.vr.Fragile{background:rgba(255,181,71,.13);color:var(--amber)}.vr.Noise{background:var(--panel2);color:var(--mute)}
 .hbar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle}
 .quad.wide{grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
 .tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(155,107,255,.15);color:#c4abff;margin-left:4px}
@@ -195,6 +206,14 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     </div>
   </section>
 
+  <section class="card" style="margin-bottom:12px">
+    <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Extended hours · after-hours and pre-market price action</div>
+      <div class="legend" style="margin:0"><span><i style="background:#4da3ff"></i>Regular 9:30–4:00</span><span><i style="background:#ffb547"></i>Pre-market and after-hours</span></div></div>
+    <div class="stiles" id="xTiles"></div>
+    <div class="chartwrap" style="height:300px;margin-top:12px"><canvas id="xChart"></canvas></div>
+    <div class="note" id="xNote"></div>
+  </section>
+
   <section class="grid2">
     <div class="card">
       <div class="label">Gap playbook · how SOXL trades after each type of gap</div>
@@ -202,10 +221,22 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="note" id="gapNote"></div>
     </div>
     <div class="card">
-      <div class="label">Opens, closes and extended hours · what leads to what</div>
-      <div class="tw"><table class="tbl" id="relTbl"></table></div>
-      <div class="note">Corr: correlation across all stored days. t: significance; |t| ≥ 2 is reliable, smaller is noise. Positive = continuation, negative = reversal. Beta: the average follow-through for each 1% of the first move.</div>
+      <div class="label">Flow map · who is moving SOXL now</div>
+      <div id="flowMap"></div>
     </div>
+  </section>
+
+  <section class="card" style="margin-bottom:12px">
+    <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Expected price flow · rest of today and tomorrow</div><div id="pfScore"></div></div>
+    <div class="pflow" id="pFlow"></div>
+    <div class="note">Each block shows: what already happened (actual), the historical average for that time block, and what the validated rules expect. Only rules marked Reliable or Likely in the rule finder are used.</div>
+  </section>
+
+  <section class="card" style="margin-bottom:12px">
+    <div class="label">Rule finder · which price-action links hold up, and who causes them</div>
+    <div class="hist-box" id="ruleStory" style="margin:0 0 12px"></div>
+    <div class="tw"><table class="tbl" id="ruleTbl"></table></div>
+    <div class="note">Method: each link is tested on the first 70% of stored days (in sample), then checked on the last 30% (out of sample, days that the first test did not use), and in 4 separate time blocks. Reliable = significant in sample (|t| ≥ 2), same direction out of sample (|t| ≥ 1.5), and the same sign in at least 3 of 4 blocks. Likely = significant and consistent, but weaker out of sample. Fragile = significant once but not stable, so probably luck. Hit rate = how often the rule called the direction correctly out of sample. With 15 tests, about 1 can pass in sample by chance, so the out-of-sample check is the important one.</div>
   </section>
 
   <section class="grid2">
@@ -797,10 +828,11 @@ function decide(){
   const ratesLive=isFinite(bon.y10.d)?-sc(bon.y10.d,0.06):NaN, credLive=sc(bon.credLive,0.003);
   const T=todaySess(),stS=sessStats(),Mo=T.model;
   let sessPart=NaN;if(Mo&&isNum(Mo.E)&&isNum(Mo.sd)&&Mo.target!=="next day's gap"){const anUp=Mo.an?2*(Mo.an.up-0.5):NaN;sessPart=meanF([Math.tanh(Mo.E/(0.25*Mo.sd)),anUp])}
+  const AR=applyRules(stS,T),lf=letfFlow(T);
   const bf=blockFlow(60),smartPart=meanF([isNum(bf.ratio)&&bf.n>=5?bf.ratio:NaN,stS.n>=40?sc(stS.smi20,0.05):NaN]);
   const parts=[[a1,0.3],[a3,0.2],[rho,0.2],[isFinite(fg.score)?(fg.score-50)/50:NaN,0.15],[isFinite(net)?2*(net-0.5):NaN,0.15],
     [ratesLive,0.1],[credLive,0.08],[nws.score,0.1],[con.score,0.05],[oil.score,0.04],[mac.score,0.05],[bon.score,0.05],[mic.score,0.03],
-    [sessPart,0.12],[smartPart,0.08]];
+    [sessPart,0.12],[smartPart,0.08],[AR.today,0.14]];
   let s=0,w=0;parts.forEach(([v,k])=>{if(isFinite(v)){s+=v*k;w+=k}});
   const bias=w>=0.3?s/w:NaN;
   let regime="Collecting data";const a3x=a3;
@@ -840,7 +872,9 @@ function decide(){
   if(Mo&&Mo.an&&Mo.an.n>=15&&Math.abs(Mo.an.up-0.5)>=0.2)flags.push(`History: ${Mo.an.n} similar days went ${Mo.an.up>0.5?"up":"down"} ${Math.round(Math.max(Mo.an.up,1-Mo.an.up)*100)}% of the time for the ${Mo.target}`);
   if(stS.n>=40&&/Accumulation|Distribution/.test(stS.div))flags.push("Smart Money Index: "+stS.div);
   if(bf.n>=5&&Math.abs(bf.ratio)>=0.3)flags.push(`Large prints (≥$250k) in the last hour lean ${bf.ratio>0?"bullish":"bearish"}: net ${fmtBig(Math.abs(bf.net))} ${bf.ratio>0?"to the bull side":"to the bear side"}`);
-  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive,T,stS,sessPart,smartPart,bf};
+  AR.list.filter(x=>x.r.verdict==="Reliable"&&x.active&&!x.info&&isNum(x.z)&&Math.abs(x.z)>=0.1).forEach(x=>flags.push(`Validated rule · ${x.r.title}: expects ${fmtPct(x.pred)} ${x.next?"tomorrow":"for "+({f30:"the first 30 min",oc:"the session",rest30:"the rest of the day",rLunch:"lunch",l60:"the last hour",l30:"the last 30 min",pmRet:"pre-market"}[x.r.win]||"the window")}${x.prov?" (if the move holds)":""}`));
+  if(lf&&Math.abs(lf.usd)>=3e8&&(T.phase==="regular"))flags.push(`Leveraged-ETF rebalancing: about ${fmtBig(Math.abs(lf.usd))} of chip exposure to ${lf.usd>0?"buy":"sell"} into the close`);
+  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive,T,stS,sessPart,smartPart,bf,AR,lf};
 }
 
 /* ---------- external data: Coinbase, CoinGecko, alternative.me ---------- */
@@ -1156,7 +1190,10 @@ function derive(s,n){
   const r=(a,b)=>isNum(a)&&isNum(b)&&b>0?a/b-1:NaN,base=isNum(s.ah0)?s.ah0:s.c0;
   return{d:s.d,wd:s.wd,gap:r(s.o,s.c0),ahRet:r(s.ah0,s.c0),pmRet:r(s.pmLast,base),oc:r(s.c,s.o),cc:r(s.c,s.c0),
     f30:r(s.c10,s.o),f60:r(s.c1030,s.o),rest30:r(s.c,s.c10),rest60:r(s.c,s.c1030),l60:r(s.c,s.c15),l30:r(s.c,s.c1530),
-    nGap:n?r(n.o,s.c):NaN,nAh:r(s.ahLast,s.c),nF30:n?r(n.c10,n.o):NaN,fill:s.fill,brk:s.brk,o:s.o,c:s.c,orH:s.orH,orL:s.orL,hm:s.hm,lm:s.lm,b:s.b,pmV:s.pmV,ahV:s.ahV,rV:s.rV};
+    nGap:n?r(n.o,s.c):NaN,nAh:r(s.ahLast,s.c),nF30:n?r(n.c10,n.o):NaN,
+    r15:r(s.c15,s.o),r1530:r(s.c1530,s.o),rLunch:(()=>{let t=0,k=0;for(let i=4;i<=7;i++)if(s.b&&s.b[i]!=null){t+=s.b[i];k++}return k===4?t:NaN})(),
+    absCC:Math.abs(r(s.c,s.c0)),nAbsCC:n?Math.abs(r(n.c,s.c)):NaN,nCC:n?r(n.c,s.c):NaN,clv:s.h>s.l?(s.c-s.l)/(s.h-s.l)-0.5:NaN,
+    smiDay:isNum(r(s.c,s.c15))&&isNum(r(s.c10,s.o))?r(s.c,s.c15)-r(s.c10,s.o):NaN,fill:s.fill,brk:s.brk,o:s.o,c:s.c,orH:s.orH,orL:s.orL,hm:s.hm,lm:s.lm,b:s.b,pmV:s.pmV,ahV:s.ahV,rV:s.rV};
 }
 function corrT(D,kx,ky){
   let n=0,sx=0,sy=0,sxx=0,syy=0,sxy=0;
@@ -1172,6 +1209,43 @@ const GAPB=[[-Infinity,-0.08,"Down more than 8%"],[-0.08,-0.04,"Down 4–8%"],[-
 const REL=[["ahRet","pmRet","After-hours → next pre-market"],["gap","oc","Overnight gap → open to close"],["pmRet","f30","Pre-market → first 30 min"],
   ["f30","rest30","First 30 min → rest of day"],["f60","rest60","First hour → rest of day"],["l60","nAh","Last hour → that evening's after-hours"],
   ["l60","nGap","Last hour → next day's gap"],["oc","nGap","Open to close → next day's gap"],["l30","nF30","Last 30 min → next day's first 30 min"]];
+/* hypotheses: [id, x, y, title, who/mechanism, window of y, expected sign (0 = either)] */
+const HYP=[
+ ["letf","r15","l60","Leveraged-ETF rebalancing into the close","SOXL/SOXS and other 2–3× semis funds must buy after up days and sell after down days, mostly in the last hour. Their swap dealers trade the chip stocks.","l60",1],
+ ["letf30","r1530","l30","Rebalancing in the final 30 minutes","The same funds, concentrated near 3:45–4:00 pm when the closing orders go in.","l30",1],
+ ["mmGap","gap","f30","Market makers fade the opening gap","Dealers who sold into a gap-up (or bought a gap-down) overnight unwind at the open, pulling price back toward the prior close.","f30",-1],
+ ["gapCont","gap","oc","Gap continuation vs. fade for the day","If informed overnight buyers caused the gap, the day continues; if thin liquidity caused it, the day fades.","oc",0],
+ ["openRev","f30","rest30","Opening drive → rest of day","The first 30 minutes are crowded with retail and overnight orders. Institutions either follow or fade them.","rest30",0],
+ ["lunch","f60","rLunch","Midday lull reverses the morning","Liquidity thins from 11:30 to 1:30; morning momentum often gives back.","rLunch",-1],
+ ["pmDisc","pmRet","f30","Pre-market price discovery","Pre-market moves on news. Does the open confirm or reject it?","f30",0],
+ ["ahOver","ahRet","pmRet","After-hours overshoot","After-hours trading is thin. Do evening moves continue in pre-market or reverse?","pmRet",0],
+ ["ahDay","ahRet","oc","After-hours move → next session's open to close","Evening news trades in thin markets; the full session's buyers and sellers then follow it or fade it.","oc",0],
+ ["smiNext","smiDay","nCC","Smart-money hours predict tomorrow","Late-day (institutional) buying vs early (retail) buying, as a signal for the next day.","next",1],
+ ["clvGap","clv","nGap","Close near the high → gap up next day","A close at the day's high shows demand that was not filled; it often carries overnight.","next",1],
+ ["lastGap","l60","nGap","Last hour → next day's gap","Late buyers carry into the next morning, or the close overshoots and reverses.","next",0],
+ ["mom","cc","nCC","Day-to-day momentum","Trend followers and leveraged-ETF rebalancing can make one day's move continue the next.","next",0],
+ ["l30f30","l30","nF30","Last 30 min → next day's first 30 min","Closing auction imbalance against the next opening.","next",0],
+ ["vol","absCC","nAbsCC","Volatility clustering","Dealer hedging and risk-targeting funds make big days follow big days.","next",1]
+];
+const FLD={r15:"the move from the open to 3 pm",r1530:"the move from the open to 3:30 pm",l60:"the last hour",l30:"the last 30 minutes",gap:"the opening gap",f30:"the first 30 minutes",oc:"the session (open to close)",
+  f60:"the first hour",rLunch:"lunch (11:30–1:30)",pmRet:"the pre-market",ahRet:"last evening's after-hours",smiDay:"late-day buying vs early buying (SMI)",nCC:"the next day",
+  clv:"a close near the day's high",nGap:"the next day's gap",cc:"the day",nF30:"the next day's first 30 minutes",absCC:"a big move",nAbsCC:"a big move the next day",rest30:"the rest of the day"};
+function ruleStory(r){
+  if(!r.full||!isNum(r.full.r))return"";
+  if(r.id==="vol")return`After ${FLD.absCC} (either way), expect ${FLD.nAbsCC} too (r ${fmtN(r.full.r,2)}). Size risk accordingly.`;
+  const same=r.full.r>0;return`When ${FLD[r.x]} is up, ${FLD[r.y]} tends to go ${same?"up":"down"}; when it is down, ${FLD[r.y]} tends to go ${same?"down":"up"} (r ${fmtN(r.full.r,2)}, out of sample ${fmtN(r.oos.r,2)}).`;
+}
+function testRule(D,x,y){
+  const rows=D.filter(d=>isNum(d[x])&&isNum(d[y]));const n=rows.length;if(n<80)return{n,verdict:"too few days"};
+  const k=Math.floor(n*0.7),full=corrT(rows,x,y),is=corrT(rows.slice(0,k),x,y),oos=corrT(rows.slice(k),x,y);
+  let cons=0;for(let b=0;b<4;b++){const c=corrT(rows.slice(Math.floor(b*n/4),Math.floor((b+1)*n/4)),x,y);if(isNum(c.r)&&Math.sign(c.r)===Math.sign(is.r))cons++}
+  const oRows=rows.slice(k).filter(d=>d[x]!==0&&d[y]!==0);
+  const hit=oRows.length?oRows.filter(d=>Math.sign(d[x])*Math.sign(is.r)===Math.sign(d[y])).length/oRows.length:NaN;
+  const same=isNum(oos.r)&&Math.sign(oos.r)===Math.sign(is.r);
+  const verdict=Math.abs(is.t)<2&&Math.abs(full.t)<2?"Noise":Math.abs(is.t)>=2&&same&&Math.abs(oos.t)>=1.5&&cons>=3?"Reliable":same&&Math.abs(oos.t)>=0.8&&cons>=3?"Likely":"Fragile";
+  const ys=rows.map(d=>d[y]),xs=rows.map(d=>d[x]),mx=mean(xs),my=mean(ys);
+  return{n,full,is,oos,cons,hit,verdict,a:my-full.beta*mx,b:full.beta,sdy:sd(ys)};
+}
 function sessStats(){
   const key=SESS.length+"|"+(SESS.length?SESS[SESS.length-1].d:"");if(ST&&stKey===key)return ST;
   const D=[];for(let i=0;i<SESS.length;i++){if(isNum(SESS[i].c0))D.push(derive(SESS[i],SESS[i+1]))}
@@ -1193,7 +1267,8 @@ function sessStats(){
   const vg=sd(D.map(d=>d.gap)),vo=sd(D.map(d=>d.oc));
   const ext={pmShare:mean(D.map(d=>d.pmV/(d.pmV+d.ahV+d.rV))),ahShare:mean(D.map(d=>d.ahV/(d.pmV+d.ahV+d.rV))),ovVar:isNum(vg)&&isNum(vo)?vg*vg/(vg*vg+vo*vo):NaN,sdGap:vg,sdOc:vo,
     bigAh:D.filter(d=>Math.abs(d.ahRet)>0.02).length};
-  ST={D,gapT,rel,tod,orb,cum,co,ci,cs,smi20,px20,div,dow,ext,n:D.length,first:D.length?D[0].d:"",last:D.length?D[D.length-1].d:""};stKey=key;return ST;
+  const rules=HYP.map(h=>({id:h[0],x:h[1],y:h[2],title:h[3],who:h[4],win:h[5],exp:h[6],...testRule(D,h[1],h[2])}));
+  ST={D,gapT,rel,tod,orb,cum,co,ci,cs,smi20,px20,div,dow,ext,rules,n:D.length,first:D.length?D[0].d:"",last:D.length?D[D.length-1].d:""};stKey=key;return ST;
 }
 function ols2(D,k1,k2,ky){
   const rows=D.filter(d=>isNum(d[k1])&&isNum(d[k2])&&isNum(d[ky]));const n=rows.length;if(n<40)return null;
@@ -1244,6 +1319,101 @@ function todaySess(){
     }
   }
   T.model=M;return T;
+}
+const LETF_AUM={SOXL:12.5e9,SOXS:1.2e9};   // approximate assets under management; update from direxion.com when they change
+const WIN_END={f30:600,oc:960,rest30:960,rLunch:810,l60:960,l30:960,pmRet:570};
+function todayX(T){
+  const P=Q[FUND].c,o=T.o,d=etInfo(Date.now()).d,cc=P>0&&T.c0>0?P/T.c0-1:NaN,soFar=isNum(o)&&P>0?P/o-1:NaN;
+  const c1530=priceAtET(d,929),hi=Q[FUND].h,lo=Q[FUND].l;
+  return{gap:T.gap,f30:T.f30,f60:T.f60,pmRet:T.pmRet,ahRet:T.ahRet,
+    r15:isNum(T.c15)&&isNum(o)?T.c15/o-1:soFar,r1530:isNum(c1530)&&isNum(o)?c1530/o-1:soFar,
+    cc,absCC:Math.abs(cc),l60:T.l60,l30:isNum(c1530)&&P>0?P/c1530-1:NaN,smiDay:isNum(T.l60)&&isNum(T.f30)?T.l60-T.f30:NaN,
+    clv:hi>lo&&P>0?(P-lo)/(hi-lo)-0.5:NaN,prov:{r15:!isNum(T.c15),r1530:!isNum(c1530)}};
+}
+function applyRules(st,T){
+  const X=todayX(T),e=etInfo(Date.now()),min=demo?660:e.min,out=[];let s1=0,w1=0,s2=0,w2=0;
+  (st.rules||[]).forEach(r=>{
+    if(r.verdict!=="Reliable"&&r.verdict!=="Likely")return;
+    const x=X[r.x];if(!isNum(x))return;
+    const next=r.win==="next",end=WIN_END[r.win],active=next||(T.phase==="pre"?true:T.phase==="regular"?min<end:false);
+    const pred=r.a+r.b*x,z=isNum(r.sdy)&&r.sdy>0?pred/r.sdy:NaN,wt=r.verdict==="Reliable"?1:0.5;
+    if(r.id==="vol"){out.push({r,x,pred,z,active,next,info:true});return}
+    if(active&&isNum(z)){const v=Math.tanh(z/0.3)*wt;if(next){s2+=v;w2+=wt}else{s1+=v;w1+=wt}}
+    out.push({r,x,pred,z,active,next,prov:X.prov[r.x]});
+  });
+  return{list:out,today:w1?s1/w1:NaN,tomorrow:w2?s2/w2:NaN,X};
+}
+function letfFlow(T){
+  const P=Q[FUND].c,cc=P>0&&T.c0>0?P/T.c0-1:NaN;if(!isNum(cc))return null;
+  const idx=cc/3,usd=(LETF_AUM.SOXL*3*2+LETF_AUM.SOXS*(-3)*(-4))*idx;
+  return{cc,idx,usd};
+}
+const SEGS=[["Pre-market","4:00–9:30",240,570,"pmRet"],["Open","9:30–10:00",570,600,"f30"],["Morning","10:00–11:30",600,690,null],["Lunch","11:30–1:30",690,810,"rLunch"],["Afternoon","1:30–3:00",810,900,null],["Last hour","3:00–4:00",900,960,"l60"],["After-hours","4:00–8:00",960,1200,null],["Next open","tomorrow",null,null,"next"]];
+function priceFlow(st,T,AR,lf){
+  const e=etInfo(Date.now()),d=e.d,min=demo?660:e.min,ph=T.phase;
+  return SEGS.map(([name,time,a,b,key])=>{
+    let status=a==null?"ahead":ph==="closed"&&min>=1200?"done":min>=b?"done":min>=a?"now":"ahead";
+    if(ph==="pre"&&a>=570)status="ahead";
+    let actual=NaN;
+    if(status!=="ahead"&&a!=null){const p0=a===570&&isNum(T.o)?T.o:a===240?(isNum(T.ah0)?T.ah0:T.c0):priceAtET(d,a-1),p1=status==="now"?Q[FUND].c:priceAtET(d,b-1);if(p0>0&&p1>0)actual=p1/p0-1}
+    let hAvg=NaN;if(a!=null&&a>=570&&b<=960&&st.tod&&st.tod.length){let t=0;for(let k=(a-570)/30;k<(b-570)/30;k++){const v=st.tod[k]&&st.tod[k].avg;if(isNum(v))t+=v}hAvg=t}
+    const sig=AR.list.filter(x=>x.active&&!x.info&&(key==="next"?x.next:(x.r.win===key||(key==="l60"&&x.r.win==="l30")||(key===null&&a>=600&&a<900&&x.r.win==="rest30")||(name==="Open"&&x.r.win==="oc"))));
+    const notes=sig.map(x=>`${x.r.title}: ${x.pred>=0?"up":"down"} ${fmtPct(x.pred)}${x.prov?" (if it holds)":""}`);
+    if(name==="Last hour"&&lf&&Math.abs(lf.usd)>5e7)notes.unshift(`Rebalancing: about ${fmtBig(Math.abs(lf.usd))} of chip exposure to ${lf.usd>0?"BUY":"SELL"} into the close`);
+    const score=meanF(sig.map(x=>Math.tanh(x.z/0.3)));
+    return{name,time,status,actual,hAvg,notes,score};
+  });
+}
+function extNow(st,T){
+  const e=etInfo(Date.now()),d=e.d,P=Q[FUND].c,h=hist[FUND]||[],D=st.D||[];
+  const win=(m0)=>{const M=etEpochMin(d,m0);let hi=-1e18,lo=1e18,usd=0,n=0;h.forEach(b=>{if(b.m>=M){hi=Math.max(hi,b.c);lo=Math.min(lo,b.c);usd+=b.c*(b.v||0);n++}});return n?{hi,lo,usd,n}:null};
+  const blk=m0=>{const t0=etEpochMin(d,m0)*60000;let net=0,k=0;BLK.forEach(b=>{if(b.t>=t0){net+=b.usd*b.sg*(b.s==="SOXS"?-1:1);k++}});return{net,k}};
+  let o={mode:T.phase};
+  if(T.phase==="post"){const rc=priceAtET(d,959),w=win(960);o={...o,title:"After-hours now",base:rc,baseLab:"4:00 pm close",P,chg:rc>0&&P>0?P/rc-1:NaN,w,blk:blk(960)}}
+  else if(T.phase==="pre"){const w=win(240);o={...o,title:"Pre-market now",base:T.c0,baseLab:"prior close",P,chg:T.c0>0&&P>0?P/T.c0-1:NaN,w,blk:blk(240),vsAh:isNum(T.ah0)&&P>0?P/T.ah0-1:NaN}}
+  else{const last=SESS.length?SESS[SESS.length-1]:null;o={...o,title:"Last after-hours",base:last?last.c:NaN,baseLab:last?`${last.d} close`:"",P:last?last.ahLast:NaN,chg:last&&isNum(last.ahLast)?last.ahLast/last.c-1:NaN,pm:T.pmRet}}
+  const x=o.mode==="pre"?T.pmRet:o.chg,key=o.mode==="pre"?"pmRet":"ahRet";
+  if(isNum(x)&&Math.abs(x)>=0.003&&D.length){
+    const sim=D.filter(z=>isNum(z[key])&&Math.sign(z[key])===Math.sign(x)&&Math.abs(z[key])>=Math.abs(x)/2&&Math.abs(z[key])<=Math.abs(x)*2);
+    const pct=(f)=>{const v=sim.filter(z=>isNum(z[f])&&z[f]!==0);return v.length?v.filter(z=>Math.sign(z[f])===Math.sign(x)).length/v.length:NaN};
+    o.sim={n:sim.length,pm:pct("pmRet"),f30:pct("f30"),oc:pct("oc"),cc:pct("cc"),key};
+  }
+  return o;
+}
+let RECENT=[],recentT=0;
+async function fetchRecent(){
+  if(demo)return;const p=fredProxy();if(!p||Date.now()-recentT<2*3600000)return;
+  const to=etDate(),from=addDays(to,-9);
+  try{const j=await(await fetch(`${p}/hist?t=${HIST_SYM}&mult=5&span=minute&from=${from}&to=${to}`)).json();
+    if(j.status==="ok"){RECENT=j.bars;recentT=Date.now()}else if(j.status==="rate")setTimeout(fetchRecent,70000)}catch(e){}
+}
+function chartPoints(){
+  const today=etInfo(Date.now()).d,pts=[];
+  RECENT.forEach(b=>{const e=etInfo(b[0]);if(e.min<240||e.min>=1200||e.d>=today)return;pts.push({t:b[0],c:b[4],d:e.d,min:e.min})});
+  const days=[...new Set(pts.map(p=>p.d))].slice(-5),keep=pts.filter(p=>days.includes(p.d));
+  const agg=new Map();(hist[FUND]||[]).forEach(b=>{const e=etInfo(b.m*60000);if(e.d!==today||e.min<240||e.min>=1200)return;const k=Math.floor(e.min/5)*5;agg.set(k,{t:b.m*60000,c:b.c,d:today,min:k})});
+  [...agg.values()].sort((a,b)=>a.t-b.t).forEach(p=>keep.push(p));
+  return keep;
+}
+function priceChart(cv,pts,ref){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;
+  const g=cv.getContext("2d");g.scale(dpr,dpr);g.clearRect(0,0,W,H);const L=58,R=12,T=10,B=26;
+  if(pts.length<2){g.fillStyle="#5a6676";g.font="12px JetBrains Mono";g.fillText("Waiting for price history (Worker with POLYGON_KEY) or live extended-hours trades…",L,H/2);return}
+  let lo=Infinity,hi=-Infinity;pts.forEach(p=>{lo=Math.min(lo,p.c);hi=Math.max(hi,p.c)});if(isNum(ref)){lo=Math.min(lo,ref);hi=Math.max(hi,ref)}const pad=(hi-lo)*0.08||1;lo-=pad;hi+=pad;
+  const n=pts.length,X=i=>L+i/(n-1)*(W-L-R),Y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-B);
+  let i0=0;for(let i=1;i<=n;i++){const ph=p=>p.min<570?"pre":p.min<960?"reg":"post";if(i===n||ph(pts[i])!==ph(pts[i0])||pts[i].d!==pts[i0].d){const k=ph(pts[i0]);if(k!=="reg"){g.fillStyle=k==="pre"?"rgba(77,163,255,.09)":"rgba(255,181,71,.10)";g.fillRect(X(i0),T,Math.max(1,X(i-1)-X(i0)),H-T-B)}i0=i}}
+  g.strokeStyle="#1e2835";g.lineWidth=1;g.fillStyle="#5a6676";g.font="11px JetBrains Mono";
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText("$"+v.toFixed(2),4,y+4)}
+  let prevD="";pts.forEach((p,i)=>{if(p.d!==prevD){prevD=p.d;const x=X(i);g.strokeStyle="#2c3a4c";g.beginPath();g.moveTo(x,T);g.lineTo(x,H-B);g.stroke();g.fillStyle="#8a97a8";g.fillText(new Date(p.d+"T12:00:00Z").toLocaleDateString("en-US",{weekday:"short",month:"numeric",day:"numeric",timeZone:"UTC"}),x+3,H-8)}});
+  if(isNum(ref)){g.strokeStyle="#8a97a8";g.setLineDash([4,4]);g.beginPath();g.moveTo(L,Y(ref));g.lineTo(W-R,Y(ref));g.stroke();g.setLineDash([]);g.fillStyle="#8a97a8";g.fillText("prior close",W-R-80,Y(ref)-4)}
+  g.lineWidth=1.6;g.lineJoin="round";for(let i=1;i<n;i++){const p=pts[i];g.strokeStyle=p.min<570||p.min>=960?"#ffb547":"#4da3ff";g.beginPath();g.moveTo(X(i-1),Y(pts[i-1].c));g.lineTo(X(i),Y(p.c));g.stroke()}
+  const lp=pts[n-1];g.fillStyle="#e6edf5";g.beginPath();g.arc(X(n-1),Y(lp.c),3.5,0,7);g.fill();g.fillText("$"+lp.c.toFixed(2),Math.min(X(n-1)+6,W-R-60),Y(lp.c)-6);
+}
+function demoRecent(){
+  const out=[];let p=FUND_DEMO_PC*0.97,d=etDate(),days=[];
+  for(let i=0;days.length<5;i++){d=addDays(d,-1);const w=new Date(d+"T12:00:00Z").getUTCDay();if(w>0&&w<6)days.unshift(d)}
+  days.forEach(dt=>{for(let m=240;m<1200;m+=5){const v=m<570||m>=960?0.0015:0.004;p*=1+(Math.random()-0.5)*v*2;out.push([etEpochMin(dt,m)*60000,p,p,p,p,m<570||m>=960?2000:40000])}});
+  const k=FUND_DEMO_PC/p;out.forEach(b=>{for(let i=1;i<5;i++)b[i]*=k});return out;
 }
 function blockFlow(mins){
   const cut=Date.now()-mins*60000;let net=0,gross=0,n=0;
@@ -1493,6 +1663,59 @@ function renderMacro(D){
   $("nwsList").innerHTML=list.length?list.map(n=>{const a=Math.round((now-n.t)/60);
     return`<div class="nrow"><span class="ndot" style="background:${n.s>0.15?"var(--up)":n.s<-0.15?"var(--down)":"var(--mute)"}"></span><span class="sub">${a<60?a+"m":Math.round(a/60)+"h"}</span><span class="nh">${n.url?`<a href="${n.url.replace(/"/g,"&quot;")}" target="_blank" rel="noopener">${esc(n.h)}</a>`:esc(n.h)} <span class="sub">${esc(n.src||"")}${n.rel&&n.co?" · "+esc(n.rel):""}</span>${n.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</span></div>`}).join(""):'<div class="sub">Waiting for headlines…</div>';
 }
+function renderFlow(D){
+  const st=D.stS,T=D.T,AR=D.AR,lf=D.lf;
+  // rule finder
+  const verdOrder={Reliable:0,Likely:1,Fragile:2,Noise:3,"too few days":4};
+  const rs=[...(st.rules||[])].sort((a,b)=>(verdOrder[a.verdict]??5)-(verdOrder[b.verdict]??5)||Math.abs(b.is&&b.is.t||0)-Math.abs(a.is&&a.is.t||0));
+  const ap={};AR.list.forEach(x=>ap[x.r.id]=x);
+  const good=rs.filter(r=>r.verdict==="Reliable"||r.verdict==="Likely");
+  const lateRev=good.some(r=>["smiNext","lastGap","letf30","l30f30"].includes(r.id)&&r.full.r<0);
+  $("ruleStory").innerHTML=!st.n?"Best-fit explanation appears when the price history is loaded.":
+    `<div class="label" style="margin-bottom:6px">Best-fit explanation from ${st.n} sessions (${st.first} to ${st.last})</div>`+
+    (good.length?`<ul style="margin:0;padding-left:18px">${good.map(r=>`<li><span class="vr ${r.verdict}">${r.verdict}</span> ${ruleStory(r)}</li>`).join("")}</ul>`:"No link passes the out-of-sample test. SOXL behaves close to random at these points, so the page gives the session rules no weight.")+
+    (lateRev?`<div style="margin-top:8px"><b>Reading:</b> late-day pressure (closing orders and leveraged-ETF rebalancing) tends to overshoot, and market makers and overnight traders take the other side, so the move reverses overnight. This agrees with SOXL's overnight return (${fmtPct(st.co,0)}) versus its intraday return (${fmtPct(st.ci,0)}).</div>`:"")+
+    `<div class="sub" style="margin-top:6px">With about 15 tests, expect about 1 false pass in sample. Rules that also pass out of sample are much less likely to be luck, but markets change. The page re-tests every rule each day as new sessions arrive.</div>`;
+  $("ruleTbl").innerHTML=st.n?`<tr><th class="l">Link and who causes it</th><th>In sample</th><th>Out of sample</th><th>Blocks</th><th>Hit rate</th><th class="l">Verdict</th><th class="l">Today</th></tr>`+
+    rs.map(r=>{const a=ap[r.id];const ok=r.verdict==="Reliable"||r.verdict==="Likely";
+      const dir=!r.full||!isNum(r.full.r)?"":r.id==="vol"?"bigger days follow big days":r.full.r>0?"continuation":"reversal";
+      return`<tr><td class="l" style="white-space:normal;max-width:420px"><b>${r.title}</b> <span class="sub">${dir}</span><div class="sub" style="font-family:var(--sans);white-space:normal;line-height:1.4">${r.who}</div></td>
+      <td>${r.is?`r ${fmtN(r.is.r,2)}<br><span class="sub">t ${fmtN(r.is.t,1)}</span>`:"--"}</td>
+      <td>${r.oos?`<span class="${ok?cls(r.oos.r*Math.sign(r.is.r)):""}">r ${fmtN(r.oos.r,2)}</span><br><span class="sub">t ${fmtN(r.oos.t,1)}</span>`:"--"}</td>
+      <td>${isNum(r.cons)?r.cons+"/4":"--"}</td><td>${r.id==="vol"?"--":isNum(r.hit)?Math.round(r.hit*100)+"%":"--"}</td>
+      <td class="l"><span class="vr ${r.verdict==="too few days"?"Noise":r.verdict}">${r.verdict}</span></td>
+      <td class="l" style="white-space:normal">${a?(a.info?`today ${fmtPct(a.x)} → next day ±${fmtPct(Math.abs(a.pred)).replace("+","")}`:`<span class="${cls(a.pred)}">${fmtPct(a.pred)}</span> <span class="sub">${a.next?"tomorrow":a.active?"ahead":"done"}${a.prov?", if it holds":""}</span>`):'<span class="sub">--</span>'}</td></tr>`}).join("")
+    :'<tr><td class="l">Needs the price history (Worker with POLYGON_KEY). Demo mode shows simulated history.</td></tr>';
+  // flow map
+  const bf30=blockFlow(30),pos=D.pos,lfr=(st.rules||[]).find(r=>r.id==="letf"),mmr=(st.rules||[]).find(r=>r.id==="mmGap"),orr=(st.rules||[]).find(r=>r.id==="openRev"),ahr=(st.rules||[]).find(r=>r.id==="ahOver");
+  const vb=r=>r?`<span class="vr ${r.verdict==="too few days"?"Noise":r.verdict}">${r.verdict}</span>`:"";
+  const P=Q[FUND].c,fillTxt=!isNum(T.gap)?"--":Math.abs(T.gap)<0.005?"no real gap today":(()=>{const touched=T.gap>0?Q[FUND].l>0&&Q[FUND].l<=T.c0:Q[FUND].h>=T.c0;return touched?"gap already filled":`prior close ${fmtPx(T.c0)} is ${fmtPct(T.c0/P-1)} away; history fills ${T.bucket&&isNum(T.bucket.fill)?Math.round(T.bucket.fill*100)+"%":"--"}`})();
+  const step=P<20?0.5:P<200?1:5,pinUp=Math.ceil(P/step)*step,pinDn=Math.floor(P/step)*step,pin=Math.abs(pinUp-P)<Math.abs(P-pinDn)?pinUp:pinDn;
+  const pl=(who,rd,ex)=>`<div class="player"><span class="who">${who}</span><span class="rd">${rd}</span><span class="ex">${ex}</span></div>`;
+  $("flowMap").innerHTML=
+    pl("Leveraged-ETF rebalancing",lf?`<span class="${cls(lf.usd)}">${lf.usd>=0?"BUY":"SELL"} ~${fmtBig(Math.abs(lf.usd))}</span>`:"--",`SOXL is ${lf?fmtPct(lf.cc):"--"} from the prior close, so SOXL and SOXS must adjust about this much chip exposure, mostly 3:00–4:00 pm. ${vb(lfr)} ${lfr&&lfr.full?`last hour ${lfr.full.r>0?"follows":"fades"} the day (r ${fmtN(lfr.full.r,2)})`:""}`)+
+    pl("Market makers",`<span class="sub">${fillTxt}</span>`,`Dealers supply liquidity at the prior close and at round numbers (nearest: ${fmtPx(pin)}). Gap fade at the open: ${vb(mmr)} ${mmr&&mmr.full?`(r ${fmtN(mmr.full.r,2)})`:""}`)+
+    pl("Aggressive takers",isNum(pos["30m"].net)?`<span class="${pos["30m"].net>0.53?"up":pos["30m"].net<0.47?"down":""}">${Math.round(pos["30m"].net*100)}% buy-side</span>`:"--",`Who crosses the spread in the last 30 min (tick rule on SOXL and SOXS). Large prints (≥$250k): ${bf30.n?`<span class="${cls(bf30.net)}">${bf30.net>=0?"+":"−"}${fmtBig(Math.abs(bf30.net))}</span> net in ${bf30.n} prints`:"none"}.`)+
+    pl("Institutions (smart-money hours)",st.n>=20?`<span class="${/Accumulation|Confirmed up/.test(st.div)?"up":/Distribution|Confirmed down/.test(st.div)?"down":""}">${st.div.split(":")[0]}</span>`:"--",`Last-hour vs first-30-min behavior over 20 sessions. Today: ${isNum(T.l60)||isNum(T.f30)?fmtPct((isNum(T.l60)?T.l60:0)-(isNum(T.f30)?T.f30:0)):"--"}.`)+
+    pl("Retail and overnight orders at the open",isNum(T.f30)?`<span class="${cls(T.f30)}">${fmtPct(T.f30)} first 30m</span>`:"--",`The opening crowd. Rest of day vs this drive: ${vb(orr)} ${orr&&orr.full?`(${orr.full.r>0?"follow":"fade"}, r ${fmtN(orr.full.r,2)})`:""}`)+
+    pl("After-hours and pre-market traders",isNum(T.ahRet)?`<span class="${cls(T.ahRet)}">${fmtPct(T.ahRet)} last evening</span>`:"--",`Thin-liquidity moves on news. Next pre-market ${ahr&&ahr.full?(ahr.full.r>0?"continues":"reverses"):"--"} them: ${vb(ahr)}`)+
+    pl("Bull vs bear ETF money",isNum(pos["1h"].share)?`${Math.round(pos["1h"].share*100)}% to SOXL (1h)`:"--",`Share of SOXL+SOXS dollar volume. A falling share means money rotates into the bear fund.`);
+  // expected price flow
+  const flow=priceFlow(st,T,AR,lf);
+  scoreHead("pfScore",AR.today);
+  $("pFlow").innerHTML=flow.map(s=>`<div class="seg ${s.status}"><div class="nm">${s.name}</div><div class="tm">${s.time} · ${s.status}</div>
+    <div class="ar ${s.status==="ahead"?(s.score>0.1?"up":s.score<-0.1?"down":""):cls(s.actual)}">${s.status!=="ahead"&&isNum(s.actual)?fmtPct(s.actual):isNum(s.score)?(s.score>0.1?"↑":s.score<-0.1?"↓":"→"):"·"}</div>
+    ${isNum(s.hAvg)?`<div class="sub">history avg ${fmtPct(s.hAvg)}</div>`:""}${s.notes.length?`<ul>${s.notes.map(n=>`<li>${n}</li>`).join("")}</ul>`:""}</div>`).join("");
+  // extended hours
+  const x=extNow(st,T),tl=(k,v,s,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||""}">${v}</div><div class="s">${s||""}</div></div>`;
+  $("xTiles").innerHTML=tl(x.title||"--",fmtPx(x.P),x.baseLab?`vs ${x.baseLab} ${fmtPx(x.base)}`:"")+tl("Change",fmtPct(x.chg),x.mode==="pre"&&isNum(x.vsAh)?`${fmtPct(x.vsAh)} vs last after-hours`:"",cls(x.chg))+
+    (x.w?tl("Range",`${fmtPx(x.w.lo)} – ${fmtPx(x.w.hi)}`,`${x.w.n} live minutes`)+tl("$ volume",fmtBig(x.w.usd),"extended session"):"")+
+    (x.blk?tl("Large prints",x.blk.k?`${x.blk.net>=0?"+":"−"}${fmtBig(Math.abs(x.blk.net))}`:"none",`${x.blk.k} prints ≥ $250k`,cls(x.blk.net)):"")+
+    (x.mode!=="pre"&&x.mode!=="post"&&isNum(x.pm)?tl("Pre-market today",fmtPct(x.pm),"vs last after-hours",cls(x.pm)):"")+
+    (x.sim?tl("History: similar moves",`${x.sim.n} days`,x.sim.key==="ahRet"?`pre-market continued ${isNum(x.sim.pm)?Math.round(x.sim.pm*100)+"%":"--"} · day ${isNum(x.sim.oc)?Math.round(x.sim.oc*100)+"%":"--"}`:`first 30m continued ${isNum(x.sim.f30)?Math.round(x.sim.f30*100)+"%":"--"} · day ${isNum(x.sim.oc)?Math.round(x.sim.oc*100)+"%":"--"}`):"");
+  priceChart($("xChart"),chartPoints(),T.c0);
+  $("xNote").textContent=`Last 5 sessions from the stored history (5-minute bars, through the prior day) plus today's live trades from 4:00 am ET. Live extended-hours prices appear only while this page is open, or after a reload when this browser stored them.`;
+}
 function renderSess(D){
   const T=D.T,st=D.stS,M=T.model,P=Q[FUND].c;
   const phT={pre:"Pre-market",regular:"Regular session",post:"After-hours",closed:"Market closed"}[T.phase]||T.phase;
@@ -1526,8 +1749,7 @@ function renderSess(D){
   $("gapTbl").innerHTML=`<tr><th class="l">Gap</th><th>Days</th><th>Gap fills</th><th>Fill time</th><th>Continues</th><th>Open→close</th><th>Up days</th></tr>`+
     st.gapT.map(g=>`<tr class="${cur&&cur.lab===g.lab?"hl":""}"><td>${g.lab}</td><td>${g.n}</td><td>${isNum(g.fill)?Math.round(g.fill*100)+"%":"--"}</td><td>${isNum(g.fillT)?"~"+Math.round(g.fillT)+" min":"--"}</td><td>${isNum(g.cont)?Math.round(g.cont*100)+"%":"--"}</td><td class="${cls(g.oc)}">${fmtPct(g.oc)}</td><td>${isNum(g.up)?Math.round(g.up*100)+"%":"--"}</td></tr>`).join("");
   $("gapNote").textContent=st.n?`Fills: price returned to the prior close during the session. Continues: the open-to-close move went the same way as the gap. Highlighted row = today. ${st.n} sessions, ${st.first} to ${st.last}.`:"";
-  $("relTbl").innerHTML=`<tr><th class="l">Relationship</th><th>Corr</th><th>Beta</th><th>t</th><th>Days</th><th class="l">Reading</th></tr>`+
-    st.rel.map(r=>{const rel=isNum(r.t)&&Math.abs(r.t)>=2;return`<tr><td>${r.lab}</td><td class="${rel?cls(r.r):""}">${fmtN(r.r,2)}</td><td>${fmtN(r.beta,2)}</td><td>${fmtN(r.t,1)}</td><td>${r.n}</td><td class="l ${rel?"":"sum"}">${!isNum(r.t)?"--":!rel?"no reliable link":r.r>0?"continuation":"reversal"}</td></tr>`}).join("");
+  renderFlow(D);
   const mx=Math.max(...st.tod.map(t=>isNum(t.abs)?t.abs:0),1e-9);
   const lab=k=>{const m=570+30*k,h=Math.floor(m/60),mi=m%60;return`${h>12?h-12:h}:${String(mi).padStart(2,"0")}`};
   $("todTbl").innerHTML=`<tr><th class="l">From</th><th class="l">Typical move</th><th>Avg</th><th>High of day</th><th>Low of day</th></tr>`+
@@ -1570,7 +1792,7 @@ function renderCross(){
     chip("Order flow 1h",isFinite(D.net)?Math.round(D.net*100)+"% buy":"--"),
     chip("Learned 1m bias",fmtPct(D.ls.pred,3)+" · "+D.ls.conf),
     chip("Rates today",fmtS(D.ratesLive)),chip("Credit today",fmtS(D.credLive)),chip("News",fmtS(D.nws.score)),
-    chip("Session history",fmtS(D.sessPart)),chip("Smart money",fmtS(D.smartPart)),
+    chip("Validated rules",fmtS(D.AR.today)),chip("Rules for tomorrow",fmtS(D.AR.tomorrow)),chip("Session history",fmtS(D.sessPart)),chip("Smart money",fmtS(D.smartPart)),
     chip("Consumer",fmtS(D.con.score)),chip("Oil",fmtS(D.oil.score)),chip("Macro",fmtS(D.mac.score)),chip("Funding/bonds",fmtS(D.bon.score)),chip("Micro",fmtS(D.mic.score))
   ].join("");
   renderMacro(D);
@@ -1809,7 +2031,7 @@ function resetLive(){
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
   clearInterval(pollTimer);clearInterval(demoTimer);
   stopExternal();stopMacro();
-  NEWS.length=0;newsSeen.clear();BLK.length=0;clearInterval(histTimer);SESS=[];ST=null;demoToday=null;histState={status:"idle",done:0,total:0,msg:""};
+  NEWS.length=0;newsSeen.clear();BLK.length=0;clearInterval(histTimer);SESS=[];ST=null;demoToday=null;RECENT=[];recentT=0;histState={status:"idle",done:0,total:0,msg:""};
   SYMS.forEach(s=>{Q[s]={pc:0,c:0,h:0,l:0,o:0,flash:0};delete cur[s];delete pend[s];delete lastPx[s];delete prevC[s];delete prevMin[s];delete tickSign[s];hist[s]=[]});
   hist._IDX=[];cbC.BTC={};cbC.ETH={};Object.assign(TOT,{cap:0,ch24:NaN,t:0});Object.assign(FNG,{v:NaN,label:"",t:0});
   for(const k in srcOk)srcOk[k]=null;prevRP=NaN;lastRP=NaN;
@@ -1821,7 +2043,7 @@ async function startLive(){
   resetLive();demo=false;loadSeries();setFeed("warn","Feed: loading");loadQuoteCache();
   await initMemory("soxx_sniper_live");
   startExternal();startMacro();
-  await loadSess();syncHistory();clearInterval(histTimer);histTimer=setInterval(syncHistory,30*60000);
+  await loadSess();syncHistory().then(fetchRecent);clearInterval(histTimer);histTimer=setInterval(()=>{syncHistory().then(fetchRecent)},30*60000);
   fhQ.jobs={};fhQ.rr=0;
   connectWS();
   pollTimer=setInterval(fhTick,1100);
@@ -1834,7 +2056,7 @@ async function startDemo(){
   totHist=[];
   const DPC={SOXS:46.65,SOXX:502,QQQ:612,SPY:688,DIA:471,BTC:108500,ETH:3950,TLT:88.2,IEF:96.1,SHY:82.6,HYG:80.5,LQD:110.2,USO:72.3,XLY:225.4,XLP:79.1,COF:221.5,SYF:70.2,AXP:331.8};
   FRED=demoFred();fredT=Date.now();fredState="demo";
-  SESS=demoSessions();ST=null;histState={status:"ok",done:1,total:1,msg:"demo sessions"};
+  SESS=demoSessions();ST=null;RECENT=demoRecent();histState={status:"ok",done:1,total:1,msg:"demo sessions"};
   demoToday={ah0:FUND_DEMO_PC*1.008,pm:FUND_DEMO_PC*1.013,o:FUND_DEMO_PC*1.011,c10:FUND_DEMO_PC*1.019,c1030:FUND_DEMO_PC*1.016};
   MICRO={d:etDate(),m:{},r:{}};HOLDINGS.forEach(([s])=>{MICRO.m[s]={pe:18+Math.random()*45,rg:-5+Math.random()*60,gm:40+Math.random()*35,de:0.1+Math.random()*1.1,cr:2};MICRO.r[s]={b:Math.round(18+Math.random()*25),h:Math.round(4+Math.random()*12),s:Math.round(Math.random()*3)}});
   EARN=[{s:"TXN",d:etDate(Date.now()+86400000),h:"amc"},{s:"LRCX",d:etDate(Date.now()+2*86400000),h:"amc"},{s:"KLAC",d:etDate(Date.now()+8*86400000),h:"amc"},{s:"NXPI",d:etDate(Date.now()+12*86400000),h:"bmo"}];
