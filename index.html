@@ -350,6 +350,8 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
         <button data-ks="inf" class="on">Sort: influence</button>
         <button data-ks="lead">Sort: lead</button>
         <button data-ks="w">Sort: weight</button>
+        <button data-kh="reg" class="on">Regular hours</button>
+        <button data-kh="ext">Extended hours</button>
       </div>
     </div>
     <div class="tw"><table class="tbl" id="knTbl"></table></div>
@@ -474,6 +476,7 @@ const TOT={cap:0,ch24:NaN,t:0}, FNG={v:NaN,label:"",t:0};
 const hist={}; SYMS.forEach(s=>hist[s]=[]);
 const cbC={BTC:{},ETH:{}};
 const srcOk={finnhub:null,coinbase:null,coingecko:null,fng:null,fred:null,hist:null};
+let kHours="reg";
 let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", kSort="inf", dirty=true, mktState=null;
 const $=id=>document.getElementById(id);
 
@@ -567,7 +570,7 @@ async function loadPrior(d){
 async function loadDay(d){
   curDay=d;
   todayBars=(await idbAll("bars",IDBKeyRange.only([FUND,d]),"sd")).sort((a,b)=>a.m-b.m);
-  dayRec={};for(const s of [...SYMS,"_DAY"]){const r=await idbGet("days",[s,d]);if(r)dayRec[s]=r}
+  dayRec={};for(const s of [...SYMS,"_DAY",...SYMS.flatMap(x=>[x+"@pre",x+"@post",x+"@night"])]){const r=await idbGet("days",[s,d]);if(r)dayRec[s]=r}
   fcPend=Array.isArray(META.fc)?META.fc:[];
   const sd=dayRec[FUND];prof=(sd&&sd.prof)||{};vwPV=(sd&&sd.pv)||0;vwV=(sd&&sd.vv)||0;
   await loadPrior(d);
@@ -589,8 +592,46 @@ function memStatus(){
   const d=$("memDot"),t=$("memTxt");
   if(!db){d.className="dot err";t.textContent="Memory: unavailable";return}
   if(!leader){d.className="dot warn";t.textContent="Memory: read-only (other tab learns)";return}
-  if(learning()){d.className="dot learn";t.textContent="Memory: learning"+(demo?" (demo)":"");return}
-  d.className="dot";t.textContent="Memory: idle (market closed)";
+  if(learning()){d.className="dot learn";t.textContent="Memory: learning · regular"+(demo?" (demo)":"");return}
+  d.className="dot learn";t.textContent="Memory: "+offMode().label;
+}
+function offMode(){
+  const ph=phaseAt(Date.now()),wd=etInfo(Date.now()).wd;
+  if(ph==="pre")return{ph,label:"learning · pre-market"};
+  if(ph==="post")return{ph,label:"learning · after-hours"};
+  return{ph,label:wd===0||wd===6?"recording · weekend (crypto)":"recording · overnight (crypto)"};
+}
+const recording=()=>!!db&&leader&&!demo;
+
+/* ---------- off-hours memory: extended-hours learning, overnight recording ---------- */
+function offHours(M,d,bars,r){
+  const ph=phaseAt(M*60000),ext=ph==="pre"||ph==="post",tag=ext?ph:"night";
+  const act=Object.values(bars).filter(b=>b.s!=="_IDX"&&b.v>0);
+  if(!act.length)return;
+  const traded=new Set(act.map(b=>b.s)),touched=new Set();
+  if(ext&&traded.has(FUND)&&r[FUND]!=null&&isFinite(r[FUND])){
+    const y=r[FUND];
+    for(const s of [...HOLDINGS.map(h=>h[0]),...ETFS,...CRYPTO]){
+      const K=getK("X:"+s);
+      if(traded.has(s)&&r[s]!=null){addS(K.c,r[s],y);addS(K.ce,r[s],y,LAM);K.mins++;K.first=K.first||M;K.last=M;touched.add("X:"+s)}
+      if(xPrevR[s]!=null&&xPrevM===M-1){addS(K.l,xPrevR[s],y);addS(K.le,xPrevR[s],y,LAM);touched.add("X:"+s)}
+    }
+    META.xminutes=(META.xminutes||0)+1;
+  }else if(!ext)META.ominutes=(META.ominutes||0)+1;
+  xPrevR={};act.forEach(b=>{if(r[b.s]!=null)xPrevR[b.s]=r[b.s]});xPrevM=M;
+  const recs=[];
+  for(const b of act){const k=b.s+"@"+tag;const dr=dayRec[k]||(dayRec[k]={s:k,d,o:b.o,h:b.h,l:b.l,c:b.c,v:0,usd:0,n:0});
+    dr.h=Math.max(dr.h,b.h);dr.l=Math.min(dr.l,b.l);dr.c=b.c;dr.v+=b.v;dr.usd+=b.v*b.c;dr.n++;recs.push(dr)}
+  idbWrite({bars:act.map(b=>({...b,x:ext?1:2})),know:[...touched].map(s=>KN[s]),days:recs,
+    meta:[{k:"xminutes",v:META.xminutes||0},{k:"ominutes",v:META.ominutes||0}]});
+}
+let xPrevR={},xPrevM=null;
+function overnightLearn(M,bars){
+  if(!bars[FUND]||!(Q[FUND].pc>0))return[];
+  const y=bars[FUND].o/Q[FUND].pc-1,out=[];if(!isFinite(y))return out;
+  for(const c of CRYPTO){const a=priceAgo(c,1050),p=Q[c].c;if(a>0&&p>0){const K=getK("ON:"+c);addS(K.c,p/a-1,y);K.mins++;K.last=M;out.push("ON:"+c)}}
+  const qa=dayRec["QQQ@pre"],qq=Q.QQQ;if(qa&&qq.pc>0){const K=getK("ON:QQQpre");addS(K.c,qa.c/qq.pc-1,y);K.mins++;out.push("ON:QQQpre")}
+  return out;
 }
 
 /* ---------- bars from trades ---------- */
@@ -647,6 +688,7 @@ function finalizeMinute(M){
       DS.n++;DS.rv2+=y*y;
       if(bars[FUND])DS.bd=(DS.bd||0)+bars[FUND].c*bars[FUND].v;if(bars.SOXS)DS.sd=(DS.sd||0)+bars.SOXS.c*bars.SOXS.v;if(isFinite(gapNow)){DS.g2+=gapNow*gapNow;DS.gn++}
       META.minutes=(META.minutes||0)+1;
+      if(etInfo(M*60000).min===570&&!demo)overnightLearn(M,bars).forEach(k=>touched.add(k));
     }
     if(bars[FUND])resolveForecasts(M,bars[FUND]);
     for(const s in bars){const b=bars[s];const dr=dayRec[s]||(dayRec[s]={s,d,o:b.o,h:b.h,l:b.l,c:b.c,v:0});dr.h=Math.max(dr.h,b.h);dr.l=Math.min(dr.l,b.l);dr.c=b.c;dr.v+=b.v}
@@ -659,7 +701,7 @@ function finalizeMinute(M){
     idbWrite({bars:Object.values(bars),know:[...touched].map(s=>KN[s]),days:Object.values(dayRec),meta:Object.entries(META).map(([k,v])=>({k,v}))});
   }
   if(!learn)prevPred=NaN;
-  if(!learn&&leader&&db&&!demo){const ph=phaseAt(M*60000);if(ph==="pre"||ph==="post"){const ext=[FUND,"SOXS","SOXX","QQQ"].filter(s=>bars[s]&&bars[s].v>0).map(s=>({...bars[s],x:1}));if(ext.length)idbWrite({bars:ext})}}
+  if(!learn&&recording())offHours(M,d,bars,r);
   prevR={};for(const s in r)prevR[s]=r[s];
   prevIdxR=idxR;prevGap=gapNow;prevRP=rpNow;
   delete pend[FUND];for(const s in pend)if(pend[s].m<=M)delete pend[s];
@@ -1620,7 +1662,8 @@ function renderAnalysis(){
   HOLDINGS.forEach(h=>{const n=stockNext(h[0]);$("n_"+h[0]).textContent=n?`next ${fmtPx(n.x)} ${n.up?"↑":"↓"} ${Math.round(n.p*100)}%/30m`:"next --"});
 
   const m=compute(),wmap={};m.rows.forEach(r=>wmap[r.s]=r.w);
-  const kr=HOLDINGS.map(h=>{const K=getK(h[0]),c=statOf(K.ce),l=statOf(K.le),w=wmap[h[0]]||0;return{s:h[0],w,mins:K.mins,c,l,inf:w*(isFinite(c.corr)?c.corr:0)}});
+  const kp=kHours==="ext"?"X:":"";
+  const kr=HOLDINGS.map(h=>{const K=getK(kp+h[0]),c=statOf(K.ce),l=statOf(K.le),w=wmap[h[0]]||0;return{s:h[0],w,mins:K.mins,c,l,inf:w*(isFinite(c.corr)?c.corr:0)}});
   kr.sort((a,b)=>kSort==="lead"?(isFinite(b.l.corr)?b.l.corr:-9)-(isFinite(a.l.corr)?a.l.corr:-9):kSort==="w"?b.w-a.w:b.inf-a.inf);
   $("knTbl").innerHTML=`<tr><th class="l">Stock</th><th>Weight</th><th>Minutes</th><th>Corr</th><th>Beta</th><th>Lead</th><th>1m σ</th><th>Influence</th></tr>`+
     kr.map(r=>`<tr><td>${r.s}</td><td>${(r.w*100).toFixed(2)}%</td><td>${r.mins}</td><td>${fmtN(r.c.corr,2)}</td><td>${fmtN(r.c.beta,2)}</td><td class="${r.l.n>=60?cls(r.l.corr):""}">${fmtN(r.l.corr,3)}</td><td>${isFinite(r.c.sdx)?(r.c.sdx*100).toFixed(3)+"%":"--"}</td><td>${(r.inf*100).toFixed(2)}</td></tr>`).join("");
@@ -1867,8 +1910,8 @@ function renderInsights(){
 
   const h=sysHealth();
   $("hKv").innerHTML=kvHtml([
-    ["Session",h.open?'<span class="ok">regular hours</span>':"closed or extended hours"],
-    ["Learning",learning()?'<span class="ok">on</span>':leader?"paused (market closed)":'<span class="meh">other tab learns</span>'],
+    ["Session",h.open?'<span class="ok">regular hours</span>':{pre:"pre-market",post:"after-hours",closed:"closed (overnight)"}[phaseAt(Date.now())]||"closed"],
+    ["Memory",!leader?'<span class="meh">other tab learns</span>':learning()?'<span class="ok">learning · regular</span>':`<span class="ok">${offMode().label}</span>`],
     ["Minutes learned today",h.learned+(isFinite(h.cov)?` · coverage ${Math.round(h.cov*100)}%`:"")],
     ["Stale symbols (>2.5 min)",h.stale.length?`<span class="${h.open?"meh":""}">${h.stale.length}: ${h.stale.slice(0,4).join(", ")}${h.stale.length>4?"…":""}</span>`:'<span class="ok">0</span>'],
     ["Trade feed latency",isFinite(h.lat)?`<span class="${h.lat<2000?"ok":"meh"}">${Math.round(h.lat)} ms</span>`:"--"],
@@ -1915,7 +1958,10 @@ async function memStats(){
   const KS=getK(FUND);
   $("memKv").innerHTML=[
     ["Bank",dbName.replace("soxx_sniper_","")],
-    ["Minutes learned",(META.minutes||0).toLocaleString()],
+    ["Minutes learned (regular)",(META.minutes||0).toLocaleString()],
+    ["Minutes learned (pre-market and after-hours)",(META.xminutes||0).toLocaleString()],
+    ["Minutes recorded (overnight and weekends)",(META.ominutes||0).toLocaleString()],
+    ...[["ON:BTC","Bitcoin overnight → SOXL gap"],["ON:ETH","Ethereum overnight → SOXL gap"],["ON:QQQpre","QQQ pre-market → SOXL gap"]].map(([k,lab])=>{const s=statOf(getK(k).c);return[lab,s.n>=5?`corr ${fmtN(s.corr,2)} · beta ${fmtN(s.beta,2)} · ${s.n} days`:`learning (${s.n|0} of 5 days)`]}),
     ["Sessions stored",days.length],
     ["Price bars stored",nb.toLocaleString()],
     ["First learned",KS.first?new Date(KS.first*60000).toLocaleDateString():"--"],
@@ -2100,6 +2146,7 @@ $("saveKey").onclick=()=>{const k=$("keyIn").value.trim();if(!k){$("keyErr").tex
 $("keyIn").oninput=()=>$("keyErr").textContent="";
 $("demoBtn").onclick=()=>{$("modal").classList.remove("show");startDemo()};
 document.querySelectorAll("[data-sort]").forEach(b=>b.onclick=()=>{sortBy=b.dataset.sort;document.querySelectorAll("[data-sort]").forEach(x=>x.classList.toggle("on",x===b));dirty=true});
+document.querySelectorAll("[data-kh]").forEach(b=>b.onclick=()=>{kHours=b.dataset.kh;document.querySelectorAll("[data-kh]").forEach(x=>x.classList.toggle("on",x===b));renderAnalysis()});
 document.querySelectorAll("[data-ks]").forEach(b=>b.onclick=()=>{kSort=b.dataset.ks;document.querySelectorAll("[data-ks]").forEach(x=>x.classList.toggle("on",x===b));renderAnalysis()});
 
 /* ---------- loops ---------- */
