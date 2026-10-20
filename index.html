@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOXL Live Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090d;--panel:#0e131b;--panel2:#131a24;--line:#1e2835;--ink:#e6edf5;--dim:#8a97a8;--mute:#5a6676;
+  --up:#19d38a;--down:#ff4d5e;--accent:#4da3ff;--amber:#ffb547;
+  --mono:'JetBrains Mono',ui-monospace,monospace;--sans:'Space Grotesk',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+body{background-image:radial-gradient(circle at 20% -10%,#12233a 0,transparent 45%),radial-gradient(circle at 110% 10%,#1d1430 0,transparent 40%);min-height:100vh}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#4da3ff,#9b6bff);display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:13px;color:#fff}
+h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.3px}
+.sub{font-size:12px;color:var(--dim);font-family:var(--mono)}
+.status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.pill{border:1px solid var(--line);background:var(--panel);padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.dot.live{background:var(--up);box-shadow:0 0 0 0 rgba(25,211,138,.6);animation:pulse 1.6s infinite}
+.dot.warn{background:var(--amber)}.dot.err{background:var(--down)}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(25,211,138,0)}100%{box-shadow:0 0 0 0 rgba(25,211,138,0)}}
+button{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on{border-color:var(--accent);color:var(--accent)}
+.hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.label{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+.big{font-family:var(--mono);font-size:34px;font-weight:600;line-height:1.1}
+.mid{font-family:var(--mono);font-size:14px;color:var(--dim);margin-top:4px}
+.up{color:var(--up)}.down{color:var(--down)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+@media(max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.chartwrap{position:relative;height:280px}
+canvas{width:100%;height:100%;display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin-bottom:8px;font-family:var(--mono)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.contrib{display:flex;flex-direction:column;gap:5px;max-height:310px;overflow:auto;padding-right:4px}
+.crow{display:grid;grid-template-columns:52px minmax(0,1fr) 62px;align-items:center;gap:8px;font-family:var(--mono);font-size:12px}
+.cbar{position:relative;height:12px;background:var(--panel2);border-radius:3px}
+.cbar span{position:absolute;top:0;height:100%;border-radius:3px}
+.cbar:before{content:'';position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:18px 0 10px}
+.toolbar .label{margin:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);transition:background .6s ease;position:relative;overflow:hidden}
+.tile .t{display:flex;justify-content:space-between;align-items:baseline}
+.tile .sym{font-family:var(--mono);font-weight:600;font-size:16px}
+.tile .w{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.tile .nm{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 8px}
+.tile .px{font-family:var(--mono);font-size:20px;font-weight:600}
+.tile .ch{font-family:var(--mono);font-size:13px;margin-top:2px}
+.tile .ct{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px}
+.tile .wbar{position:absolute;left:0;bottom:0;height:3px;background:var(--accent);opacity:.7}
+.tile.flash-up{box-shadow:inset 0 0 0 1px var(--up)}
+.tile.flash-down{box-shadow:inset 0 0 0 1px var(--down)}
+.tile.missing{opacity:.45}
+.modal{position:fixed;inset:0;background:rgba(3,5,8,.82);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+.modal.show{display:flex}
+.box{max-width:520px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
+.box h2{margin:0 0 8px;font-size:18px}
+.box p,.box li{font-size:14px;color:var(--dim);line-height:1.6}
+.box a{color:var(--accent)}
+input{width:100%;font-family:var(--mono);font-size:14px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin:8px 0 12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.err{color:var(--down);font-size:13px;min-height:18px}
+footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">3X</div>
+      <div>
+        <h1>SOXL Live Tracker</h1>
+        <div class="sub">NYSE Semiconductor Index · 30 stocks · weighted live</div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="pill"><span class="dot" id="mktDot"></span><span id="mktTxt">Market: --</span></span>
+      <span class="pill"><span class="dot" id="feedDot"></span><span id="feedTxt">Feed: off</span></span>
+      <span class="pill" id="clock">--:--:-- ET</span>
+      <button id="keyBtn">API key</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="card">
+      <div class="label">Weighted index · today</div>
+      <div class="big" id="idxPct">--</div>
+      <div class="mid" id="idxSub">-- of 30 stocks live</div>
+    </div>
+    <div class="card">
+      <div class="label">Implied SOXL (3× index)</div>
+      <div class="big" id="impPct">--</div>
+      <div class="mid" id="impPx">Implied price --</div>
+    </div>
+    <div class="card">
+      <div class="label">SOXL actual</div>
+      <div class="big" id="soxPx">--</div>
+      <div class="mid" id="soxPct">--</div>
+    </div>
+    <div class="card">
+      <div class="label">Tracking gap</div>
+      <div class="big" id="gap">--</div>
+      <div class="mid">SOXL actual − implied</div>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="label">Intraday (this browser, since page opened)</div>
+      <div class="legend">
+        <span><i style="background:#4da3ff"></i>Implied SOXL (3× index)</span>
+        <span><i style="background:#ffb547"></i>SOXL actual</span>
+        <span><i style="background:#8a97a8"></i>Index (1×)</span>
+      </div>
+      <div class="chartwrap"><canvas id="chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="label">Who moves the index (contribution, pts)</div>
+      <div class="contrib" id="contrib"></div>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <div class="label">All 30 holdings</div>
+    <div class="row">
+      <button data-sort="w" class="on">Sort: weight</button>
+      <button data-sort="r">Sort: % change</button>
+      <button data-sort="c">Sort: contribution</button>
+    </div>
+  </div>
+  <section class="tiles" id="tiles"></section>
+
+  <footer>
+    Weights use share counts from the iShares SOXX holdings file (Oct 19, 2026). SOXX tracks the same index as SOXL. Weight = shares × previous close, so weights drift with price, the same as the index does between rebalances. Update the HOLDINGS list in index.html after each quarterly rebalance.<br>
+    Data: Finnhub (free tier). Live trades during US market hours. Quotes refresh each 60 s as a fallback. Not investment advice.
+  </footer>
+</div>
+
+<div class="modal" id="modal">
+  <div class="box">
+    <h2>Connect live data</h2>
+    <p>This page uses a free Finnhub API key. The key stays in this browser only (localStorage). It does not go into your GitHub repo.</p>
+    <ol>
+      <li>Get a free key at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a>.</li>
+      <li>Paste it below.</li>
+    </ol>
+    <input id="keyIn" placeholder="Your Finnhub API key" autocomplete="off" spellcheck="false">
+    <div class="err" id="keyErr"></div>
+    <div class="row">
+      <button id="saveKey">Save and connect</button>
+      <button id="demoBtn">Demo mode (fake data)</button>
+      <button id="closeModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const HOLDINGS=[
+ ["AMD","Advanced Micro Devices",7238421,538.05],
+ ["INTC","Intel",38065618,92.03],
+ ["NVDA","Nvidia",15432753,217.09],
+ ["MU","Micron Technology",3553911,904.90],
+ ["AVGO","Broadcom",9200353,334.59],
+ ["MRVL","Marvell Technology",8048886,237.09],
+ ["ADI","Analog Devices",4704344,394.35],
+ ["TXN","Texas Instruments",6529544,276.15],
+ ["QCOM","Qualcomm",9993092,173.53],
+ ["KLAC","KLA",9710042,166.40],
+ ["LRCX","Lam Research",5650728,272.20],
+ ["AMAT","Applied Materials",3716527,413.11],
+ ["MPWR","Monolithic Power Systems",1116597,1253.66],
+ ["NXPI","NXP Semiconductors",5932961,230.19],
+ ["TSM","Taiwan Semiconductor (ADR)",3138972,420.22],
+ ["TER","Teradyne",3655792,335.53],
+ ["SKHY","SK Hynix (ADR)",7921227,142.87],
+ ["ALAB","Astera Labs",3349157,286.58],
+ ["MCHP","Microchip Technology",12564758,74.43],
+ ["CRDO","Credo Technology",3979476,172.81],
+ ["ON","ON Semiconductor",9109823,73.12],
+ ["ASML","ASML Holding (ADR)",384320,1647.12],
+ ["ENTG","Entegris",3577920,144.52],
+ ["TSEM","Tower Semiconductor",2473129,200.30],
+ ["MTSI","MACOM Technology",1675641,265.79],
+ ["ASX","ASE Technology (ADR)",9560768,40.80],
+ ["CBRS","Cerebras Systems",2262279,120.66],
+ ["UMC","United Microelectronics (ADR)",13186806,20.08],
+ ["ARM","Arm Holdings (ADR)",818109,228.05],
+ ["STM","STMicroelectronics (ADR)",3718027,45.61]
+];
+const FUND="SOXL", FUND_DEMO_PC=98.65, LEV=3;
+const SYMS=[...HOLDINGS.map(h=>h[0]),FUND];
+const KEY_STORE="soxl_tracker_finnhub_key";
+const Q={}; SYMS.forEach(s=>Q[s]={pc:0,c:0,flash:0});
+let apiKey=null, ws=null, demo=false, demoTimer=null, pollTimer=null, sortBy="w", dirty=true;
+const $=id=>document.getElementById(id);
+
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function lsDel(k){try{localStorage.removeItem(k)}catch(e){}}
+const etDate=()=>new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"});
+const fmtPct=(x,d=2)=>isFinite(x)?(x>=0?"+":"")+(x*100).toFixed(d)+"%":"--";
+const fmtPx=x=>isFinite(x)&&x>0?"$"+x.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"--";
+const cls=x=>x>0?"up":x<0?"down":"";
+
+function setFeed(state,txt){$("feedDot").className="dot "+state;$("feedTxt").textContent=txt}
+
+function compute(){
+  let tot=0, rows=[];
+  for(const [s,n,qty] of HOLDINGS){
+    const q=Q[s]; const ok=q.pc>0&&q.c>0;
+    const mv=ok?qty*q.pc:0; tot+=mv;
+    rows.push({s,n,ok,mv,c:q.c,pc:q.pc,r:ok?q.c/q.pc-1:NaN,flash:q.flash});
+  }
+  let idx=0, live=0;
+  rows.forEach(r=>{r.w=tot?r.mv/tot:0;r.contrib=r.ok?r.w*r.r:0;if(r.ok){idx+=r.contrib;live++}});
+  const f=Q[FUND]; const fr=f.pc>0&&f.c>0?f.c/f.pc-1:NaN;
+  return {rows,idx,live,imp:LEV*idx,fpx:f.c,fpc:f.pc,fr};
+}
+
+function tileBg(r){
+  if(!isFinite(r))return "var(--panel)";
+  const a=Math.min(Math.abs(r)/0.05,1)*0.55+0.06;
+  return r>=0?`rgba(25,211,138,${a.toFixed(3)})`:`rgba(255,77,94,${a.toFixed(3)})`;
+}
+
+function buildTiles(){
+  $("tiles").innerHTML=HOLDINGS.map(h=>`<div class="tile" id="t_${h[0]}">
+    <div class="t"><span class="sym">${h[0]}</span><span class="w" id="w_${h[0]}">--</span></div>
+    <div class="nm">${h[1]}</div>
+    <div class="px" id="p_${h[0]}">--</div>
+    <div class="ch" id="c_${h[0]}">--</div>
+    <div class="ct" id="x_${h[0]}">contrib --</div>
+    <div class="wbar" id="b_${h[0]}"></div></div>`).join("");
+}
+
+function render(){
+  const m=compute(), now=Date.now();
+  $("idxPct").textContent=m.live?fmtPct(m.idx):"--";$("idxPct").className="big "+cls(m.idx);
+  $("idxSub").textContent=`${m.live} of 30 stocks live`;
+  $("impPct").textContent=m.live?fmtPct(m.imp):"--";$("impPct").className="big "+cls(m.imp);
+  $("impPx").textContent="Implied price "+(m.fpc>0&&m.live?fmtPx(m.fpc*(1+m.imp)):"--");
+  $("soxPx").textContent=fmtPx(m.fpx);
+  $("soxPct").textContent=isFinite(m.fr)?fmtPct(m.fr)+" today":"--";$("soxPct").className="mid "+cls(m.fr);
+  const gap=m.fr-m.imp;
+  $("gap").textContent=isFinite(gap)&&m.live?fmtPct(gap):"--";
+  $("gap").className="big "+(Math.abs(gap)<0.003?"":cls(gap));
+
+  const order=[...m.rows].sort((a,b)=>sortBy==="w"?b.w-a.w:sortBy==="r"?(isFinite(b.r)?b.r:-9)-(isFinite(a.r)?a.r:-9):b.contrib-a.contrib);
+  const maxW=Math.max(...m.rows.map(r=>r.w),0.0001);
+  const tiles=$("tiles");
+  order.forEach(r=>{
+    const el=$("t_"+r.s); tiles.appendChild(el);
+    el.classList.toggle("missing",!r.ok);
+    el.style.background=tileBg(r.r);
+    $("w_"+r.s).textContent=r.ok?(r.w*100).toFixed(2)+"%":"n/a";
+    $("p_"+r.s).textContent=fmtPx(r.c);
+    $("c_"+r.s).textContent=r.ok?fmtPct(r.r)+"  "+(r.c-r.pc>=0?"+":"")+(r.c-r.pc).toFixed(2):"no data";
+    $("x_"+r.s).textContent="contrib "+(r.ok?((r.contrib*100>=0?"+":"")+(r.contrib*100).toFixed(3)+" pts"):"--");
+    $("b_"+r.s).style.width=(r.w/maxW*100).toFixed(1)+"%";
+    el.classList.toggle("flash-up",now-r.flash<700&&Q[r.s].dir>0);
+    el.classList.toggle("flash-down",now-r.flash<700&&Q[r.s].dir<0);
+  });
+
+  const cs=[...m.rows].filter(r=>r.ok).sort((a,b)=>b.contrib-a.contrib);
+  const maxC=Math.max(...cs.map(r=>Math.abs(r.contrib)),0.00001);
+  $("contrib").innerHTML=cs.map(r=>{
+    const w=Math.abs(r.contrib)/maxC*50, pos=r.contrib>=0;
+    return `<div class="crow"><span>${r.s}</span><div class="cbar"><span style="${pos?"left:50%":"right:50%"};width:${w.toFixed(1)}%;background:${pos?"var(--up)":"var(--down)"}"></span></div><span class="${cls(r.contrib)}" style="text-align:right">${(r.contrib*100>=0?"+":"")+(r.contrib*100).toFixed(3)}</span></div>`;
+  }).join("")||'<div class="sub">Waiting for data…</div>';
+  return m;
+}
+
+const SER_KEY=()=>"soxl_tracker_series_"+(demo?"demo_":"")+etDate();
+let series=[];
+function loadSeries(){try{series=JSON.parse(lsGet(SER_KEY())||"[]")}catch(e){series=[]}}
+function pushPoint(m){
+  if(!m.live)return;
+  series.push([Date.now(),m.idx,m.imp,isFinite(m.fr)?m.fr:null]);
+  if(series.length>3000)series=series.slice(-3000);
+  lsSet(SER_KEY(),JSON.stringify(series));
+}
+function drawChart(){
+  const cv=$("chart"),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
+  cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.scale(dpr,dpr);g.clearRect(0,0,W,H);
+  const L=54,R=10,T=10,B=24;
+  if(series.length<2){g.fillStyle="#5a6676";g.font="12px JetBrains Mono";g.fillText("Collecting points… (one each 10 s)",L,H/2);return}
+  const t0=series[0][0],t1=series[series.length-1][0];
+  let mx=0.002;series.forEach(p=>{for(let i=1;i<4;i++)if(p[i]!=null)mx=Math.max(mx,Math.abs(p[i]))});mx*=1.15;
+  const X=t=>L+(t-t0)/(t1-t0||1)*(W-L-R),Y=v=>T+(1-(v+mx)/(2*mx))*(H-T-B);
+  g.strokeStyle="#1e2835";g.lineWidth=1;g.fillStyle="#5a6676";g.font="11px JetBrains Mono";
+  for(let k=-2;k<=2;k++){const v=mx*k/2.3,y=Y(v);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((v*100).toFixed(1)+"%",4,y+4)}
+  g.strokeStyle="#2c3a4c";g.beginPath();g.moveTo(L,Y(0));g.lineTo(W-R,Y(0));g.stroke();
+  const tl=t=>new Date(t).toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"});
+  g.fillText(tl(t0),L,H-6);const e=tl(t1);g.fillText(e,W-R-g.measureText(e).width,H-6);
+  const line=(i,c,w,dash)=>{g.strokeStyle=c;g.lineWidth=w;g.setLineDash(dash||[]);g.lineJoin="round";g.lineCap="round";g.beginPath();let st=false;
+    series.forEach(p=>{if(p[i]==null){st=false;return}const x=X(p[0]),y=Y(p[i]);st?g.lineTo(x,y):g.moveTo(x,y);st=true});g.stroke();g.setLineDash([])};
+  line(1,"#8a97a8",1.5,[4,4]);line(3,"#ffb547",2);line(2,"#4da3ff",2);
+}
+
+function onTick(s,p){
+  const q=Q[s];if(!q||!(p>0))return;
+  q.dir=p>q.c?1:p<q.c?-1:0;q.c=p;q.flash=Date.now();dirty=true;
+}
+
+async function fetchQuote(s){
+  const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(s)}&token=${apiKey}`);
+  if(r.status===401||r.status===403)throw new Error("auth");
+  if(r.status===429)throw new Error("rate");
+  const j=await r.json();
+  if(j&&j.pc>0){Q[s].pc=j.pc;if(j.c>0&&!(Q[s].c>0&&ws&&ws.readyState===1&&Date.now()-Q[s].flash<60000))Q[s].c=j.c}
+}
+async function pollAll(){
+  for(const s of SYMS){
+    try{await fetchQuote(s)}catch(e){
+      if(e.message==="auth"){setFeed("err","Feed: bad API key");openModal("That key did not work. Check it and try again.");return}
+      if(e.message==="rate"){await new Promise(r=>setTimeout(r,2000))}
+    }
+    dirty=true;await new Promise(r=>setTimeout(r,120));
+  }
+}
+async function marketStatus(){
+  if(demo){$("mktDot").className="dot warn";$("mktTxt").textContent="Demo data";return}
+  try{const j=await (await fetch(`https://finnhub.io/api/v1/stock/market-status?exchange=US&token=${apiKey}`)).json();
+    $("mktDot").className="dot "+(j.isOpen?"live":"");
+    $("mktTxt").textContent="Market: "+(j.isOpen?"open":(j.session&&j.session!=="null"?j.session:"closed"));
+  }catch(e){}
+}
+function connectWS(){
+  if(ws){try{ws.close()}catch(e){}}
+  ws=new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
+  ws.onopen=()=>{SYMS.forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));setFeed("live","Feed: live")};
+  ws.onmessage=ev=>{try{const j=JSON.parse(ev.data);if(j.type==="trade"&&j.data){const last={};j.data.forEach(t=>last[t.s]=t.p);for(const s in last)onTick(s,last[s])}}catch(e){}};
+  ws.onerror=()=>setFeed("warn","Feed: reconnecting");
+  ws.onclose=()=>{if(!demo&&apiKey){setFeed("warn","Feed: reconnecting");setTimeout(()=>{if(!demo&&apiKey)connectWS()},5000)}};
+}
+
+function startLive(){
+  stopAll();demo=false;loadSeries();setFeed("warn","Feed: loading");
+  pollAll().then(()=>{connectWS();marketStatus()});
+  pollTimer=setInterval(()=>{pollAll();marketStatus()},60000);
+}
+function startDemo(){
+  stopAll();demo=true;apiKey=null;loadSeries();
+  HOLDINGS.forEach(h=>{Q[h[0]].pc=h[3];Q[h[0]].c=h[3]});Q[FUND].pc=FUND_DEMO_PC;Q[FUND].c=FUND_DEMO_PC;
+  const mkt={v:0};
+  demoTimer=setInterval(()=>{
+    mkt.v+=(Math.random()-0.5)*0.0012;
+    HOLDINGS.forEach(h=>{if(Math.random()<0.5){const q=Q[h[0]];const tgt=q.pc*(1+mkt.v*1.1+(Math.random()-0.5)*0.004);onTick(h[0],+(q.c+(tgt-q.c)*0.3).toFixed(2))}});
+    const m=compute();onTick(FUND,+(FUND_DEMO_PC*(1+m.imp+(Math.random()-0.5)*0.002)).toFixed(2));
+  },1000);
+  setFeed("warn","Feed: demo");marketStatus();
+}
+function stopAll(){
+  if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}
+  clearInterval(pollTimer);clearInterval(demoTimer);
+  SYMS.forEach(s=>Q[s]={pc:0,c:0,flash:0});
+}
+
+function openModal(msg){$("keyErr").textContent=msg||"";$("keyIn").value=apiKey||"";$("modal").classList.add("show")}
+$("keyBtn").onclick=()=>openModal();
+$("closeModal").onclick=()=>$("modal").classList.remove("show");
+$("saveKey").onclick=()=>{
+  const k=$("keyIn").value.trim();
+  if(!k){$("keyErr").textContent="Enter a key first.";return}
+  apiKey=k;lsSet(KEY_STORE,k);$("modal").classList.remove("show");startLive();
+};
+$("keyIn").oninput=()=>$("keyErr").textContent="";
+$("demoBtn").onclick=()=>{$("modal").classList.remove("show");startDemo()};
+document.querySelectorAll("[data-sort]").forEach(b=>b.onclick=()=>{
+  sortBy=b.dataset.sort;document.querySelectorAll("[data-sort]").forEach(x=>x.classList.toggle("on",x===b));dirty=true;
+});
+
+buildTiles();
+setInterval(()=>{$("clock").textContent=new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York"})+" ET"},1000);
+setInterval(()=>{if(dirty){dirty=false;render()}},400);
+setInterval(()=>{pushPoint(compute());drawChart()},10000);
+window.addEventListener("resize",drawChart);
+apiKey=lsGet(KEY_STORE);
+if(apiKey)startLive();else openModal();
+render();drawChart();
+</script>
+</body>
+</html>
