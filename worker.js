@@ -12,6 +12,8 @@
 //        GET https://<your-worker>.workers.dev/holders?t=NVDA          (funds that hold, buy and sell; insiders; analyst target)
 //        GET https://<your-worker>.workers.dev/holders?t=NVDA&lite=1   (summary only, for the index scan)
 //        GET https://<your-worker>.workers.dev/social?t=SOXL           (latest StockTwits messages with bull/bear tags)
+//        GET https://<your-worker>.workers.dev/news?t=NVDA&q=Nvidia    (fresh headlines: Google News + Yahoo Finance, newest first)
+//        GET https://<your-worker>.workers.dev/news?t=SOXL,NVDA,AMD&q=SOXL|Nvidia|AMD   (one feed for many stocks)
 
 const ALLOW = new Set([
   "DFF","CPIAUCSL","CPILFESL","UNRATE","A191RL1Q225SBEA","ICSA","UMCSENT","NFCI","T10YIE",
@@ -183,16 +185,18 @@ async function stQuoteV2(t) {
 }
 async function stAll(list) {
   const st = await stQuotes(list);
-  const main = list.filter(t => !t.startsWith("^") && !t.includes("-USD")).slice(0, 6);
+  const main = list.filter(t => !t.startsWith("^") && !t.includes("-USD")).slice(0, 10);
   const v2 = await Promise.all(main.map(stQuoteV2));
   main.forEach((t, i) => { const q = v2[i]; if (q && q.price > 0 && (!st[t] || q.time > st[t].time)) st[t] = q; });
   return st;
 }
-async function extQuote(t, st) {
+// Cloudflare free plan: at most 50 outgoing calls per request. Yahoo (up to 2 calls) is used for at most 14 symbols;
+// the other symbols use the StockTwits batch, and Nasdaq is a backup only when StockTwits has no quote.
+async function extQuote(t, st, useYahoo) {
   const hit = extMemo.get(t);
   let q = hit && Date.now() - hit.at < EXT_TTL_MS ? hit.q : null;
-  if (!q) {
-    q = (await yahooQuote(t)) || (t.startsWith("^") ? null : await nasdaqQuote(t));
+  if (!q && useYahoo) {
+    q = (await yahooQuote(t)) || (t.startsWith("^") || (st && st[t]) ? null : await nasdaqQuote(t));
     if (q) extMemo.set(t, { at: Date.now(), q });
   }
   // keep the quote with the newest trade time
@@ -296,6 +300,40 @@ async function getSocial(t) {
   return body;
 }
 
+// ---- fresh news (Google News RSS + Yahoo Finance RSS, free, no key). Unofficial for this use: they can change.
+const newsMemo = new Map();
+const xmlText = s => String(s || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, "&").replace(/<[^>]+>/g, "").trim();
+function rssItems(xml, src) {
+  const out = [];
+  for (const m of String(xml).matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const b = m[1], tag = n => { const r = b.match(new RegExp(`<${n}[^>]*>([\\s\\S]*?)<\\/${n}>`)); return r ? xmlText(r[1]) : ""; };
+    let title = tag("title"), source = tag("source") || src;
+    if (src === "google") { const i = title.lastIndexOf(" - "); if (i > 20) { source = source || title.slice(i + 3); title = title.slice(0, i); } }
+    const at = Date.parse(tag("pubDate")) || 0, url = tag("link");
+    if (title && url) out.push({ title: title.slice(0, 300), url, src: source === "google" ? "Google News" : source === "yahoo" ? "Yahoo Finance" : source, at, via: src });
+  }
+  return out;
+}
+async function getNews(tickers, terms) {
+  const k = tickers.join(",") + "|" + terms.join("|"), hit = newsMemo.get(k);
+  if (hit && Date.now() - hit.at < 60000) return hit.body;
+  const q = terms.length > 1 ? `(${terms.map(t => `"${t}"`).join(" OR ")}) stock when:1d` : `("${terms[0]}" OR ${tickers[0]}) stock when:2d`;
+  const [g, y] = await Promise.all([
+    fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, { headers: UA }).then(r => r.ok ? r.text() : "").catch(() => ""),
+    fetch(`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(tickers.slice(0, 10).join(","))}&region=US&lang=en-US`, { headers: UA }).then(r => r.ok ? r.text() : "").catch(() => "")
+  ]);
+  const seen = new Set(), items = [];
+  for (const it of [...rssItems(g, "google"), ...rssItems(y, "yahoo")]) {
+    const key = it.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 80);
+    if (seen.has(key)) continue;
+    seen.add(key); items.push(it);
+  }
+  items.sort((a, b) => b.at - a.at);
+  const body = { status: g || y ? "ok" : "error", error: g || y ? undefined : "news sources did not answer", at: Date.now(), items: items.slice(0, 60) };
+  if (g || y) newsMemo.set(k, { at: Date.now(), body });
+  return body;
+}
+
 export default {
   async fetch(req, env) {
     const cors = corsHeaders(req, env);
@@ -307,9 +345,9 @@ export default {
       });
     }
     if (url.pathname === "/ext") {
-      const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^\^?[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 24);
+      const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^\^?[A-Z][A-Z0-9.\-]{0,8}$/.test(s)).slice(0, 24);
       const quotes = {}, st = await stAll(list);
-      await Promise.all(list.map(async t => { const q = await extQuote(t, st); if (q) quotes[t] = q; }));
+      await Promise.all(list.map(async (t, i) => { const q = await extQuote(t, st, i < 14 || !st[t]); if (q) quotes[t] = q; }));
       return new Response(JSON.stringify({ t: Date.now(), quotes }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/chart") {
@@ -317,8 +355,15 @@ export default {
       const range = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y"].includes(url.searchParams.get("range")) ? url.searchParams.get("range") : "1d";
       const interval = ["1m", "2m", "5m", "15m", "30m", "60m", "1d", "1wk"].includes(url.searchParams.get("interval")) ? url.searchParams.get("interval") : "1m";
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
-      if (!/^\^?[A-Z][A-Z.\-]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
+      if (!/^\^?[A-Z][A-Z0-9.\-]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
       return json(await yahooChart(t, range, interval));
+    }
+    if (url.pathname === "/news") {
+      const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      const tickers = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 12);
+      const terms = (url.searchParams.get("q") || "").split("|").map(s => s.trim()).filter(s => /^[A-Za-z0-9 &.\-]{1,40}$/.test(s)).slice(0, 14);
+      if (!tickers.length) return json({ status: "error", error: "bad ticker" }, 400);
+      return json(await getNews(tickers, terms.length ? terms : [tickers[0]]));
     }
     if (url.pathname === "/holders" || url.pathname === "/social") {
       const t = (url.searchParams.get("t") || "").toUpperCase();

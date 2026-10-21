@@ -16,6 +16,31 @@ The small ring in the header spins all the time. Its color shows that data is ar
 ### Contact
 The footer has a link to a **Contact page** (`#/contact`) with the email address, a **Copy email** button and a short form. The form opens the visitor's email app with the message filled in; the site does not send or store anything.
 
+### Light and dark mode
+Select **☀ / ☾** in the header. The page uses your device setting first and remembers your choice. Charts change color with the theme; the share card image stays dark on purpose.
+
+### Index details
+Select any item in the market strip (Semis 30, SOX, Nasdaq, S&P 500, Dow, VIX, 10-year yield, Bitcoin) to open its panel: a 1-day, 5-day or 1-month chart, and:
+- **Semis 30 and SOX:** breadth, the leading and lagging groups (AI compute, memory, equipment, analog, foundry, RF), each group's move in SOX points, and the share of the move from the top 5 stocks.
+- **S&P 500, Nasdaq and Dow:** all 11 sectors (sector ETFs), sector breadth, risk appetite (discretionary vs staples), growth vs defense (tech vs utilities), and the largest member stocks.
+- **VIX:** the term structure (9 days, 30 days, 3 months, 6 months) and the implied daily move for the S&P and for SOXL.
+- **10-year yield:** the yield curve (3 months, 5, 10 and 30 years) and what it means for chip valuations.
+- **Bitcoin:** Ethereum, total crypto market cap and crypto fear and greed.
+
+### Fresh news and stock alerts
+- **Fresh news** (main page): headlines for SOXL and all 30 stocks from Google News and Yahoo Finance, searched every minute (each group of 10 stocks every 3 minutes), newest first. Each headline is tagged with its stocks (with logos) and its tone. Filter by stock, by your watched stocks, or show strong headlines only. New headlines get a **NEW** badge.
+- **Stock pages:** the news list searches again every 60 seconds while the page is open (it also adds Finnhub company news every 3 minutes when you have a key). The status shows when it last checked.
+- **🔔 Alerts for each stock** (on its page): every new headline, strong headlines only, price above or below a level, a day move of ±X%, or a pre-market / after-hours move of ±X%. Alerts go to the alert list (ready to post), and to browser notifications when **Notifications** is on. Your settings stay in this browser.
+
+### Stock logos and real-time tiles
+- Each stock has its logo (StockTwits logo service, then Financial Modeling Prep, then a lettered badge).
+- Outside regular hours, all 30 tiles update with pre-market, after-hours and overnight prices, with a **PM / AH / ON** badge that shows the move since the close.
+
+### The Sniper read, track record and Pro
+- **The Sniper read** (under the market strip): SOXL, the current read, the next level with its odds, the crowd game and run/squeeze risk, with a Post button.
+- **Track record:** how many forecasts the page graded, its calibration score, direction hit rate, sessions studied and rules that passed out-of-sample tests.
+- **SOXX Sniper Pro (early access):** what is live now and what is planned, with a button to the Contact page (topic set to paid access).
+
 ### Main page order (most useful first)
 1. **Market strip:** $SOXL, the 30-stock index, the real **SOX, Nasdaq, S&P 500 and Dow levels with point changes**, VIX, the 10-year yield (in basis points) and Bitcoin.
 2. **After-hours / pre-market banner** (only outside regular hours).
@@ -174,6 +199,7 @@ Select **Demo mode** in the API key box to see every panel with simulated data. 
 | Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, index levels (SOX, Dow, S&P 500, Nasdaq, VIX, 10Y), stock-page charts, daily bars for trend, volume, 52-week range | About 15–20 s |
 | Nasdaq.com, via the Worker | no | Fund holdings (13F), insider trades (Form 4), analyst price targets | Quarterly / daily; cached 6–12 h |
 | StockTwits, via the Worker | no | Latest messages with bullish/bearish tags | About 60 s |
+| Google News and Yahoo Finance RSS, via the Worker | no | Fresh headlines for each stock | Every 60 s (cached 60 s) |
 
 Yahoo Finance and Nasdaq.com do not officially support these data addresses, so they can change. If they stop, the banner shows an error, and **System health** shows "Extended-hours prices ✕".
 
@@ -182,6 +208,7 @@ Yahoo Finance and Nasdaq.com do not officially support these data addresses, so 
 ## Limits
 - **Finnhub free:** 60 calls per minute and 50 websocket symbols. The site uses 49 symbols and stays under 55 calls per minute.
 - **Price freshness:** during regular hours, prices come live from the Finnhub websocket. Outside regular hours, the site asks the Worker every 5 seconds for SOXL, NVDA, AMD and AVGO (and the open stock page), and every 20 seconds for the other symbols. The Worker compares Yahoo and StockTwits and returns the newest trade; the banner shows both. StockTwits regular-hours quotes have a 15-minute delay, so they are used only when they are newer.
+- **Worker limits:** Cloudflare's free plan allows 50 outgoing calls for each request. The Worker uses Yahoo for at most 14 symbols per request and the StockTwits batch for the rest, so a request never needs more than about 40 calls.
 - **Worker requests:** the Cloudflare free plan allows 100,000 Worker requests per day. Each open page uses about 12 requests per minute outside regular hours. If many people use the site at the same time, upgrade the Worker plan or increase the poll interval in `startExt()`.
 - **Index values:** the market strip shows the real SOX, Nasdaq, S&P 500, Dow, VIX and 10-year levels from Yahoo Finance through the Worker (about every 20 s). The cross-market table still uses the ETFs (DIA, SPY, QQQ), because Finnhub gives them live. Without the Worker, the strip shows SOXX in place of SOX.
 - **SOX points:** a stock's points = its index contribution × the SOX prior close. The 30-stock index is an estimate, so its SOX points are shown with "≈" and can differ a little from the real SOX.
