@@ -41,6 +41,16 @@ A candle chart for SOXL near the top of the page, and on every stock page. It up
 ### The 100-case view
 In the Track record card, each rule that passed its out-of-sample test shows its last 100 cases: win rate, average and total SOXL move in the rule's direction, worst drawdown, longest losing run, an equity curve and the last 10 results. A real edge still loses often; read each rule as a batch of 100.
 
+### Caller tracker (who calls $SOXL right)
+- Every StockTwits post about SOXL with a **Bullish** or **Bearish** tag is a call. The page checks each call against SOXL **1 hour later** and at the **next 4:00 pm close**. Moves under 0.3% do not count, and repeat posts in the same direction within 30 minutes count once.
+- **Score** = the lower bound of the poster's win rate (80% confidence), so a lucky 3/3 does not beat a steady 30/45. A poster needs 6 scored calls. Views: most accurate, least accurate (a fade list), most active.
+- **Crowd accuracy:** how often the whole StockTwits crowd is right, and its bullish share in the last 3 hours.
+- **Decision input (weight 0.06):** what proven callers (score 55+) posted in the last 3 hours (damped until 3 posts agree), and a **fade-the-crowd** signal when the crowd has been right less than 47% of the time over 150+ calls.
+- **Alert:** when a top-5 caller posts a new call.
+- On first load the page backfills about 10 days of StockTwits history (with the new Worker), then it keeps learning. The record stays in this browser.
+- **First snapshot (Oct 11–20, 2026, 953 calls, 625 posters):** the crowd was 77% bullish and right only 47% of the time. Most accurate with 6+ scored calls: @GlobalTradersAcademy (8/9 at the next close, bearish), @bladejb (8/10), @robearlo (10/13), @Deadcenter2 (18/28). Least accurate: @Themadogtrader (0/7), @Higreg (2/18), @SaltydogTrader (2/10). One 9-day period is a small sample; the live tracker is the real test.
+- **X and Reddit** are not scored. X has no free read access (pay-per-use, $0.005 per post read). Reddit requires an approved API account under its data terms.
+
 ### Fresh news and stock alerts
 - **Fresh news** (main page): headlines for SOXL and all 30 stocks from Google News and Yahoo Finance, searched every minute (each group of 10 stocks every 3 minutes), newest first. Each headline is tagged with its stocks (with logos) and its tone. Filter by stock, by your watched stocks, or show strong headlines only. New headlines get a **NEW** badge.
 - **Stock pages:** the news list searches again every 60 seconds while the page is open (it also adds Finnhub company news every 3 minutes when you have a key). The status shows when it last checked.

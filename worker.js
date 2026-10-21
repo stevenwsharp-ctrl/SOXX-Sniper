@@ -12,6 +12,7 @@
 //        GET https://<your-worker>.workers.dev/holders?t=NVDA          (funds that hold, buy and sell; insiders; analyst target)
 //        GET https://<your-worker>.workers.dev/holders?t=NVDA&lite=1   (summary only, for the index scan)
 //        GET https://<your-worker>.workers.dev/social?t=SOXL           (latest StockTwits messages with bull/bear tags)
+//        GET https://<your-worker>.workers.dev/social?t=SOXL&max=123   (older messages, for the caller track record)
 //        GET https://<your-worker>.workers.dev/news?t=NVDA&q=Nvidia    (fresh headlines: Google News + Yahoo Finance, newest first)
 //        GET https://<your-worker>.workers.dev/news?t=SOXL,NVDA,AMD&q=SOXL|Nvidia|AMD   (one feed for many stocks)
 
@@ -280,22 +281,22 @@ async function getHolders(t, lite) {
 
 // ---- StockTwits public stream (free, no key). Unofficial for this use: it can change or block.
 const stMemo = new Map();
-async function getSocial(t) {
-  const hit = stMemo.get(t);
+async function getSocial(t, max) {
+  const key = t + "|" + (max || ""), hit = stMemo.get(key);
   if (hit && Date.now() - hit.at < 45000) return hit.body;
   let body = { status: "error", error: "StockTwits did not answer" };
   try {
-    const r = await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${encodeURIComponent(t)}.json`, { headers: { ...UA, "Referer": "https://stocktwits.com/" } });
+    const r = await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${encodeURIComponent(t)}.json${max ? "?max=" + max : ""}`, { headers: { ...UA, "Referer": "https://stocktwits.com/" } });
     if (r.ok) {
       const j = await r.json();
       const msgs = (j.messages || []).map(m => ({ id: m.id, body: String(m.body || "").slice(0, 600), at: Date.parse(m.created_at) || 0,
         user: m.user ? m.user.username : "", followers: m.user ? m.user.followers || 0 : 0, official: !!(m.user && m.user.official),
         sent: m.entities && m.entities.sentiment ? m.entities.sentiment.basic || null : null, likes: m.likes ? m.likes.total || 0 : 0,
         syms: (m.symbols || []).map(x => x.symbol).slice(0, 8) }));
-      body = { status: "ok", t, at: Date.now(), watchers: j.symbol ? j.symbol.watchlist_count || null : null, msgs };
+      body = { status: "ok", t, at: Date.now(), watchers: j.symbol ? j.symbol.watchlist_count || null : null, msgs, next: j.cursor && j.cursor.more ? j.cursor.max : null };
     } else body = { status: "error", error: "StockTwits answered " + r.status };
   } catch (e) { body = { status: "error", error: String(e) }; }
-  if (body.status === "ok") stMemo.set(t, { at: Date.now(), body });
+  if (body.status === "ok") stMemo.set(key, { at: Date.now(), body });
   else if (hit) return { ...hit.body, stale: true };
   return body;
 }
@@ -369,7 +370,7 @@ export default {
       const t = (url.searchParams.get("t") || "").toUpperCase();
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       if (!/^[A-Z][A-Z.\-]{0,7}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
-      return json(url.pathname === "/holders" ? await getHolders(t, url.searchParams.get("lite") === "1") : await getSocial(t));
+      return json(url.pathname === "/holders" ? await getHolders(t, url.searchParams.get("lite") === "1") : await getSocial(t, /^\d{1,15}$/.test(url.searchParams.get("max") || "") ? url.searchParams.get("max") : null));
     }
     if (url.pathname === "/hist") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
