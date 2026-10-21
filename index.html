@@ -828,24 +828,26 @@ function offMode(){
 const recording=()=>!!db&&leader&&!demo;
 
 /* ---------- live extended-hours prices through the Worker (Finnhub free has no pre/post trades) ---------- */
+const SRCN={yahoo:"Yahoo Finance",nasdaq:"Nasdaq",stocktwits:"StockTwits"};
 const EXT_MAIN=[FUND], EXT_MORE=["SOXS","SOXX","QQQ","SPY","DIA","NVDA","AMD","AVGO","MU","INTC","TSM","BTC-USD"];
 let extTimer=null,extN=0;const extVol={},extInfo={ok:null,src:"",err:""};
 async function extTick(force){
   if(demo)return;const p=fredProxy();if(!p)return;
   const ph=phaseAt(Date.now());if(!force&&ph==="regular")return;
-  let list=(extN++%4===0?[...EXT_MAIN,...EXT_MORE.filter(s=>s!=="BTC-USD")]:[...EXT_MAIN]);
+  let list=(extN++%4===0?[...EXT_MAIN,...EXT_MORE.filter(s=>s!=="BTC-USD")]:[...EXT_MAIN,"NVDA","AMD","AVGO"]);
   if(curSym&&!CRYPTO.includes(curSym)&&!list.includes(curSym))list.push(curSym);
   try{
     const j=await(await fetch(`${p}/ext?t=${list.join(",")}`)).json();let n=0;
     for(const s in j.quotes){const x=j.quotes[s],q=Q[s];if(!q||!(x.price>0))continue;n++;
-      if(x.regularClose>0)q.regClose=x.regularClose;q.xsess=x.session;q.xt=x.time;q.xsrc=x.src;
+      if(x.time&&q.xt&&x.time<q.xt-500)continue; // never replace a newer trade with an older one
+      if(x.regularClose>0)q.regClose=x.regularClose;q.xsess=x.session;q.xt=x.time;q.xsrc=x.src;q.xalt=x.alt||null;
       const key=s+"|"+x.time,prev=extVol[s]&&extVol[s].k===key?extVol[s].v:0,dv=Math.max(0,(x.vol||0)-prev);extVol[s]={k:key,v:x.vol||0};
       if(x.session==="pre"||x.session==="post"||x.price!==q.c)onTick(s,x.price,dv);
     }
     if(n>0)health.extAt=Date.now();extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
   }catch(e){extInfo.ok=false;extInfo.err="Worker /ext did not answer (update the Worker code)";srcOk.ext=false}
 }
-function startExt(){startIdx();startFunds();startSocial();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),15000)}
+function startExt(){startIdx();startFunds();startSocial();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),5000)}
 
 /* ---------- off-hours memory: extended-hours learning, overnight recording ---------- */
 function offHours(M,d,bars,r){
@@ -1860,7 +1862,7 @@ function renderExtBar(){
   else{
     const before4=etInfo(now).min<240;const cd=before4?addDays(d,-1):d;
     base=q.regClose>0?q.regClose:findAt(hist[FUND]||[],etEpochMin(cd,959),"c");if(!(base>0))base=q.qc>0?q.qc:q.pc;
-    baseLab="4:00 pm close";lab=ph==="post"?"After-hours · SOXL":"After-hours (closed) · SOXL";from=etEpochMin(cd,960);
+    baseLab="4:00 pm close";lab=ph==="post"?"After-hours · SOXL":q.xsess==="overnight"?"Overnight · SOXL":"After-hours (closed) · SOXL";from=etEpochMin(cd,960);
   }
   const ch=base>0?P-base:NaN,pct=base>0?P/base-1:NaN;
   let hi=-Infinity,lo=Infinity,usd=0;(hist[FUND]||[]).forEach(b=>{if(b.m>=from){hi=Math.max(hi,b.c);lo=Math.min(lo,b.c);usd+=b.c*(b.v||0)}});
@@ -1870,7 +1872,7 @@ function renderExtBar(){
   $("ebPx").textContent=fmtPx(P);
   $("ebCh").innerHTML=isFinite(ch)?`<span class="${cls(ch)}">${ch>=0?"+":"−"}$${Math.abs(ch).toFixed(2)} (${fmtPct(pct)})</span>`:"--";
   $("ebSub").innerHTML=`vs ${baseLab} ${fmtPx(base)}`+(isFinite(hi)?`<br>range ${fmtPx(lo)} – ${fmtPx(hi)}${usd>0?" · $ volume "+fmtBig(usd):""}`:"")+
-    `<br>${ago==null?(fredProxy()?"waiting for the first quote":"add the Worker URL (API key button) for live extended-hours prices"):(ago<90?`last trade ${ago}s ago`:`last trade ${Math.round(ago/60)} min ago`)+(q.xsrc?` · source ${q.xsrc==="yahoo"?"Yahoo Finance":"Nasdaq"}`:"")}`+
+    `<br>${ago==null?(fredProxy()?"waiting for the first quote":"add the Worker URL (API key button) for live extended-hours prices"):(ago<90?`last trade ${ago}s ago`:`last trade ${Math.round(ago/60)} min ago`)+(q.xsrc?` · source ${SRCN[q.xsrc]||q.xsrc}`:"")+(q.xalt&&q.xalt.price>0?` · ${SRCN[q.xalt.src]||q.xalt.src} ${fmtPx(q.xalt.price)}`:"")}`+
     (extInfo.ok===false&&extInfo.err?`<br><span class="down">${esc(extInfo.err)}</span>`:"");
   document.title=`SOXL ${fmtPx(P)} ${isFinite(pct)?fmtPct(pct):""} ${ph==="pre"?"PM":"AH"}`;
 }
@@ -2443,7 +2445,7 @@ function idxChg(k){const q=IDXQ&&IDXQ[k];if(!q||!(q.p>0)||!(q.pc>0))return null;
 function renderStrip(){
   const items=[];
   const add=(n,v,ch,pct,go,inv,bp)=>items.push(`<div class="mi" ${go?`data-go="${go}" style="cursor:pointer"`:""}><div class="n">${n}</div><div class="v">${v}</div><div class="c ${cls(inv?-ch:ch)}">${!isFinite(ch)?"--":bp?(ch>=0?"+":"−")+Math.abs(ch).toFixed(1)+" bp":sgn(ch)+" ("+fmtPct(pct)+")"}</div></div>`);
-  const pr=svPrices(FUND);add("$SOXL"+(pr.ext?" · "+(pr.xLab==="Pre-market"?"PM":"AH"):""),fmtPx(pr.ext?pr.xP:pr.main),pr.ext?pr.xC:pr.chg,pr.ext?pr.xPct:pr.pct,FUND);
+  const pr=svPrices(FUND);add("$SOXL"+(pr.ext?" · "+(pr.xLab==="Pre-market"?"PM":pr.xLab==="Overnight"?"ON":"AH"):""),fmtPx(pr.ext?pr.xP:pr.main),pr.ext?pr.xC:pr.chg,pr.ext?pr.xPct:pr.pct,FUND);
   const m=compute();if(m.live)items.push(`<div class="mi"><div class="n">SEMIS 30 (SOXL index)</div><div class="v ${cls(m.idx)}">${fmtPct(m.idx)}</div><div class="c">3× = ${fmtPct(m.imp)}</div></div>`);
   IDX_LIST.forEach(([k,n])=>{const c=idxChg(k);if(c)add(n,k==="^TNX"?c.p.toFixed(3)+"%":fmtNum(c.p,2),k==="^TNX"?c.ch*100:c.ch,c.pct,null,k==="^VIX"||k==="^TNX",k==="^TNX");
     else if(k==="^SOX"&&Q.SOXX.c>0)add("SOXX (no index feed)",fmtPx(Q.SOXX.c),Q.SOXX.c-Q.SOXX.pc,dayPct("SOXX"),"SOXX")});
@@ -2455,7 +2457,7 @@ function renderStrip(){
 const cash=s=>"$"+s;
 function pkPosts(D){
   const P=[],m=compute(),pr=svPrices(FUND),sox=idxChg("^SOX"),ok=m.rows.filter(r=>r.ok);
-  const soxl=`$SOXL ${fmtPx(pr.main)} ${isFinite(pr.chg)?sgn(pr.chg)+" ("+fmtPct(pr.pct)+")":""}`.trim()+(pr.ext?` | ${pr.xLab==="Pre-market"?"PM":"AH"} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`:"");
+  const soxl=`$SOXL ${fmtPx(pr.main)} ${isFinite(pr.chg)?sgn(pr.chg)+" ("+fmtPct(pr.pct)+")":""}`.trim()+(pr.ext?` | ${pr.xLab==="Pre-market"?"PM":pr.xLab==="Overnight"?"ON":"AH"} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`:"");
   const up=ok.filter(r=>r.r>0).length,dn=ok.filter(r=>r.r<0).length;
   // 1 market pulse
   let t=[soxl];
@@ -2955,7 +2957,7 @@ function svPrices(s){
   let main=P,chg=pc>0&&P>0?P-pc:NaN,pct=pc>0&&P>0?P/pc-1:NaN,xP=NaN,xC=NaN,xPct=NaN,xLab="";
   if(ext){
     const rc=ph==="pre"?pc:(q.regClose>0?q.regClose:q.qc>0?q.qc:pc);
-    if(ph==="pre"){main=pc;chg=NaN;pct=NaN;xLab="Pre-market"}else{main=rc;chg=rc-pc;pct=rc/pc-1;xLab=ph==="post"?"After-hours":"After-hours (closed)"}
+    if(ph==="pre"){main=pc;chg=NaN;pct=NaN;xLab="Pre-market"}else{main=rc;chg=rc-pc;pct=rc/pc-1;xLab=ph==="post"?"After-hours":q.xsess==="overnight"?"Overnight":"After-hours (closed)"}
     xP=P;xC=P-rc;xPct=P/rc-1;
   }
   return{P,pc,main,chg,pct,xP,xC,xPct,xLab,ph,ext};
@@ -2985,7 +2987,7 @@ function svSummary(s){
 }
 function tweetText(s){
   const S=svSummary(s),pr=S.pr,lines=[];
-  lines.push(`$${s} ${fmtPx(pr.main)}${isNum(pr.pct)?" "+fmtPct(pr.pct):""}${pr.ext?` | ${pr.xLab==="Pre-market"?"PM":"AH"} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`:""}`);
+  lines.push(`$${s} ${fmtPx(pr.main)}${isNum(pr.pct)?" "+fmtPct(pr.pct):""}${pr.ext?` | ${pr.xLab==="Pre-market"?"PM":pr.xLab==="Overnight"?"ON":"AH"} ${fmtPx(pr.xP)} ${fmtPct(pr.xPct)}`:""}`);
   if(S.isH&&isNum(S.contrib))lines.push(`• ${(S.w*100).toFixed(2)}% of the $SOXL index: ${ipts(S.contrib)} today (≈${fmtPct(3*S.contrib)} of SOXL)`);
   if(s===FUND){const mm=compute();if(mm.live)lines.push(`• Semis index ${fmtPct(mm.idx)} → implied ${fmtPct(mm.imp)} · gap ${fmtPct(mm.fr-mm.imp)}`)}
   if(isNum(S.rs)&&s!==FUND)lines.push(`• vs semis index: ${S.rs>=0?"+":""}${(S.rs*100).toFixed(2)} pts`);

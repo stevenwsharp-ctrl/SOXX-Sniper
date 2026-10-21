@@ -165,6 +165,7 @@ Select **Demo mode** in the API key box to see every panel with simulated data. 
 | alternative.me | no | Crypto Fear & Greed | Daily |
 | FRED, via the Worker | yes | Yields, credit spreads, funding, liquidity, macro, consumer credit, debt ratios, oil | Daily to quarterly |
 | Massive (Polygon), via the Worker | yes | 2 years of 5-minute bars with extended hours | End of day |
+| StockTwits quotes, via the Worker | no | A second source for pre-market, after-hours and overnight (8 pm–4 am ET) prices. The Worker keeps the quote with the newest trade time. | About 5 s |
 | Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, index levels (SOX, Dow, S&P 500, Nasdaq, VIX, 10Y), stock-page charts, daily bars for trend, volume, 52-week range | About 15–20 s |
 | Nasdaq.com, via the Worker | no | Fund holdings (13F), insider trades (Form 4), analyst price targets | Quarterly / daily; cached 6–12 h |
 | StockTwits, via the Worker | no | Latest messages with bullish/bearish tags | About 60 s |
@@ -175,6 +176,8 @@ Yahoo Finance and Nasdaq.com do not officially support these data addresses, so 
 
 ## Limits
 - **Finnhub free:** 60 calls per minute and 50 websocket symbols. The site uses 49 symbols and stays under 55 calls per minute.
+- **Price freshness:** during regular hours, prices come live from the Finnhub websocket. Outside regular hours, the site asks the Worker every 5 seconds for SOXL, NVDA, AMD and AVGO (and the open stock page), and every 20 seconds for the other symbols. The Worker compares Yahoo and StockTwits and returns the newest trade; the banner shows both. StockTwits regular-hours quotes have a 15-minute delay, so they are used only when they are newer.
+- **Worker requests:** the Cloudflare free plan allows 100,000 Worker requests per day. Each open page uses about 12 requests per minute outside regular hours. If many people use the site at the same time, upgrade the Worker plan or increase the poll interval in `startExt()`.
 - **Index values:** the market strip shows the real SOX, Nasdaq, S&P 500, Dow, VIX and 10-year levels from Yahoo Finance through the Worker (about every 20 s). The cross-market table still uses the ETFs (DIA, SPY, QQQ), because Finnhub gives them live. Without the Worker, the strip shows SOXX in place of SOX.
 - **SOX points:** a stock's points = its index contribution × the SOX prior close. The 30-stock index is an estimate, so its SOX points are shown with "≈" and can differ a little from the real SOX.
 - **Holdings and weights:** from the iShares SOXX holdings file (Oct 19, 2026). Update the `HOLDINGS` list in `index.html` after each quarterly rebalance.

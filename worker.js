@@ -6,7 +6,7 @@
 //   POLYGON_KEY   (secret)   your free key from https://massive.com (formerly Polygon.io)
 // Calls: GET https://<your-worker>.workers.dev/fred?ids=DGS10,DGS2&limit=60
 //        GET https://<your-worker>.workers.dev/hist?t=SOXL&mult=5&span=minute&from=2026-01-02&to=2026-03-31
-//        GET https://<your-worker>.workers.dev/ext?t=SOXL,NVDA        (live pre-market / after-hours prices)
+//        GET https://<your-worker>.workers.dev/ext?t=SOXL,NVDA        (live pre-market / after-hours / overnight prices; newest of Yahoo and StockTwits)
 //        GET https://<your-worker>.workers.dev/chart?t=NVDA&range=1d&interval=1m   (intraday chart with extended hours)
 //        GET https://<your-worker>.workers.dev/chart?t=NVDA&range=1y&interval=1d   (daily bars for trend and inflection points)
 //        GET https://<your-worker>.workers.dev/holders?t=NVDA          (funds that hold, buy and sell; insiders; analyst target)
@@ -84,7 +84,7 @@ async function getHist(t, mult, span, from, to, key) {
 // ---- live extended-hours quotes (pre-market and after-hours). Free sources, no key:
 //      Yahoo Finance chart data first, Nasdaq.com as a backup. Unofficial endpoints: they can change.
 const extMemo = new Map();
-const EXT_TTL_MS = 8000;
+const EXT_TTL_MS = 4000;
 const UA = { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36", "Accept": "application/json, text/plain, */*" };
 
 async function yahooQuote(t) {
@@ -125,11 +125,50 @@ async function nasdaqQuote(t) {
   }
   return null;
 }
-async function extQuote(t) {
-  const hit = extMemo.get(t);
+// StockTwits quote service: one call for many symbols, with pre-market / after-hours / overnight prices.
+const stqMemo = new Map();
+function etParse(dt, off) {
+  if (!dt) return 0;
+  const o = Number(off), sign = o < 0 ? "-" : "+", hh = String(Math.abs(o)).padStart(2, "0");
+  const ms = Date.parse(String(dt).replace(" ", "T") + (isFinite(o) ? `${sign}${hh}:00` : "Z"));
+  return isFinite(ms) ? ms : 0;
+}
+async function stQuotes(list) {
+  const syms = list.filter(t => !t.startsWith("^") && !t.includes("-USD"));
+  if (!syms.length) return {};
+  const k = syms.join(","), hit = stqMemo.get(k);
   if (hit && Date.now() - hit.at < EXT_TTL_MS) return hit.q;
-  const q = (await yahooQuote(t)) || (t.startsWith("^") ? null : await nasdaqQuote(t));
-  if (q) extMemo.set(t, { at: Date.now(), q });
+  const out = {};
+  try {
+    const r = await fetch(`https://ql.stocktwits.com/batch?symbols=${encodeURIComponent(k)}`, { headers: { ...UA, "Origin": "https://stocktwits.com", "Referer": "https://stocktwits.com/" } });
+    if (r.ok) {
+      const j = await r.json();
+      for (const t of syms) {
+        const d = j[t];
+        if (!d || d.Outcome !== "Success") continue;
+        const xt = etParse(d.ExtendedHoursDateTime, d.UTCOffset), rt = etParse(d.DateTime, d.UTCOffset);
+        const useX = d.ExtendedHoursPrice > 0 && xt >= rt;
+        const type = String(d.ExtendedHoursType || "").toLowerCase();
+        out[t] = { t, price: useX ? d.ExtendedHoursPrice : d.Last, time: useX ? xt : rt, vol: 0,
+          session: useX ? (type.includes("pre") ? "pre" : type.includes("over") ? "overnight" : "post") : "regular",
+          regularClose: d.Last, prevClose: d.PreviousClose, src: "stocktwits" };
+      }
+    }
+  } catch (e) {}
+  stqMemo.set(k, { at: Date.now(), q: out });
+  return out;
+}
+async function extQuote(t, st) {
+  const hit = extMemo.get(t);
+  let q = hit && Date.now() - hit.at < EXT_TTL_MS ? hit.q : null;
+  if (!q) {
+    q = (await yahooQuote(t)) || (t.startsWith("^") ? null : await nasdaqQuote(t));
+    if (q) extMemo.set(t, { at: Date.now(), q });
+  }
+  // keep the quote with the newest trade time
+  const s = st && st[t];
+  if (s && s.price > 0 && (!q || s.time > (q.time || 0) + 1000)) return { ...s, regularClose: (q && q.regularClose) || s.regularClose, prevClose: (q && q.prevClose) || s.prevClose, alt: q ? { src: q.src, price: q.price, time: q.time } : null };
+  if (q && s && s.price > 0) return { ...q, alt: { src: s.src, price: s.price, time: s.time } };
   return q;
 }
 
@@ -239,8 +278,8 @@ export default {
     }
     if (url.pathname === "/ext") {
       const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^\^?[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 24);
-      const quotes = {};
-      await Promise.all(list.map(async t => { const q = await extQuote(t); if (q) quotes[t] = q; }));
+      const quotes = {}, st = await stQuotes(list);
+      await Promise.all(list.map(async t => { const q = await extQuote(t, st); if (q) quotes[t] = q; }));
       return new Response(JSON.stringify({ t: Date.now(), quotes }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/chart") {
