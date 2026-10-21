@@ -22,6 +22,26 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.3px}
 .sub{font-size:12px;color:var(--dim);font-family:var(--mono)}
 .status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.hb{--hb:var(--mute);--spd:2.4s;font-family:var(--mono);font-size:11px;color:var(--dim);padding:4px 10px 4px 6px;cursor:default}
+.hbw{position:relative;width:20px;height:20px;display:inline-grid;place-items:center}
+.hb svg{width:20px;height:20px;animation:hbspin var(--spd) linear infinite;overflow:visible}
+.hb .tr{fill:none;stroke:rgba(255,255,255,.07);stroke-width:2.2}
+.hb .arc{fill:none;stroke:url(#hbg);stroke-width:2.2;stroke-linecap:round;stroke-dasharray:34 22.5}
+.hb .head{fill:var(--hb);transition:fill .6s;filter:drop-shadow(0 0 2.5px var(--hb))}
+.hb.watch .head{animation:hbdog 7s steps(1,end) forwards}
+.hbp{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--hb);opacity:0;pointer-events:none}
+.hbp.go{animation:hbping .9s ease-out}
+.hb.live{--hb:var(--up)}.hb.slow{--hb:var(--amber)}.hb.stale{--hb:var(--down)}.hb.demo{--hb:var(--violet)}
+@keyframes hbspin{to{transform:rotate(360deg)}}
+@keyframes hbping{0%{transform:scale(.55);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+@keyframes hbdog{100%{fill:var(--down)}}
+@media (prefers-reduced-motion:reduce){.hb svg{animation-duration:8s}.hbp.go{animation:none}}
+.contact{max-width:640px;margin:0 auto 16px}.contact h2{margin:6px 0 4px;font-size:22px}
+.ctmail{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 18px}.ctmail a{font-family:var(--mono);font-size:16px;color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(77,163,255,.4)}
+.ctform{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ctform label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--dim)}.ctform .full{grid-column:1/-1}
+.ctform input,.ctform select,.ctform textarea{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:8px 10px;font:inherit;font-size:14px}
+.ctform textarea{resize:vertical}@media(max-width:560px){.ctform{grid-template-columns:1fr}}
+.ftc{margin-bottom:8px;font-size:13px}.ftc a{color:var(--accent)}
 .pill{border:1px solid var(--line);background:var(--panel);padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:6px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
 .dot.live{background:var(--up);box-shadow:0 0 0 0 rgba(25,211,138,.6);animation:pulse 1.6s infinite}
@@ -216,6 +236,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <span class="pill"><span class="dot" id="mktDot"></span><span id="mktTxt">Market: --</span></span>
       <span class="pill"><span class="dot" id="feedDot"></span><span id="feedTxt">Feed: off</span></span>
       <span class="pill"><span class="dot" id="memDot"></span><span id="memTxt">Memory: --</span></span>
+      <span class="pill hb" id="hb" title="Heartbeat: starting…"><span class="hbw"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="hbg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" style="stop-color:var(--hb);stop-opacity:.05"/><stop offset="1" style="stop-color:var(--hb);stop-opacity:1"/></linearGradient></defs><circle class="tr" cx="12" cy="12" r="9"/><circle class="arc" cx="12" cy="12" r="9" transform="matrix(1 0 0 -1 0 24)"/><circle class="head" cx="21" cy="12" r="2"/></svg><span class="hbp" id="hbP"></span></span><span id="hbT">--</span></span>
       <span class="pill" id="clock">--:--:-- ET</span>
       <button id="shareMain">Share SOXL ↗</button>
       <button id="keyBtn">API key</button>
@@ -564,7 +585,24 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </div>
   <canvas id="cardCanvas" width="1200" height="675" style="display:none"></canvas>
 
+  <div id="contactView" style="display:none">
+    <div class="sv-top"><button id="ctBack">← Dashboard</button></div>
+    <section class="card contact">
+      <div class="label">Contact</div>
+      <h2>Questions, feedback or paid access?</h2>
+      <p class="sub" style="font-size:13px">Write to me directly. I read every message.</p>
+      <div class="ctmail"><a href="mailto:steven.w.sharp@gmail.com?subject=SOXX%20Sniper" id="ctMail">steven.w.sharp@gmail.com</a><button id="ctCopy">Copy email</button></div>
+      <form id="ctForm" class="ctform">
+        <label>Topic<select id="ctTopic"><option>Feedback</option><option>Subscription / paid access</option><option>Bug report</option><option>Feature request</option><option>Partnership or press</option><option>Other</option></select></label>
+        <label>Your name<input id="ctName" maxlength="80" autocomplete="name"></label>
+        <label class="full">Message<textarea id="ctMsg" rows="6" maxlength="4000" required></textarea></label>
+        <div class="full row"><button type="submit" class="x">Write email</button><span class="sub">This opens your email app with the message filled in. The site does not send or store anything.</span></div>
+      </form>
+    </section>
+  </div>
+
   <footer>
+    <div class="ftc">Contact: <a href="#/contact">steven.w.sharp@gmail.com</a> · <a href="#/contact">Contact page</a></div>
     Weights use share counts from the iShares SOXX holdings file (Oct 19, 2026). SOXX tracks the same index as SOXL. Weight = shares × previous close. Update the HOLDINGS list after each quarterly rebalance.<br>
     Data: Finnhub (free tier). Thresholds and probabilities are statistical estimates from past price action. They are not predictions or investment advice.
   </footer>
@@ -804,7 +842,7 @@ async function extTick(force){
       const key=s+"|"+x.time,prev=extVol[s]&&extVol[s].k===key?extVol[s].v:0,dv=Math.max(0,(x.vol||0)-prev);extVol[s]={k:key,v:x.vol||0};
       if(x.session==="pre"||x.session==="post"||x.price!==q.c)onTick(s,x.price,dv);
     }
-    extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
+    if(n>0)health.extAt=Date.now();extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
   }catch(e){extInfo.ok=false;extInfo.err="Worker /ext did not answer (update the Worker code)";srcOk.ext=false}
 }
 function startExt(){startIdx();startFunds();startSocial();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),15000)}
@@ -2396,7 +2434,7 @@ async function pollIdx(){
   if(demo){IDX_LIST.forEach(([k],i)=>{const base=[6123,22650,6735,46820,16.4,4.12][i];const q=IDXQ[k]||(IDXQ[k]={pc:base,p:base});q.p=+(q.p*(1+(Math.random()-0.5)*0.0012)).toFixed(2)});return}
   const p=fredProxy();if(!p)return;
   try{const j=await(await fetch(`${p}/ext?t=${IDX_LIST.map(x=>x[0]).join(",")}`)).json();
-    for(const k in j.quotes){const x=j.quotes[k];IDXQ[k]={p:x.price,pc:x.prevClose||x.regularClose,t:x.time}}}catch(e){}
+    for(const k in j.quotes){const x=j.quotes[k];IDXQ[k]={p:x.price,pc:x.prevClose||x.regularClose,t:x.time}}if(Object.keys(j.quotes||{}).length)health.idxAt=Date.now()}catch(e){}
 }
 function startIdx(){clearInterval(idxTimer);pollIdx();idxTimer=setInterval(pollIdx,20000)}
 const fmtNum=(x,d=2)=>isFinite(x)?x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}):"--";
@@ -2871,16 +2909,21 @@ Object.assign(NAMES,{SOXL:"Direxion Daily Semiconductor Bull 3X",SOXS:"Direxion 
 const ySym=s=>s==="BTC"?"BTC-USD":s==="ETH"?"ETH-USD":s;
 let curSym=null,svRange="1d",svT=0;const svData={};
 function route(){
+  if(/^#\/contact/.test(location.hash)){closeStock();$("mainView").style.display="none";$("contactView").style.display="block";document.title="Contact · SOXX Sniper";window.scrollTo(0,0);return}
   const m=location.hash.match(/^#\/s\/([A-Za-z.\-]+)/),s=m?m[1].toUpperCase():null;
   if(s&&SYMS.includes(s))openStock(s);else closeStock();
 }
+$("ctBack").onclick=()=>{location.hash=""};
+$("ctCopy").onclick=e=>copyText("steven.w.sharp@gmail.com",e.target);
+$("ctForm").onsubmit=e=>{e.preventDefault();const t=$("ctTopic").value,n=$("ctName").value.trim(),m=$("ctMsg").value.trim();if(!m)return;
+  location.href="mailto:steven.w.sharp@gmail.com?subject="+encodeURIComponent("SOXX Sniper · "+t)+"&body="+encodeURIComponent(m+(n?"\n\n— "+n:""))};
 function openStock(s){
   const first=curSym!==s;curSym=s;
   $("mainView").style.display="none";$("stockView").style.display="block";
   if(first){window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true);svLoadExtra(s);svxT=0}
   renderStock(true);
 }
-function closeStock(){curSym=null;$("stockView").style.display="none";$("mainView").style.display="block";document.title="SOXX Sniper";dirty=true}
+function closeStock(){curSym=null;$("stockView").style.display="none";$("contactView").style.display="none";$("mainView").style.display="block";document.title="SOXX Sniper";dirty=true}
 async function fhSoon(path,tag){for(let i=0;i<20&&(fhUsed()>=55||Date.now()<fhQ.backoff);i++)await sleep(600);return fhGet(path,tag)}
 async function svLoad(s,full){
   const d=svData[s]||(svData[s]={news:[],earn:null,c1d:null,c5d:null,t:0});
@@ -3092,6 +3135,32 @@ document.querySelectorAll("[data-ks]").forEach(b=>b.onclick=()=>{kSort=b.dataset
 
 /* ---------- loops ---------- */
 buildTiles();
+/* ---------- heartbeat ring: spins always; color and speed come from real data updates ---------- */
+var HB={last:0,ticks:[],seen:0};
+function hbBeat(){
+  const el=$("hb");if(!el)return;const now=Date.now();
+  const lu=Math.max(0,...Object.values(health.lastUpd||{}),health.idxAt||0,health.extAt||0);
+  HB.ticks.push([now,health.ticks]);while(HB.ticks.length&&now-HB.ticks[0][0]>60000)HB.ticks.shift();
+  const tpm=HB.ticks.length>1?health.ticks-HB.ticks[0][1]:0;
+  const ph=demo?"regular":phaseAt(now),reg=ph==="regular",age=lu?(now-lu)/1000:Infinity;
+  const wsOk=!apiKey||demo||(ws&&ws.readyState===1);
+  let st,lab;
+  if(demo){st="demo";lab="DEMO"}
+  else if(!lu){st="stale";lab=apiKey||fredProxy()?"WAIT":"OFF"}
+  else if(age<=(reg?10:45)&&wsOk){st="live";lab="LIVE"}
+  else if(age<=(reg?45:180)){st="slow";lab=wsOk?"SLOW":"RECONNECT"}
+  else{st="stale";lab="STALE"}
+  el.classList.remove("live","slow","stale","demo");el.classList.add(st);
+  el.style.setProperty("--spd",st==="live"||st==="demo"?(tpm>200?"1.1s":"1.6s"):st==="slow"?"3s":"6s");
+  const ago=!isFinite(age)?"--":age<60?Math.round(age)+"s":age<3600?Math.round(age/60)+"m":Math.round(age/3600)+"h";
+  $("hbT").textContent=lab+(isFinite(age)&&!demo?" "+ago:"");
+  el.title=`Heartbeat · ${lab.toLowerCase()} · last data ${ago} ago · ${tpm} updates/min${isFinite(health.lat)?` · latency ${Math.round(health.lat)} ms`:""} · feed ${wsOk?"connected":"reconnecting"} · page loop OK. If the page stops, the dot turns red.`;
+  // a ripple when new data arrived since the last beat
+  if(lu>HB.seen){HB.seen=lu;const p=$("hbP");p.classList.remove("go");void p.offsetWidth;p.classList.add("go")}
+  // watchdog: restart a 7 s timer each beat; if the page freezes, the dot turns red by itself
+  el.classList.remove("watch");void el.offsetWidth;el.classList.add("watch");
+}
+setInterval(()=>{try{hbBeat()}catch(e){}},1000);
 setInterval(()=>{$("clock").textContent=new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York"})+" ET"},1000);
 setInterval(()=>{if(dirty||curSym){dirty=false;render()}},400);
 window.addEventListener("resize",()=>{if(curSym)renderStock(true)});

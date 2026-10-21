@@ -10,6 +10,12 @@ Live site: https://stevenwsharp-ctrl.github.io/SOXX-Sniper/
 
 ## What it does
 
+### Heartbeat ring
+The small ring in the header spins all the time. Its color shows that data is arriving: **green = live** (new data in the last 10 s during market hours, 45 s at other times), **amber = slow or reconnecting**, **red = stale**, **violet = demo**. It spins faster when more updates arrive, and a ripple shows each new update. Hover over it to see the time since the last update, updates per minute and latency. A watchdog turns the dot red by itself if the page stops working.
+
+### Contact
+The footer has a link to a **Contact page** (`#/contact`) with the email address, a **Copy email** button and a short form. The form opens the visitor's email app with the message filled in; the site does not send or store anything.
+
 ### Main page order (most useful first)
 1. **Market strip:** $SOXL, the 30-stock index, the real **SOX, Nasdaq, S&P 500 and Dow levels with point changes**, VIX, the 10-year yield (in basis points) and Bitcoin.
 2. **After-hours / pre-market banner** (only outside regular hours).
