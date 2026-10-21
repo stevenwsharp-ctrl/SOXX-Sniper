@@ -27,6 +27,20 @@ Select any item in the market strip (Semis 30, SOX, Nasdaq, S&P 500, Dow, VIX, 1
 - **10-year yield:** the yield curve (3 months, 5, 10 and 30 years) and what it means for chip valuations.
 - **Bitcoin:** Ethereum, total crypto market cap and crypto fear and greed.
 
+### Live chart and big-move radar (made for large moves)
+A candle chart for SOXL near the top of the page, and on every stock page. It updates every 15 seconds from the Worker, and every second from live trades. Everything is calculated in the browser from real-time prices:
+- **Candles:** 1, 5 or 15 minutes; Today or 5 days; pre-market and after-hours shaded. Point at a bar to see its open, high, low, close, volume, VWAP and EMA.
+- **VWAP with ±1σ and ±2σ bands** (from 9:30; from 4:00 before the open). **EMA 9 and EMA 21.**
+- **Automatic Fibonacci:** 23.6%, 38.2%, 50%, 61.8% and 78.6% retracements and 127.2% / 161.8% extensions on the day's swing, in the direction of the swing.
+- **Key levels:** prior-day high, low and close; pre-market high and low; 30-minute opening range.
+- **Volume pane:** bars turn amber at 2× the session's normal volume.
+- **Big-move radar:** big-move pressure (0–100), **relative volume** at this time of day (against the last 4 sessions, with the projected day volume), today's range against the **14-day ATR** and the room left, the distance from VWAP in σ, the opening-range breakout, the last 5-minute volume burst, the EMA/VWAP trend, and the nearest Fib level.
+- **History check:** on past days with a gap, first 30 minutes or first hour like today's, how often SOXL closed 5% or more from the prior close, and in which direction.
+- The Fib, VWAP-band, pre-market and opening-range levels also feed the liquidity map, the "Levels to watch" post and new alerts: relative volume 2×, range larger than ATR, VWAP ±2σ, opening-range breakout and 5-minute volume burst of 3×.
+
+### The 100-case view
+In the Track record card, each rule that passed its out-of-sample test shows its last 100 cases: win rate, average and total SOXL move in the rule's direction, worst drawdown, longest losing run, an equity curve and the last 10 results. A real edge still loses often; read each rule as a batch of 100.
+
 ### Fresh news and stock alerts
 - **Fresh news** (main page): headlines for SOXL and all 30 stocks from Google News and Yahoo Finance, searched every minute (each group of 10 stocks every 3 minutes), newest first. Each headline is tagged with its stocks (with logos) and its tone. Filter by stock, by your watched stocks, or show strong headlines only. New headlines get a **NEW** badge.
 - **Stock pages:** the news list searches again every 60 seconds while the page is open (it also adds Finnhub company news every 3 minutes when you have a key). The status shows when it last checked.

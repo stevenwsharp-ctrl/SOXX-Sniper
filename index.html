@@ -108,6 +108,11 @@ button.danger:hover{border-color:var(--down);color:var(--down)}
 .alopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px 16px;font-size:13px}
 .alopts label{display:flex;align-items:center;gap:8px;color:var(--ink)}.alopts input[type=number]{width:96px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:5px 8px;font-family:var(--mono)}
 @media(max-width:560px){.fn{grid-template-columns:10px 30px 1fr}.fn .fsy{grid-column:2/-1}.fn .nh{grid-column:1/-1}}
+.tatip{position:absolute;top:4px;left:8px;display:none;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:11px;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.taleg{gap:14px;font-family:var(--mono);font-size:11px;margin-top:6px}
+.tasep{width:1px;height:18px;background:var(--line);margin:0 4px}
+#taCtl button,#svTaCtl button{padding:4px 9px;font-size:11px}#taCtl button.on,#svTaCtl button.on{border-color:var(--amber);color:var(--amber)}
+.spk{vertical-align:middle}.mono{font-family:var(--mono);letter-spacing:1px}
 .pkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
 .pk{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
 .pk .t{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between}
@@ -312,7 +317,9 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     <section class="card" style="margin-bottom:12px">
       <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0" id="svChartLab">Today · with pre-market and after-hours</div>
         <div class="row"><button data-svr="1d" class="on">1D</button><button data-svr="5d">5D</button></div></div>
-      <div class="chartwrap" style="height:320px"><canvas id="svChart"></canvas></div>
+      <div class="row" id="svTaCtl" style="margin-bottom:8px"></div>
+      <div class="chartwrap" style="height:360px"><canvas id="svChart"></canvas><div class="tatip" id="svTip"></div></div>
+      <div class="label" style="margin-top:12px">Big-move radar</div><div class="stiles" id="svRadar"></div>
       <div class="stiles" id="svStats" style="margin-top:12px"></div>
     </section>
     <section class="grid2">
@@ -407,6 +414,15 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </section>
 
   <section class="edge" id="edgeBar"></section>
+
+  <section class="card" id="taCard" style="margin-bottom:12px">
+    <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Live chart · SOXL · VWAP, Fibonacci, EMA and volume, calculated in real time</div><div class="row" id="taCtl"></div></div>
+    <div class="chartwrap" style="height:420px"><canvas id="taChart"></canvas><div class="tatip" id="taTip"></div></div>
+    <div class="row taleg" id="taLeg"></div>
+    <div class="label" style="margin-top:12px">Big-move radar</div>
+    <div class="stiles" id="taRadar"></div>
+    <div class="gtread" id="taHist"></div>
+  </section>
 
   <section class="hero">
     <div class="card"><div class="label">Weighted index · today</div><div class="big" id="idxPct">--</div><div class="mid" id="idxSub">-- of 30 stocks live</div></div>
@@ -593,7 +609,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   <section class="tiles" id="tiles"></section>
 
   <section class="grid2" id="proofRow">
-    <div class="card"><div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Track record · the page grades itself</div><span class="sub" id="trSince"></span></div><div class="stiles" id="trTiles"></div><div class="sub" style="margin-top:8px">Every minute the page gives odds that SOXL touches its nearest levels, then scores them. These numbers come from those scores in this browser, not from a back-test.</div></div>
+    <div class="card"><div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Track record · the page grades itself</div><span class="sub" id="trSince"></span></div><div class="stiles" id="trTiles"></div><div id="tr100"></div><div class="sub" style="margin-top:8px">Every minute the page gives odds that SOXL touches its nearest levels, then scores them. These numbers come from those scores in this browser, not from a back-test.</div></div>
     <div class="card pro" id="proCard">
       <div class="label">SOXX Sniper Pro · early access</div>
       <h3>Trade SOXL with the whole board in view</h3>
@@ -602,6 +618,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
         <li><span class="live">Live now</span> Game theory: crowd defection, run and squeeze risk, tested follow-or-fade edges</li>
         <li><span class="live">Live now</span> Funds, insiders and analysts for all 30 stocks; StockTwits mood</li>
         <li><span class="live">Live now</span> Post kit and alerts for X and StockTwits</li>
+        <li><span class="live">Live now</span> Live candle chart with auto VWAP bands, Fibonacci, EMA, key levels and relative volume, plus a big-move radar</li>
         <li><span class="live">Live now</span> Fresh news for every stock, searched every minute, with your own alerts per stock</li>
         <li><span class="soon">Planned</span> Alerts to your phone and email, even with the page closed</li>
         <li><span class="soon">Planned</span> Pre-market game plan every morning at 8:30 ET</li>
@@ -933,7 +950,7 @@ async function extTick(force){
     if(n>0)health.extAt=Date.now();extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
   }catch(e){extInfo.ok=false;extInfo.err="Worker /ext did not answer (update the Worker code)";srcOk.ext=false}
 }
-function startExt(){startIdx();startFunds();startSocial();startFresh();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),5000)}
+function startExt(){startIdx();startFunds();startSocial();startFresh();startTA();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),5000)}
 
 /* ---------- off-hours memory: extended-hours learning, overnight recording ---------- */
 function offHours(M,d,bars,r){
@@ -1924,6 +1941,9 @@ function soxlLevels(){
   add(hi,2.5,"High of day",true);add(lo,2.5,"Low of day",true);
   add(Q[FUND].pc,1.5,"Prior close",false);
   if(vwV>0)add(vwPV/vwV,2,"VWAP",false);
+  {const TC=TAC[FUND];if(TC){add(TC.pmh,2,"Pre-market high",true);add(TC.pml,2,"Pre-market low",true);if(TC.orDone){add(TC.or30h,2,"Opening-range high",true);add(TC.or30l,2,"Opening-range low",true)}
+    if(TC.vsd>0){add(TC.vwap+TC.vsd,1.2,"VWAP +1σ",false);add(TC.vwap-TC.vsd,1.2,"VWAP −1σ",false);add(TC.vwap+2*TC.vsd,1.6,"VWAP +2σ",true);add(TC.vwap-2*TC.vsd,1.6,"VWAP −2σ",true)}
+    (TC.fib||[]).forEach(f=>{if([0.382,0.5,0.618].includes(f.r))add(f.p,1.5,"Fib "+f.lab,false);else if(f.ext)add(f.p,1.3,"Fib "+f.lab,true)})}}
   Object.entries(prof).sort((a,b)=>b[1]-a[1]).slice(0,3).forEach(([k])=>add(+k,1.5,"Volume node",false));
   const B=todayBars,sh=[],sl=[];
   for(let i=2;i<B.length-2;i++){
@@ -2536,7 +2556,7 @@ async function startDemo(){
   const mkt={v:0},cry={v:0},oil={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
   let lagIdx=0;const vol=()=>Math.round(100+Math.random()*2000);
   const drift=(s,tgtR)=>{const q=Q[s];const tgt=q.pc*(1+tgtR+(Math.random()-0.5)*0.0015);onTick(s,+(q.c+(tgt-q.c)*0.35).toFixed(2),vol())};
-  startIdx();startFunds();startSocial();startFresh();
+  startIdx();startFunds();startSocial();startFresh();startTA();
   demoTimer=setInterval(()=>{
     mkt.v+=(Math.random()-0.5)*0.0003;cry.v+=(Math.random()-0.5)*0.0004+(Math.random()-0.5)*0.0002*Math.sign(mkt.v);
     HOLDINGS.forEach(h=>{if(Math.random()<0.6){const q=Q[h[0]];const tgt=q.pc*(1+mkt.v*beta[h[0]]+(Math.random()-0.5)*0.004);onTick(h[0],+(q.c+(tgt-q.c)*0.3).toFixed(2),Math.round(Math.random()*500))}});
@@ -2613,6 +2633,7 @@ function pkPosts(D){
   if(lv&&lv.up)t.push(`▲ ${fmtPx(lv.up.price)} · ${lv.up.label.split(" + ")[0]} · ${Math.round(lv.up.p30*100)}% odds in 30m`);
   if(lv&&lv.dn)t.push(`▼ ${fmtPx(lv.dn.price)} · ${lv.dn.label.split(" + ")[0]} · ${Math.round(lv.dn.p30*100)}% odds in 30m`);
   if(lv&&lv.fl)t.push(`Liquidity flush: ${fmtPx(lv.fl.price)} (${lv.fl.label.split(" + ")[0]}) ${fmtEta(lv.fl.eta)}`);
+  {const TC=TAC[FUND];if(TC){const b=[];if(isFinite(TC.vwap))b.push(`VWAP ${fmtPx(TC.vwap)}${isFinite(TC.vwz)?` (${TC.vwz>=0?"+":""}${TC.vwz.toFixed(1)}σ)`:""}`);if(isFinite(TC.rvol))b.push(`RVOL ${TC.rvol.toFixed(1)}×`);if(isFinite(TC.rangeAtr))b.push(`range ${Math.round(TC.rangeAtr*100)}% of ATR`);if(b.length)t.push(b.join(" · "))}}
   if(D&&D.T&&D.T.c0>0)t.push(`Prior close ${fmtPx(D.T.c0)}`);
   P.push({k:"levels",title:"Levels to watch",text:t.join("\n")});
   // 5 extended hours or smart money
@@ -2699,6 +2720,12 @@ function checkAlerts(){
   if(ph==="regular")ORDER.slice(0,10).forEach(s=>{const r=dayPct(s);if(!isNum(r))return;const row=m.rows.find(x=>x.s===s);const mk=()=>`${cash(s)} ${fmtPct(r)} today${row?` · ${(row.w*100).toFixed(1)}% of the $SOXL index → ${ipts(row.contrib)}`:""}`;mk.extra=[s,Math.abs(r)>=0.05];ladder(`h${day}${s}`,r,[0.03,0.05],mk)});
   if(pr.ext&&isFinite(pr.xPct)){const mk=()=>`${pr.xLab} $SOXL ${fmtPx(pr.xP)} ${sgn(pr.xC)} (${fmtPct(pr.xPct)}) vs ${pr.xLab==="Pre-market"?"prior close":"4pm close"}`;mk.extra=[FUND,Math.abs(pr.xPct)>=0.02];ladder(`x${day}${pr.xLab}`,pr.xPct,[0.01,0.02,0.03,0.05],mk)}
   if(m.live&&ph==="regular"&&isFinite(m.fr)&&Math.abs(m.fr-m.imp)>=0.006)alert1("gap"+Math.sign(m.fr-m.imp),30*60000,`$SOXL is ${fmtPct(Math.abs(m.fr-m.imp))} ${m.fr>m.imp?"above":"below"} its 3× implied value (index ${fmtPct(m.idx)})`,FUND);
+  {const TC=TAC[FUND];if(TC&&ph==="regular"){
+    if(TC.rvol>=2)alert1("rvol2"+day,864e5,`🔥 $SOXL relative volume ${TC.rvol.toFixed(1)}× normal for this time of day · ${fmtPx(P)} ${fmtPct(pr.pct)}`,FUND,true);
+    if(TC.rangeAtr>=1)alert1("atr1"+day,864e5,`📏 $SOXL day range ${fmtPx(TC.range)} is now larger than its 14-day ATR (${fmtPx(TC.atr)}): a big-move day`,FUND,true);
+    if(Math.abs(TC.vwz)>=2)alert1("vw2"+Math.sign(TC.vwz),30*60000,`$SOXL ${TC.vwz>0?"above":"below"} VWAP ${TC.vwz>0?"+":"−"}2σ (${fmtPx(P)} vs VWAP ${fmtPx(TC.vwap)}): stretched`,FUND,true);
+    if(TC.orb==="above"||TC.orb==="below")alert1("orb"+TC.orb+day,864e5,`$SOXL broke ${TC.orb==="above"?"above":"below"} its 30-min opening range (${fmtPx(TC.or30l)}–${fmtPx(TC.or30h)}) → ${fmtPx(P)}`,FUND,true);
+    if(TC.burst>=3)alert1("burst",15*60000,`$SOXL volume burst: last 5 min ${TC.burst.toFixed(1)}× the usual for this time · ${fmtPx(P)}`,FUND)}}
   const b5=blockFlow(5);if(Math.abs(b5.net)>=3e6)alert1("blk"+Math.sign(b5.net),15*60000,`Large prints: ${b5.net>0?"+":"−"}${fmtBig(Math.abs(b5.net))} net ${b5.net>0?"bullish":"bearish"} in $SOXL/$SOXS in 5 minutes (${b5.n} prints ≥ $250k)`,FUND,true);
   if(D&&isFinite(D.fg.score)){if(D.fg.score>=75)alert1("fgG"+day,864e5,`Semis Fear & Greed at ${Math.round(D.fg.score)} (extreme greed) · $SOXL ${fmtPct(pr.pct)}`,FUND);if(D.fg.score<=25)alert1("fgF"+day,864e5,`Semis Fear & Greed at ${Math.round(D.fg.score)} (extreme fear) · $SOXL ${fmtPct(pr.pct)}`,FUND)}
   const G=D&&D.GT;if(G){if(G.down>=70)alert1("run",30*60000,`⚠️ $SOXL run risk ${G.down}/100: players race to sell first (crowd game ${G.coop.toFixed(2)}) · ${fmtPx(P)} ${fmtPct(pr.pct)}`,FUND,true);
@@ -3250,9 +3277,233 @@ function checkWatch(){
 }
 setInterval(()=>{try{checkWatch()}catch(e){}},5000);
 
+/* ---------- live technical chart: candles, VWAP ±σ, auto Fibonacci, EMA 9/21, key levels, relative volume, big-move radar ---------- */
+var TAD={},TAC={},taHover={main:null,sv:null};
+var TAO={vwap:1,bands:1,fib:1,ema:1,lv:1,vol:1};try{Object.assign(TAO,JSON.parse(lsGet("soxx_tao")||"{}"))}catch(e){}
+var TAV={main:{tf:1,rng:"1d"},sv:{tf:1}};try{Object.assign(TAV.main,JSON.parse(lsGet("soxx_tav")||"{}"))}catch(e){}
+function taSave(){try{lsSet("soxx_tao",JSON.stringify(TAO));lsSet("soxx_tav",JSON.stringify(TAV.main))}catch(e){}}
+async function taLoad(s,force){
+  const D=TAD[s]||(TAD[s]={c1d:null,c5d:null,daily:null,a1:0,a5:0,ad:0});const now=Date.now();
+  if(demo){if(!D.c1d){D.c1d=taDemo(s,1);D.c5d=taDemo(s,5);D.daily=taDemoDaily(s)}return D}
+  const p=fredProxy();if(!p)return D;const y=ySym(s),jobs=[];
+  if(force||now-D.a1>25000){D.a1=now;jobs.push(fetch(`${p}/chart?t=${y}&range=1d&interval=1m`).then(r=>r.json()).then(j=>{if(j.status==="ok")D.c1d=j}).catch(()=>{}))}
+  if(force&&!D.c5d||now-D.a5>300000){D.a5=now;jobs.push(fetch(`${p}/chart?t=${y}&range=5d&interval=5m`).then(r=>r.json()).then(j=>{if(j.status==="ok")D.c5d=j}).catch(()=>{}))}
+  if(!D.daily||now-D.ad>3600000){D.ad=now;jobs.push(fetch(`${p}/chart?t=${y}&range=1y&interval=1d`).then(r=>r.json()).then(j=>{if(j.status==="ok")D.daily=j}).catch(()=>{}))}
+  await Promise.all(jobs);return D;
+}
+function taDemo(s,days){
+  const q=Q[s],base=q.pc||100,out=[];let p=base*(1+(Math.random()-0.5)*0.01);const d0=etDate(),ds=[d0];let d=d0;
+  while(ds.length<days){d=addDays(d,-1);const w=new Date(d+"T12:00:00Z").getUTCDay();if(w>0&&w<6)ds.unshift(d)}
+  const nowMin=etInfo(Date.now()).min,step=days>1?5:1;
+  ds.forEach(dt=>{for(let m=240;m<(dt===d0?Math.min(nowMin,1199):1200);m+=step){const reg=m>=570&&m<960,vol=(reg?(m<600||m>930?3:1):0.15)*(0.6+Math.random())*(s===FUND?9e4:2e4)*step;
+    const o=p;p*=1+(Math.random()-0.497)*(reg?0.0028:0.0012)*Math.sqrt(step);const h=Math.max(o,p)*(1+Math.random()*0.0012),l=Math.min(o,p)*(1-Math.random()*0.0012);
+    out.push([etEpochMin(dt,m)*60000,o,h,l,p,Math.round(vol)])}});
+  return{status:"ok",bars:out};
+}
+function taDemoDaily(s){const out=[];let p=(Q[s].pc||100)*0.8;const t0=Date.now()-300*86400000;for(let i=0;i<250;i++){const o=p;p*=1+(Math.random()-0.48)*0.07;out.push([t0+i*1.2*86400000,o,Math.max(o,p)*1.02,Math.min(o,p)*0.98,p,4e7*(0.6+Math.random())])}return{status:"ok",bars:out}}
+/* today's 1-minute bars (extended hours included), with the live minute merged from the tick feed */
+function taBars(s){
+  const D=TAD[s]||{},src=D.c1d&&D.c1d.bars||[],q=Q[s];if(!src.length&&!(q&&q.c>0))return[];
+  const B=src.filter(b=>b[4]>0).map(b=>{const e=etInfo(b[0]);return{t:b[0],m:Math.floor(b[0]/60000),d:e.d,min:e.min,o:b[1]??b[4],h:b[2]??b[4],l:b[3]??b[4],c:b[4],v:b[5]||0}});
+  const day=B.length?B[B.length-1].d:etDate();let out=B.filter(b=>b.d===day&&b.min>=240&&b.min<1200);
+  const c=cur[s],P=q&&q.c,now=Date.now(),e=etInfo(now),M=Math.floor(now/60000);
+  if(P>0&&e.d===day&&e.min>=240&&e.min<1200){const L=out[out.length-1];
+    if(L&&L.m===M){L.c=P;L.h=Math.max(L.h,P);L.l=Math.min(L.l,P);if(c&&c.m===M&&c.v>L.v)L.v=c.v}
+    else if(!L||L.m<M)out.push({t:M*60000,m:M,d:day,min:e.min,o:c&&c.m===M?c.o:P,h:c&&c.m===M?Math.max(c.h,P):P,l:c&&c.m===M?Math.min(c.l,P):P,c:P,v:c&&c.m===M?c.v:0})}
+  return out;
+}
+function taAgg(B,tf){if(tf<=1)return B;const out=[];let g=null;B.forEach(b=>{const k=Math.floor(b.min/tf);if(!g||g.k!==k){g={k,t:b.t,m:b.m,d:b.d,min:k*tf,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v};out.push(g)}else{g.h=Math.max(g.h,b.h);g.l=Math.min(g.l,b.l);g.c=b.c;g.v+=b.v}});return out}
+function emaArr(xs,n){const k=2/(n+1),out=[];let e=NaN;xs.forEach((x,i)=>{e=isNaN(e)?x:x*k+e*(1-k);out.push(i>=n-1?e:NaN)});return out}
+function taCalc(s){
+  const B=taBars(s),D=TAD[s]||{},q=Q[s]||{},P=q.c>0?q.c:B.length?B[B.length-1].c:NaN,now=Date.now(),nowMin=demo?Math.min(etInfo(now).min,1199):etInfo(now).min;
+  const pre=B.filter(b=>b.min<570),reg=B.filter(b=>b.min>=570&&b.min<960),post=B.filter(b=>b.min>=960);
+  const hi=a=>a.length?Math.max(...a.map(b=>b.h)):NaN,lo=a=>a.length?Math.min(...a.map(b=>b.l)):NaN;
+  const C={s,B,P,pmh:hi(pre),pml:lo(pre),or15h:hi(reg.filter(b=>b.min<585)),or15l:lo(reg.filter(b=>b.min<585)),or30h:hi(reg.filter(b=>b.min<600)),or30l:lo(reg.filter(b=>b.min<600)),orDone:reg.length&&reg[reg.length-1].min>=599};
+  // VWAP from 9:30 (from 4:00 before the open); bands are the volume-weighted standard deviation
+  const anc=reg.length?reg[0].t:B.length?B[0].t:0;let pv=0,vv=0,p2=0,useV=B.some(b=>b.t>=anc&&b.v>0);
+  C.vw=B.map(b=>{if(b.t<anc)return null;const tp=(b.h+b.l+b.c)/3,w=useV?b.v:1;pv+=tp*w;vv+=w;p2+=tp*tp*w;if(!(vv>0))return null;const m=pv/vv,sd=Math.sqrt(Math.max(0,p2/vv-m*m));return{m,sd}});
+  const lv=[...C.vw].reverse().find(x=>x);C.vwap=lv?lv.m:NaN;C.vsd=lv?lv.sd:NaN;C.vwapLab=reg.length?"VWAP":"VWAP (pre-market)";if(!useV)C.vwapLab="TWAP (no volume yet)";
+  C.vwz=C.vsd>0&&P>0?(P-C.vwap)/C.vsd:NaN;
+  // day swing for Fibonacci: regular session once open, else the whole day so far
+  const sw=reg.length>=5?reg:B;let H=-Infinity,L=Infinity,tH=0,tL=0;sw.forEach(b=>{if(b.h>H){H=b.h;tH=b.t}if(b.l<L){L=b.l;tL=b.t}});
+  if(isFinite(H)&&isFinite(L)&&H>L){const up=tL<tH,R=H-L;C.swing={H,L,up};
+    C.fib=[0.236,0.382,0.5,0.618,0.786].map(r=>({r,lab:(r*100).toFixed(1)+"%",p:up?H-R*r:L+R*r})).concat([1.272,1.618].map(r=>({r,lab:(r*100).toFixed(1)+"% ext",p:up?L+R*r:H-R*r,ext:1})))}
+  else C.fib=[];
+  C.dayH=hi(B);C.dayL=lo(B);C.range=C.dayH-C.dayL;
+  // prior day and ATR from daily bars
+  const dB=(D.daily&&D.daily.bars||[]).filter(b=>b[4]>0).map(b=>({d:etInfo(b[0]).d,o:b[1],h:b[2],l:b[3],c:b[4],v:b[5]||0}));
+  const today=B.length?B[B.length-1].d:etDate(),past=dB.filter(b=>b.d<today);
+  const pd=past[past.length-1];C.pdh=pd?pd.h:NaN;C.pdl=pd?pd.l:NaN;C.pdc=q.pc>0?q.pc:pd?pd.c:NaN;
+  if(past.length>=15){let atr=0;for(let i=past.length-14;i<past.length;i++){const b=past[i],pc=past[i-1].c;atr+=Math.max(b.h-b.l,Math.abs(b.h-pc),Math.abs(b.l-pc))}C.atr=atr/14;C.atrPct=C.atr/past[past.length-1].c;
+    const v20=past.slice(-20).map(b=>b.v).filter(v=>v>0);C.avgVol=v20.length?mean(v20):NaN}
+  C.rangeAtr=C.atr>0?C.range/C.atr:NaN;
+  // relative volume at this time of day, from the last 5 days of 5-minute bars
+  const F=(D.c5d&&D.c5d.bars||[]).map(b=>{const e=etInfo(b[0]);return{d:e.d,min:e.min,v:b[5]||0}}).filter(b=>b.d<today&&b.min>=570&&b.min<960);
+  const days=[...new Set(F.map(b=>b.d))],tMin=Math.min(nowMin,959);
+  const regV=reg.reduce((a,b)=>a+b.v,0);C.regV=regV;
+  if(days.length&&reg.length&&nowMin>=575){const cum=days.map(dd=>F.filter(b=>b.d===dd&&b.min<tMin).reduce((a,b)=>a+b.v,0)).filter(v=>v>0);
+    if(cum.length){C.rvol=regV/mean(cum);const full=days.map(dd=>F.filter(b=>b.d===dd).reduce((a,b)=>a+b.v,0)).filter(v=>v>0);C.projVol=full.length?C.rvol*mean(full):NaN}
+    const bucket=Math.floor(tMin/5)*5,bv=days.map(dd=>F.filter(b=>b.d===dd&&b.min===bucket-5).reduce((a,b)=>a+b.v,0)).filter(v=>v>0);
+    const last5=reg.filter(b=>b.min>=tMin-5).reduce((a,b)=>a+b.v,0);if(bv.length)C.burst=last5/mean(bv)}
+  else if(isFinite(C.avgVol)&&reg.length){C.rvol=NaN}
+  // per-bar normal volume (median of today's regular bars) for volume colors
+  const vs=reg.map(b=>b.v).filter(v=>v>0).sort((a,b)=>a-b);C.medV=vs.length?vs[Math.floor(vs.length/2)]:NaN;
+  // opening-range breakout
+  C.orb=!C.orDone||!(P>0)?"forming":P>C.or30h?"above":P<C.or30l?"below":"inside";
+  // EMA trend on 5-minute closes
+  const b5=taAgg(B.filter(b=>b.min>=(reg.length?570:240)),5).map(b=>b.c),e9=emaArr(b5,9),e21=emaArr(b5,21);C.ema9=e9[e9.length-1];C.ema21=e21[e21.length-1];
+  C.trend=isFinite(C.ema9)&&isFinite(C.ema21)?(C.ema9>C.ema21&&P>C.vwap?"up":C.ema9<C.ema21&&P<C.vwap?"down":"mixed"):"--";
+  // big-move pressure (0-100) from the parts above
+  const parts=[isFinite(C.rvol)?clamp((C.rvol-1)/2,0,1):NaN,isFinite(C.rangeAtr)?clamp(C.rangeAtr/1.2,0,1):NaN,isFinite(C.vwz)?clamp(Math.abs(C.vwz)/2.5,0,1):NaN,C.orb==="above"||C.orb==="below"?1:C.orb==="inside"?0:NaN,isFinite(C.burst)?clamp((C.burst-1)/3,0,1):NaN];
+  const w=[0.3,0.25,0.2,0.1,0.15];let ss=0,ww=0;parts.forEach((v,i)=>{if(isFinite(v)){ss+=v*w[i];ww+=w[i]}});C.pressure=ww>=0.4?Math.round(100*ss/ww):NaN;
+  TAC[s]=C;return C;
+}
+/* history: how often SOXL closed 5% or more from the prior close after a start like today's */
+function bigDayOdds(){
+  const st=sessStats(),D=st.D||[],T=todaySess(),e=etInfo(Date.now()),min=demo?660:e.min;
+  let key=null,x=NaN,lab="";
+  if(T.phase==="regular"&&min>=630&&isNum(T.f60)){key="f60";x=T.f60;lab="first hour"}else if(T.phase==="regular"&&min>=600&&isNum(T.f30)){key="f30";x=T.f30;lab="first 30 min"}
+  else if(isNum(T.gap)){key="gap";x=T.gap;lab=T.gapInd?"indicated gap":"gap"}
+  if(!key||!isNum(x))return null;
+  const sim=D.filter(d=>isNum(d[key])&&isNum(d.cc)&&Math.sign(d[key])===Math.sign(x)&&Math.abs(d[key])>=Math.abs(x)*0.7&&Math.abs(d[key])<=Math.abs(x)*1.6);
+  const all=D.filter(d=>isNum(d.cc));if(sim.length<8||!all.length)return{key,x,lab,n:sim.length};
+  const big=sim.filter(d=>Math.abs(d.cc)>=0.05).length/sim.length,base=all.filter(d=>Math.abs(d.cc)>=0.05).length/all.length,same=sim.filter(d=>Math.sign(d.cc)===Math.sign(x)).length/sim.length;
+  return{key,x,lab,n:sim.length,big,base,same,med:median(sim.map(d=>d.cc))};
+}
+function taRadarHtml(C,withHist){
+  const st=(k,v,sub,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||""}">${v}</div><div class="s">${sub||""}</div></div>`;
+  let h=st("Big-move pressure",isFinite(C.pressure)?C.pressure+"/100":"--",isFinite(C.pressure)?(C.pressure>=70?"High: a large move is in play":C.pressure>=45?"Building":"Quiet"):"needs volume and ATR",C.pressure>=70?"up":"")+
+    st("Relative volume",isFinite(C.rvol)?C.rvol.toFixed(2)+"×":"--",isFinite(C.rvol)?`vs last ${(TAD[C.s]&&TAD[C.s].c5d)?"4":"--"} sessions at this time`+(isFinite(C.projVol)?` · proj. ${fmtVol(C.projVol)}`:""):"regular hours only",C.rvol>=2?"up":C.rvol<0.7?"down":"")+
+    st("Range vs ATR",isFinite(C.rangeAtr)?Math.round(C.rangeAtr*100)+"%":"--",isFinite(C.atr)?`range ${fmtPx(C.range)} · ATR ${fmtPx(C.atr)} (${(C.atrPct*100).toFixed(1)}%)`:"",C.rangeAtr>=1?"up":"")+
+    st("Room left (ATR)",isFinite(C.atr)&&isFinite(C.range)?(C.range>=C.atr?"Exceeded":"±"+fmtPx(C.atr-C.range)):"--",isFinite(C.atr)?(C.range>=C.atr?"move already larger than a normal day":`to ${fmtPx(C.dayL+C.atr)} up or ${fmtPx(C.dayH-C.atr)} down`):"")+
+    st(C.vwapLab,isFinite(C.vwap)?fmtPx(C.vwap):"--",isFinite(C.vwz)?`price ${C.vwz>=0?"+":""}${C.vwz.toFixed(2)}σ · bands ${fmtPx(C.vwap-2*C.vsd)}–${fmtPx(C.vwap+2*C.vsd)}`:"",Math.abs(C.vwz)>=2?(C.vwz>0?"up":"down"):"")+
+    st("Opening range (30m)",isFinite(C.or30h)?`${fmtPx(C.or30l)}–${fmtPx(C.or30h)}`:"--",C.orb==="above"?"broke out up":C.orb==="below"?"broke down":C.orb==="inside"?"inside the range":"forming",C.orb==="above"?"up":C.orb==="below"?"down":"")+
+    st("Volume burst (5 min)",isFinite(C.burst)?C.burst.toFixed(1)+"×":"--","vs the same 5 min on past days",C.burst>=3?"up":"")+
+    st("Trend (EMA 9/21, VWAP)",C.trend==="up"?"Up":C.trend==="down"?"Down":C.trend==="mixed"?"Mixed":"--",isFinite(C.ema9)?`EMA9 ${fmtPx(C.ema9)} · EMA21 ${fmtPx(C.ema21)}`:"5-min bars",C.trend==="up"?"up":C.trend==="down"?"down":"");
+  if(C.swing){const nf=[...C.fib].filter(f=>!f.ext).sort((a,b)=>Math.abs(a.p-C.P)-Math.abs(b.p-C.P))[0];h+=st("Nearest Fib",nf?fmtPx(nf.p):"--",nf?`${nf.lab} of the ${C.swing.up?"up":"down"} swing ${fmtPx(C.swing.L)}–${fmtPx(C.swing.H)}`:"")}
+  return h;
+}
+function taLevels(C){
+  const L=[];const add=(p,lab,col,dash)=>{if(isFinite(p)&&p>0)L.push({p,lab,col,dash})};
+  if(TAO.lv){add(C.pdh,"PDH",TH.dim,[4,4]);add(C.pdl,"PDL",TH.dim,[4,4]);add(C.pdc,"Prior close",TH.mute,[2,4]);add(C.pmh,"PM high","#9b6bff",[6,3]);add(C.pml,"PM low","#9b6bff",[6,3]);
+    if(C.orDone){add(C.or30h,"OR high",TH.accent,[6,3]);add(C.or30l,"OR low",TH.accent,[6,3])}}
+  if(TAO.fib)C.fib.forEach(f=>add(f.p,"Fib "+f.lab,"#d4a017",[2,3]));
+  return L;
+}
+/* draw: candles + overlays in the top pane, volume in the bottom pane; crosshair on hover */
+function taDraw(view){
+  const isMain=view==="main",s=isMain?FUND:curSym;if(!s)return;
+  const cv=$(isMain?"taChart":"svChart");if(!cv||!cv.offsetParent)return;
+  const C=TAC[s]||taCalc(s),V=TAV[view],tf=V.tf||1;
+  let B=C.B;if(isMain&&V.rng==="5d"){const F=(TAD[s]&&TAD[s].c5d&&TAD[s].c5d.bars)||[];B=F.filter(b=>b[4]>0).map(b=>{const e=etInfo(b[0]);return{t:b[0],m:Math.floor(b[0]/60000),d:e.d,min:e.min,o:b[1],h:b[2],l:b[3],c:b[4],v:b[5]||0}}).filter(b=>b.min>=240&&b.min<1200);if(tf>5)B=taAgg(B,tf)}
+  else B=taAgg(B,tf);
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.scale(dpr,dpr);g.clearRect(0,0,W,H);
+  const Lm=8,Rm=64,T=8,VB=TAO.vol?Math.round(H*0.2):0,PB=H-VB-22;
+  if(B.length<2){g.fillStyle=TH.mute;g.font="12px JetBrains Mono, ui-monospace, Menlo, monospace";g.fillText(fredProxy()||demo?"Loading chart…":"Add the Worker URL (API key box) for the live chart",Lm+6,H/2);return}
+  const oneDay=!(isMain&&V.rng==="5d");
+  // overlay series aligned to the drawn bars
+  let vwS=[];if(oneDay&&TAO.vwap){const map={};C.B.forEach((b,i)=>{map[Math.floor(b.min/tf)]=C.vw[i]});vwS=B.map(b=>map[Math.floor(b.min/tf)]||null)}
+  const closes=B.map(b=>b.c),e9=TAO.ema?emaArr(closes,9):[],e21=TAO.ema?emaArr(closes,21):[];
+  const levels=oneDay?taLevels(C):[];
+  let lo=Math.min(...B.map(b=>b.l)),hi=Math.max(...B.map(b=>b.h));const span0=hi-lo||hi*0.01;
+  const within=p=>p>=lo-span0*0.35&&p<=hi+span0*0.35;
+  levels.forEach(l=>{if(within(l.p)){lo=Math.min(lo,l.p);hi=Math.max(hi,l.p)}});
+  if(TAO.bands)vwS.forEach(x=>{if(x&&x.sd>0){const a=x.m-2*x.sd,b=x.m+2*x.sd;if(within(a))lo=Math.min(lo,a);if(within(b))hi=Math.max(hi,b)}});
+  const pad=(hi-lo)*0.06||1;lo-=pad;hi+=pad;
+  const n=B.length,cw=(W-Lm-Rm)/n,X=i=>Lm+cw*(i+0.5),Y=p=>T+(hi-p)/(hi-lo)*(PB-T);
+  // session shading and day separators
+  g.fillStyle=document.documentElement.dataset.theme==="light"?"rgba(15,23,38,.045)":"rgba(255,255,255,.035)";
+  B.forEach((b,i)=>{if(b.min<570||b.min>=960)g.fillRect(Lm+cw*i,T,cw+0.5,PB-T+VB+4)});
+  g.strokeStyle=TH.line;g.lineWidth=1;g.font="10px JetBrains Mono, ui-monospace, Menlo, monospace";g.fillStyle=TH.mute;
+  for(let k=0;k<=4;k++){const p=lo+(hi-lo)*k/4,y=Y(p);g.globalAlpha=0.5;g.beginPath();g.moveTo(Lm,y);g.lineTo(W-Rm,y);g.stroke();g.globalAlpha=1;g.fillText(fmtPx(p),W-Rm+4,y+3)}
+  // time labels
+  let lastLab=-1e9;B.forEach((b,i)=>{const x=X(i);if(x-lastLab<70)return;if(b.min%60===0||(i>0&&B[i-1].d!==b.d)||i===0){const hh=Math.floor(b.min/60),mm=b.min%60;g.fillText((i>0&&B[i-1].d!==b.d||!oneDay&&i===0?b.d.slice(5)+" ":"")+((hh+11)%12+1)+":"+String(mm).padStart(2,"0"),Math.max(Lm,x-14),H-6);lastLab=x}});
+  // levels
+  const placed=[];
+  levels.filter(l=>within(l.p)).sort((a,b)=>Y(a.p)-Y(b.p)).forEach(l=>{const y=Y(l.p);g.save();g.strokeStyle=l.col;g.setLineDash(l.dash);g.globalAlpha=0.85;g.beginPath();g.moveTo(Lm,y);g.lineTo(W-Rm,y);g.stroke();g.restore();
+    // move a label to the right when another label is already near the same height
+    const w=g.measureText(l.lab).width+10;let x=Lm+4;placed.filter(q=>Math.abs(q.y-y)<11).forEach(q=>{x=Math.max(x,q.x+q.w)});
+    if(x+w<W-Rm){g.fillStyle=l.col;g.fillText(l.lab,x,y-3);placed.push({x,y,w})}});
+  // VWAP bands and line
+  if(vwS.length){const band=(k,a)=>{g.save();g.strokeStyle=TH.amber;g.globalAlpha=a;g.setLineDash([4,3]);g.beginPath();let st=false;vwS.forEach((x,i)=>{if(!x)return;const y=Y(x.m+k*x.sd);st?g.lineTo(X(i),y):g.moveTo(X(i),y);st=true});g.stroke();g.restore()};
+    if(TAO.bands){g.save();g.fillStyle=TH.amber;g.globalAlpha=0.06;g.beginPath();let first=true;vwS.forEach((x,i)=>{if(!x)return;const y=Y(x.m+x.sd);first?g.moveTo(X(i),y):g.lineTo(X(i),y);first=false});for(let i=vwS.length-1;i>=0;i--){const x=vwS[i];if(x)g.lineTo(X(i),Y(x.m-x.sd))}g.closePath();g.fill();g.restore();[1,-1].forEach(k=>band(k,0.55));[2,-2].forEach(k=>band(k,0.35))}
+    g.save();g.strokeStyle=TH.amber;g.lineWidth=1.8;g.beginPath();let st=false;vwS.forEach((x,i)=>{if(!x)return;st?g.lineTo(X(i),Y(x.m)):g.moveTo(X(i),Y(x.m));st=true});g.stroke();g.restore()}
+  // EMAs
+  const line=(arr,col)=>{g.save();g.strokeStyle=col;g.lineWidth=1.3;g.beginPath();let st=false;arr.forEach((v,i)=>{if(!isFinite(v))return;st?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v));st=true});g.stroke();g.restore()};
+  if(TAO.ema){line(e9,TH.accent);line(e21,"#9b6bff")}
+  // candles
+  const bw=Math.max(1,Math.min(10,cw*0.7));
+  B.forEach((b,i)=>{const x=X(i),up=b.c>=b.o,col=up?TH.up:TH.down;g.strokeStyle=col;g.fillStyle=col;g.beginPath();g.moveTo(x,Y(b.h));g.lineTo(x,Y(b.l));g.stroke();
+    const y1=Y(Math.max(b.o,b.c)),y2=Y(Math.min(b.o,b.c));if(bw>=3)g.fillRect(x-bw/2,y1,bw,Math.max(1,y2-y1));else{g.beginPath();g.moveTo(x,y1);g.lineTo(x,y2+1);g.stroke()}});
+  // volume pane: bars brighter when volume is 2x the session's normal
+  if(VB){const vmax=Math.max(...B.map(b=>b.v),1),y0=PB+4+VB,med=(C.medV||0)*tf;
+    B.forEach((b,i)=>{if(!b.v)return;const hv=b.v/vmax*(VB-4),hot=med>0&&b.v>=2*med;g.fillStyle=hot?TH.amber:(b.c>=b.o?TH.up:TH.down);g.globalAlpha=hot?0.95:0.38;g.fillRect(X(i)-bw/2,y0-hv,Math.max(1,bw),hv)});g.globalAlpha=1;
+    g.fillStyle=TH.mute;g.fillText("vol",W-Rm+4,PB+14)}
+  // last price
+  const P=B[B.length-1].c,yP=Y(P);g.save();g.setLineDash([2,2]);g.strokeStyle=TH.ink;g.globalAlpha=0.5;g.beginPath();g.moveTo(Lm,yP);g.lineTo(W-Rm,yP);g.stroke();g.restore();
+  g.fillStyle=TH.ink;g.fillRect(W-Rm+1,yP-8,Rm-2,16);g.fillStyle=TH.bg;g.font="600 11px JetBrains Mono, ui-monospace, Menlo, monospace";g.fillText(fmtPx(P),W-Rm+4,yP+4);
+  // crosshair
+  const hv=taHover[view];if(hv!=null&&hv.x>=Lm&&hv.x<=W-Rm){const i=clamp(Math.floor((hv.x-Lm)/cw),0,n-1),b=B[i];g.save();g.strokeStyle=TH.dim;g.setLineDash([3,3]);g.beginPath();g.moveTo(X(i),T);g.lineTo(X(i),PB+VB);g.stroke();g.restore();
+    const tip=$(isMain?"taTip":"svTip");if(tip){const hh=Math.floor(b.min/60),mm=b.min%60,vw=vwS[i];tip.style.display="block";
+      tip.innerHTML=`<b>${oneDay?"":b.d.slice(5)+" "}${(hh+11)%12+1}:${String(mm).padStart(2,"0")}${hh<12?"am":"pm"}</b> O ${fmtPx(b.o)} H ${fmtPx(b.h)} L ${fmtPx(b.l)} C <b class="${cls(b.c-b.o)}">${fmtPx(b.c)}</b> · Vol ${fmtVol(b.v)}${vw?` · VWAP ${fmtPx(vw.m)}`:""}${isFinite(e9[i])?` · EMA9 ${fmtPx(e9[i])}`:""}`;
+      tip.style.left=Math.min(Math.max(4,X(i)-120),W-260)+"px"}}
+  else{const tip=$(isMain?"taTip":"svTip");if(tip)tip.style.display="none"}
+}
+function taCtlHtml(view){
+  const V=TAV[view],b=(attr,val,lab,on)=>`<button data-ta="${view}" ${attr}="${val}" class="${on?"on":""}">${lab}</button>`;
+  return (view==="main"?b("data-rng","1d","Today",V.rng!=="5d")+b("data-rng","5d","5D",V.rng==="5d"):"")+
+    [1,5,15].map(t=>b("data-tf",t,t+"m",(V.tf||1)===t)).join("")+'<span class="tasep"></span>'+
+    [["vwap","VWAP"],["bands","±σ"],["fib","Fib"],["ema","EMA 9/21"],["lv","Levels"],["vol","Volume"]].map(([k,l])=>b("data-ov",k,l,TAO[k])).join("");
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-ta]");if(!b)return;const v=b.dataset.ta;
+  if(b.dataset.tf)TAV[v].tf=+b.dataset.tf;if(b.dataset.rng)TAV[v].rng=b.dataset.rng;if(b.dataset.ov)TAO[b.dataset.ov]=TAO[b.dataset.ov]?0:1;
+  taSave();taRender(true)});
+["taChart","svChart"].forEach(id=>{const cv=$(id);if(!cv)return;const v=id==="taChart"?"main":"sv";
+  cv.addEventListener("mousemove",e=>{const r=cv.getBoundingClientRect();taHover[v]={x:e.clientX-r.left};taDraw(v)});
+  cv.addEventListener("mouseleave",()=>{taHover[v]=null;taDraw(v)})});
+var taT=0;
+function taRender(force){
+  const now=Date.now();if(!force&&now-taT<2000)return;taT=now;
+  try{const C=taCalc(FUND);if($("taCtl"))$("taCtl").innerHTML=taCtlHtml("main");
+    if($("taRadar"))$("taRadar").innerHTML=taRadarHtml(C,true);
+    const bd=bigDayOdds();if($("taHist"))$("taHist").innerHTML=bd&&isFinite(bd.big)?`<b>History:</b> on ${bd.n} past days with a ${bd.lab} like today's (${fmtPct(bd.x)}), SOXL closed 5% or more away from the prior close <b>${Math.round(bd.big*100)}%</b> of the time (all days: ${Math.round(bd.base*100)}%), and closed in the same direction <b>${Math.round(bd.same*100)}%</b> of the time (median close ${fmtPct(bd.med)}).`:bd?`History: only ${bd.n} past days had a ${bd.lab} like today's.`:"History: the big-day check starts with the gap (pre-market) and updates after 10:00 and 10:30.";
+    if($("taLeg"))$("taLeg").innerHTML=[isFinite(C.vwap)?`<span style="color:var(--amber)">● ${C.vwapLab} ${fmtPx(C.vwap)}</span>`:"",isFinite(C.ema9)?`<span style="color:var(--accent)">● EMA9 ${fmtPx(C.ema9)}</span><span style="color:#9b6bff">● EMA21 ${fmtPx(C.ema21)}</span>`:"",C.swing?`<span style="color:#d4a017">● Fib on ${C.swing.up?"up":"down"} swing ${fmtPx(C.swing.L)}–${fmtPx(C.swing.H)}</span>`:"",`<span class="sub">Shaded = pre-market / after-hours · amber volume = 2× normal</span>`].join("");
+    taDraw("main")}catch(e){console.warn("ta",e)}
+  if(curSym&&!CRYPTO.includes(curSym))try{taCalc(curSym);if($("svTaCtl"))$("svTaCtl").innerHTML=taCtlHtml("sv");if($("svRadar"))$("svRadar").innerHTML=taRadarHtml(TAC[curSym]);taDraw("sv")}catch(e){console.warn("ta sv",e)}
+}
+var taTimer=null;
+function startTA(){clearInterval(taTimer);const tick=async()=>{await taLoad(FUND);if(curSym&&!CRYPTO.includes(curSym))await taLoad(curSym);taRender(true)};tick();taTimer=setInterval(tick,15000)}
+setInterval(()=>{try{taRender(false)}catch(e){}},2000);
+window.addEventListener("resize",()=>{taRender(true)});
+
+/* track record: the last 100 cases of each rule that passed, so one loss reads as 1 of 100 */
+function rules100(){
+  const st=sessStats(),D=st.D||[];if(!st.rules)return[];
+  return st.rules.filter(r=>/Reliable|Likely/.test(r.verdict)).map(r=>{
+    const sg=Math.sign((r.full&&r.full.beta)||r.b||0)||1;
+    const rows=D.filter(d=>isNum(d[r.x])&&isNum(d[r.y])&&d[r.x]!==0&&d[r.y]!==0).slice(-100);
+    const p=rows.map(d=>sg*Math.sign(d[r.x])*d[r.y]);let cum=0,peak=0,dd=0,streak=0,worst=0;const curve=[0];
+    p.forEach(x=>{cum+=x;curve.push(cum);peak=Math.max(peak,cum);dd=Math.min(dd,cum-peak);streak=x<0?streak+1:0;worst=Math.max(worst,streak)});
+    return{r,n:p.length,win:p.length?p.filter(x=>x>0).length/p.length:NaN,avg:p.length?mean(p):NaN,sum:cum,dd,worst,curve,last:p.slice(-10)};
+  }).sort((a,b)=>b.sum-a.sum);
+}
+function spark(curve,w=110,h=26){if(curve.length<2)return"";const lo=Math.min(...curve),hi=Math.max(...curve),R=hi-lo||1;
+  const pts=curve.map((v,i)=>`${(i/(curve.length-1)*w).toFixed(1)},${(h-2-(v-lo)/R*(h-4)).toFixed(1)}`).join(" ");
+  const z=h-2-(0-lo)/R*(h-4);return`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="spk"><line x1="0" x2="${w}" y1="${z}" y2="${z}" stroke="var(--line)" stroke-dasharray="2 2"/><polyline points="${pts}" fill="none" stroke="${curve[curve.length-1]>=0?"var(--up)":"var(--down)"}" stroke-width="1.6"/></svg>`}
+var r100T=0;
+function render100(){
+  const el=$("tr100");if(!el||Date.now()-r100T<30000&&el.innerHTML)return;r100T=Date.now();
+  const R=rules100();
+  el.innerHTML=R.length?`<div class="label" style="margin-top:14px">The 100-case view · each rule that passed, over its last 100 cases</div><div class="tw"><table class="tbl"><tr><th class="l">Rule</th><th>Cases</th><th>Wins</th><th>Avg</th><th>Total</th><th>Worst drawdown</th><th>Longest losing run</th><th class="l">Equity curve</th><th class="l">Last 10</th></tr>`+
+    R.map(x=>`<tr><td class="l" title="${esc(x.r.who||"")}">${esc(x.r.title)} <span class="sub">${x.r.verdict}</span></td><td>${x.n}</td><td>${Math.round(x.win*100)}%</td><td class="${cls(x.avg)}">${fmtPct(x.avg)}</td><td class="${cls(x.sum)}">${fmtPct(x.sum,1)}</td><td class="down">${fmtPct(x.dd,1)}</td><td>${x.worst}</td><td class="l">${spark(x.curve)}</td><td class="l mono">${x.last.map(v=>`<span class="${v>0?"up":"down"}">${v>0?"▲":"▼"}</span>`).join("")}</td></tr>`).join("")+
+    `</table></div><div class="sub" style="margin-top:6px">A real edge still loses often. Read each rule as a batch of 100: one losing case is 1 of 100, not a reason to change the plan. "Total" adds the SOXL moves in the rule's direction for each case (no costs, no leverage).</div>`
+    :`<div class="sub" style="margin-top:12px">The 100-case view appears when at least one rule passes the out-of-sample test (needs the price history from the Worker).</div>`;
+}
+setInterval(()=>{try{render100()}catch(e){}},5000);
+
 /* ---------- main page order: most useful first ---------- */
 function reorderMain(){
-  const mv=$("mainView"),seq=["mStrip","extBar","edgeBar","idxPct","postKit","dStance","gtTiles","moversCard","socList","freshList","tiles","fdTbl","trTiles","nuPx","xmTbl","sTiles","xTiles","pFlow","gapTbl","ruleStory","macT","xm2Tbl","todTbl","atScore","chart","knTbl","memKv"];
+  const mv=$("mainView"),seq=["mStrip","extBar","edgeBar","taChart","idxPct","postKit","dStance","gtTiles","moversCard","socList","freshList","tiles","fdTbl","trTiles","nuPx","xmTbl","sTiles","xTiles","pFlow","gapTbl","ruleStory","macT","xm2Tbl","todTbl","atScore","chart","knTbl","memKv"];
   const top=id=>{let e=$(id);while(e&&e.parentElement!==mv)e=e.parentElement;return e};
   seq.forEach(id=>{const e=top(id);if(!e)return;if(id==="tiles"&&e.previousElementSibling&&e.previousElementSibling.classList.contains("toolbar"))mv.appendChild(e.previousElementSibling);mv.appendChild(e)});
 }
@@ -3283,7 +3534,7 @@ $("ctForm").onsubmit=e=>{e.preventDefault();const t=$("ctTopic").value,n=$("ctNa
 function openStock(s){
   const first=curSym!==s;curSym=s;
   $("mainView").style.display="none";$("stockView").style.display="block";
-  if(first){window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true);svLoadExtra(s);svxT=0;startSvNews();renderSvAlerts(s)}
+  if(first){window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true);svLoadExtra(s);svxT=0;startSvNews();renderSvAlerts(s);if(!CRYPTO.includes(s))taLoad(s,true).then(()=>taRender(true))}
   renderStock(true);
 }
 function closeStock(){curSym=null;clearInterval(svNewsT);$("stockView").style.display="none";$("contactView").style.display="none";$("mainView").style.display="block";document.title="SOXX Sniper";dirty=true}
@@ -3418,7 +3669,9 @@ function renderStock(force){
   if(pts.length&&q.c>0&&pts[pts.length-1].c!==q.c){const e=etInfo(now);pts.push({t:now,c:q.c,d:e.d,min:Math.max(e.min,pts[pts.length-1].min)})}
   if(CRYPTO.includes(s))pts.forEach(p=>p.min=600);
   $("svChartLab").textContent=svRange==="5d"?"Last 5 days · 5-minute · extended hours shaded":"Today · 1-minute · extended hours shaded";
-  priceChart($("svChart"),pts,pr.pc);
+  if(svRange==="1d"&&!CRYPTO.includes(s)&&TAD[s]&&TAD[s].c1d){$("svChartLab").textContent="Today · candles · VWAP, Fibonacci, EMA, levels · extended hours shaded";taCalc(s);taDraw("sv")}
+  else priceChart($("svChart"),pts,pr.pc);
+  $("svTaCtl").style.display=svRange==="1d"&&!CRYPTO.includes(s)?"flex":"none";
   // stats
   const hi52=meta.hi52||mic.hi52,lo52=meta.lo52||mic.lo52,cur=q.c;
   const st=(k,v,sub,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||""}">${v}</div><div class="s">${sub||""}</div></div>`;
@@ -3469,7 +3722,7 @@ function renderStock(force){
   scoreHead("svNewsS",list.length?mean(list.slice(0,15).map(n=>n.s)):NaN);
   $("svNews").innerHTML=list.length?list.map(n=>{const a=Math.round((Date.now()/1000-n.t)/60);return`<div class="nrow"><span class="ndot" style="background:${n.s>0.15?"var(--up)":n.s<-0.15?"var(--down)":"var(--mute)"}"></span><span class="sub">${a<60?a+"m":a<1440?Math.round(a/60)+"h":Math.round(a/1440)+"d"}</span><span class="nh">${n.fresh&&Date.now()-n.fresh<600000?'<b class="newb">NEW</b> ':""}${n.url?`<a href="${String(n.url).replace(/"/g,"&quot;")}" target="_blank" rel="noopener">${esc(n.h)}</a>`:esc(n.h)} <span class="sub">${esc(n.src||"")}</span>${(n.tags||[]).map(t=>`<span class="tag">${t}</span>`).join("")}</span></div>`}).join(""):`<div class="sub">${apiKey||demo?"No recent headlines for this symbol.":"Add your Finnhub key for company news."}</div>`;
 }
-function fmtVol(v){return v>=1e9?(v/1e9).toFixed(2)+"B":v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"k":String(v)}
+function fmtVol(v){if(!isFinite(v))return"--";return v>=1e9?(v/1e9).toFixed(2)+"B":v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"k":String(Math.round(v))}
 document.addEventListener("click",e=>{const g=e.target.closest("[data-go]");if(g){location.hash="#/s/"+g.dataset.go}});
 $("svBack").onclick=()=>{location.hash="#/"};
 $("shareMain").onclick=()=>{location.hash="#/s/"+FUND};
