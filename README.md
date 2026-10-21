@@ -94,6 +94,11 @@ Click any tile, or SOXL, SOXS, SOXX, QQQ, SPY or DIA in the market tables. Each 
 - **Rule finder:** 15 market-structure hypotheses (leveraged-ETF rebalancing, market makers, retail at the open, after-hours traders, institutions), tested on 2 years of history with out-of-sample validation. Only rules that pass influence the decision.
 - **Flow map and expected price flow:** who moves SOXL now, and what the validated rules expect for each part of the day.
 
+### Attunement (self-calibration)
+- Each minute, the page gives odds that SOXL touches its 6 nearest levels within 30 minutes, then scores the result. It now scores in **all sessions**: regular hours, pre-market, after-hours and overnight (only while SOXL trades). Each session has its own table and its own volatility scale. Select **Regular** or **Extended hrs** on the card.
+- **Corrected odds:** the page corrects the raw model odds with its own scored history (a monotone curve, shrunk toward the raw odds when a bucket has fewer than about 15 forecasts). For example, if levels with raw odds of 0–10% were touched 35% of the time, a 5% level shows about 20%. The table always shows the raw model, so you can see how well it does.
+- Outside regular hours, volatility comes from the actual moves of the last 90 minutes (all sessions).
+
 ### Memory bank (learns 24 hours a day)
 - **Regular hours:** learns how each stock's 1-minute moves relate to SOXL (correlation, beta, lead), and scores its own forecasts so it can tune itself ("attunement").
 - **Pre-market and after-hours:** learns the same links separately, because off-hours moves are bigger per dollar traded.

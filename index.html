@@ -69,7 +69,7 @@ button.danger:hover{border-color:var(--down);color:var(--down)}
 .sm .h{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:3px}
 .sm .bull{color:var(--up);border:1px solid var(--up);border-radius:4px;padding:0 4px}.sm .bear{color:var(--down);border:1px solid var(--down);border-radius:4px;padding:0 4px}
 .sm .ct{color:var(--accent);cursor:pointer}.sm .tx{word-break:break-word}
-#socTabs button.on{border-color:var(--accent);color:var(--accent)}
+#socTabs button.on,#atSess button.on{border-color:var(--accent);color:var(--accent)}
 #pkBody.hide{display:none}
 .pkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
 .pk{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
@@ -493,7 +493,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
 
   <section class="quad">
     <div class="card">
-      <div class="label">Attunement · self-calibration</div>
+      <div class="toolbar" style="margin:0"><div class="label" style="margin:0">Attunement · self-calibration</div><div class="row" id="atSess"><button data-ats="reg">Regular</button><button data-ats="ext">Extended hrs</button></div></div>
       <div class="score" id="atScore">--<small>/100</small></div>
       <div class="mid" id="atSub">Scores its own forecasts and tunes itself</div>
       <div class="kv" id="atKv" style="margin-top:12px"></div>
@@ -941,13 +941,17 @@ function finalizeMinute(M){
     if(dayRec[FUND]){dayRec[FUND].prof=prof;dayRec[FUND].pv=vwPV;dayRec[FUND].vv=vwV}
     if(bars[FUND])todayBars.push(bars[FUND]);
     META.lastLearn=M;
-    logForecasts(M);
+    logForecasts(M,"reg");
     prevPred=leadSignal().pred;
     META.fc=fcPend;
     idbWrite({bars:Object.values(bars),know:[...touched].map(s=>KN[s]),days:Object.values(dayRec),meta:Object.entries(META).map(([k,v])=>({k,v}))});
   }
   if(!learn)prevPred=NaN;
   if(!learn&&recording())offHours(M,d,bars,r);
+  if(!learn&&recording()&&bars[FUND]&&fcSess()==="ext"){
+    const q=Q[FUND],live=(q.xt||0)>Date.now()-15*60000; // only while SOXL is really trading (pre, after-hours, overnight)
+    if(live){resolveForecasts(M,bars[FUND]);logForecasts(M,"ext");META.fc=fcPend;idbWrite({meta:["fc","calX","cal","sigScaleX"].filter(k=>META[k]!==undefined).map(k=>({k,v:META[k]}))})}
+  }
   prevR={};for(const s in r)prevR[s]=r[s];
   prevIdxR=idxR;prevGap=gapNow;prevRP=rpNow;
   delete pend[FUND];for(const s in pend)if(pend[s].m<=M)delete pend[s];
@@ -955,9 +959,9 @@ function finalizeMinute(M){
 }
 
 /* ---------- attunement: forecast logging, scoring, self-tuning ---------- */
-function logForecasts(M){
+function logForecasts(M,sess){
   const lv=soxlLevels();if(!lv)return;
-  [...lv.levels].sort((a,b)=>a.d-b.d).slice(0,6).forEach(l=>fcPend.push({m:M,price:l.price,dir:l.dir,p:l.p30,seen:0}));
+  [...lv.levels].sort((a,b)=>a.d-b.d).slice(0,6).forEach(l=>fcPend.push({m:M,price:l.price,dir:l.dir,p:l.p30raw,seen:0,x:sess==="ext"?1:0}));
   if(fcPend.length>400)fcPend=fcPend.slice(-400);
 }
 function resolveForecasts(M,sb){
@@ -972,17 +976,33 @@ function resolveForecasts(M,sb){
   fcPend=keep;
 }
 function scoreFc(f,o){
-  const C=META.cal||(META.cal={b:Array.from({length:10},()=>({n:0,sp:0,h:0})),n:0,h:0,bs:0});
+  const k=f.x?"calX":"cal",C=META[k]||(META[k]={b:Array.from({length:10},()=>({n:0,sp:0,h:0})),n:0,h:0,bs:0});
   const i=Math.min(9,Math.max(0,Math.floor(f.p*10))),b=C.b[i];
-  b.n++;b.sp+=f.p;b.h+=o;C.n++;C.h+=o;C.bs+=(f.p-o)*(f.p-o);
-  META.sigScale=clamp((META.sigScale||1)*Math.exp(0.01*(o-f.p)),0.5,2.5);
+  b.n++;b.sp+=f.p;b.h+=o;C.n++;C.h+=o;C.bs+=(f.p-o)*(f.p-o);C.last=Date.now();
+  const sk=f.x?"sigScaleX":"sigScale";META[sk]=clamp((META[sk]||1)*Math.exp(0.01*(o-f.p)),0.5,2.5);
+  calMemo={};
 }
-function attunement(){
-  const C=META.cal;if(!C||C.n<1)return{n:0};
+/* calibrated odds: the model's raw odds corrected with its own scored history (shrunk to the raw odds when a bucket has few forecasts) */
+var calMemo={};
+function calCurve(sess){
+  if(calMemo[sess])return calMemo[sess];
+  const C=META[sess==="ext"?"calX":"cal"];const pts=[[0,0]];
+  if(C&&C.b)C.b.forEach(b=>{if(b.n>=10){const x=b.sp/b.n,k=15;pts.push([x,(b.h+k*x)/(b.n+k)])}});
+  pts.push([1,1]);pts.sort((a,b)=>a[0]-b[0]);
+  for(let i=1;i<pts.length;i++)pts[i][1]=Math.max(pts[i][1],pts[i-1][1]); // monotone
+  return calMemo[sess]=pts;
+}
+function calP(p,sess){
+  if(!isFinite(p))return p;const P=calCurve(sess);if(P.length<=2)return p;
+  for(let i=1;i<P.length;i++)if(p<=P[i][0]){const [x0,y0]=P[i-1],[x1,y1]=P[i];return clamp(x1>x0?y0+(y1-y0)*(p-x0)/(x1-x0):y1,0,1)}
+  return p;
+}
+function attunement(sess){
+  const C=META[sess==="ext"?"calX":"cal"];if(!C||C.n<1)return{n:0,sess};
   let ece=0;C.b.forEach(b=>{if(b.n)ece+=b.n*Math.abs(b.sp/b.n-b.h/b.n)});ece/=C.n;
   const o=C.h/C.n,bs=C.bs/C.n,ref=o*(1-o),bss=ref>0?1-bs/ref:NaN;
   const KP=statOf(getK("_PRED").ce);
-  return{n:C.n,ece,bs,bss,o,score:Math.round(clamp(100*(1-2*ece),0,100)),ic:KP.corr,icn:KP.n,dirN:META.dirN||0,dirHit:META.dirHit||0,k:META.sigScale||1,b:C.b};
+  return{n:C.n,ece,bs,bss,o,score:Math.round(clamp(100*(1-2*ece),0,100)),ic:KP.corr,icn:KP.n,dirN:META.dirN||0,dirHit:META.dirHit||0,k:(sess==="ext"?META.sigScaleX:META.sigScale)||1,b:C.b,last:C.last,sess};
 }
 
 /* ---------- quant, crowd, health ---------- */
@@ -1782,7 +1802,12 @@ function compute(){
 }
 
 /* ---------- liquidity map ---------- */
+function fcSess(){const ph=demo?"regular":phaseAt(Date.now());return ph==="regular"?"reg":"ext"}
 function soxlSigma(){
+  if(fcSess()==="ext"){
+    const h=(hist[FUND]||[]).filter(b=>b.c>0),now=nowM(),w=h.filter(b=>now-b.m<=90);
+    if(w.length>=10){let s2=0;for(let i=1;i<w.length;i++)s2+=Math.log(w[i].c/w[i-1].c)**2;const N=Math.max(1,w[w.length-1].m-w[0].m);const sd=Math.sqrt(s2/N);if(sd>0)return{sig:Math.max(sd,0.0008),src:"off-hours "+N+" min"}}
+  }
   const rs=[];const b=todayBars.slice(-61);for(let i=1;i<b.length;i++)if(b[i].m===b[i-1].m+1&&b[i-1].c>0)rs.push(Math.log(b[i].c/b[i-1].c));
   const sd=stdev(rs);if(rs.length>=15&&sd>0)return{sig:sd,src:"live "+rs.length+" min"};
   const st=statOf(getK(FUND).le);if(st.n>=30&&st.sdy>0)return{sig:st.sdy,src:"memory"};
@@ -1823,9 +1848,9 @@ function soxlLevels(){
   const M=[];L.forEach(l=>{const last=M[M.length-1];
     if(last&&Math.abs(l.price/last.price-1)<0.001){if(l.score>last.score)last.price=l.price;last.score=Math.max(last.score,l.score)+0.3*Math.min(last.score,l.score);last.labels.push(...l.labels);last.pool=last.pool||l.pool}
     else M.push({...l,labels:[...l.labels]})});
-  const sv=soxlSigma(),kS=META.sigScale||1,sig=sv.sig*kS,src=sv.src+(Math.abs(kS-1)>0.005?" ×"+kS.toFixed(2)+" tuned":""), ls=leadSignal();
+  const sv=soxlSigma(),SS=fcSess(),kS=(SS==="ext"?META.sigScaleX:META.sigScale)||1,sig=sv.sig*kS,src=sv.src+(Math.abs(kS-1)>0.005?" ×"+kS.toFixed(2)+" tuned":""), ls=leadSignal();
   const mu=clamp(ls.pGap+(ls.pIdx+ls.pX)/5,-0.25*sig,0.25*sig);
-  M.forEach(l=>{l.dir=l.price>P?1:-1;l.d=Math.abs(Math.log(l.price/P));const m2=l.dir*mu;l.p30=pTouch(l.d,m2,sig,30);l.eta=tMedian(l.d,m2,sig);l.label=[...new Set(l.labels)].join(" + ")});
+  M.forEach(l=>{l.dir=l.price>P?1:-1;l.d=Math.abs(Math.log(l.price/P));const m2=l.dir*mu;l.p30raw=pTouch(l.d,m2,sig,30);l.p30=calP(l.p30raw,SS);l.eta=tMedian(l.d,m2,sig);l.label=[...new Set(l.labels)].join(" + ")});
   const sig2=M.filter(l=>l.score>=1.5);
   const up=sig2.filter(l=>l.dir>0).sort((a,b)=>a.d-b.d)[0]||null;
   const dn=sig2.filter(l=>l.dir<0).sort((a,b)=>a.d-b.d)[0]||null;
@@ -2148,23 +2173,29 @@ function renderCross(){
     `<tr><td class="sum">Usual SOXL $ share</td><td colspan="3">${isFinite(pos.base)?pc(pos.base)+` (${pos.baseN} sessions)`:"needs 3 stored sessions"}</td></tr>`;
 }
 function kvHtml(rows){return rows.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join("")}
+var atView=null;
+document.addEventListener("click",e=>{const b=e.target.closest("[data-ats]");if(!b)return;atView=b.dataset.ats;renderInsights()});
 function renderInsights(){
-  const at=attunement();
-  if(!at.n){$("atScore").innerHTML='--<small>/100</small>';$("atSub").textContent="Calibrating: needs resolved forecasts (about 30 min of learning)"}
+  const view=atView||fcSess(),at=attunement(view);
+  document.querySelectorAll("[data-ats]").forEach(b=>b.classList.toggle("on",b.dataset.ats===view));
+  if(!at.n){$("atScore").innerHTML='--<small>/100</small>';$("atSub").textContent=view==="ext"?"Extended hours: scoring starts when SOXL trades in pre-market, after-hours or overnight":"Calibrating: needs resolved forecasts (about 30 min of learning)"}
   else{
     $("atScore").innerHTML=(at.n>=50?at.score:"~"+at.score)+"<small>/100</small>";
     $("atSub").textContent=at.n<50?"Early estimate, few forecasts resolved":at.score>=85?"Well attuned to SOXL":at.score>=70?"Attuned, still tuning":"Tuning: odds were off, the model adjusts";
   }
   const dh=at.dirN?at.dirHit/at.dirN:NaN;
+  const lastAgo=at.last?Math.round((Date.now()-at.last)/60000):null,nowSess=fcSess();
   $("atKv").innerHTML=kvHtml([
-    ["Forecasts resolved",(at.n||0).toLocaleString()],
+    ["Forecasts resolved",(at.n||0).toLocaleString()+(view==="reg"?" <span class=\"sub\">regular hours</span>":" <span class=\"sub\">extended hours</span>")],
+    ["Last forecast scored",lastAgo==null?"--":lastAgo<1?"just now":lastAgo<120?lastAgo+" min ago":lastAgo<2880?Math.round(lastAgo/60)+" h ago":Math.round(lastAgo/1440)+" d ago"],
+    ["Scoring now",view===nowSess?`<span class="ok">yes</span> · pending ${fcPend.length}`:`<span class="sub">paused (${nowSess==="reg"?"regular":"extended"} hours now)</span>`],
     ["Calibration error",isFinite(at.ece)?(at.ece*100).toFixed(1)+" pts":"--"],
     ["Brier skill vs base rate",isFinite(at.bss)?`<span class="${at.bss>0?"ok":"bad"}">${fmtN(at.bss,3)}</span>`:"--"],
     ["Volatility scale (auto-tuned)",fmtN(at.k||META.sigScale||1,3)+"×"],
     ["Next-minute IC",isFinite(at.ic)?`<span class="${at.ic>0.03?"ok":at.ic<0?"bad":"meh"}">${fmtN(at.ic,3)}</span> (n ${at.icn|0})`:"--"],
     ["Direction hit rate",isFinite(dh)?`<span class="${dh>0.52?"ok":dh<0.48?"bad":"meh"}">${(dh*100).toFixed(1)}%</span> (n ${at.dirN})`:"-- (signal not yet reliable)"]
   ]);
-  $("calTbl").innerHTML=at.n?at.b.map((b,i)=>b.n>=5?`<div class="calrow"><span>${i*10}–${i*10+10}%</span><div class="calbar"><div class="a" style="width:${(b.h/b.n*100).toFixed(1)}%"></div><div class="p" style="left:${(b.sp/b.n*100).toFixed(1)}%"></div></div><span>${Math.round(b.h/b.n*100)}% act · n ${b.n}</span></div>`:"").join("")+'<div class="note" style="margin-top:6px">Bar = how often the level was touched. White mark = the odds the page gave. When they match, the page is attuned.</div>':"";
+  $("calTbl").innerHTML=at.n?at.b.map((b,i)=>b.n>=5?`<div class="calrow"><span>${i*10}–${i*10+10}%</span><div class="calbar"><div class="a" style="width:${(b.h/b.n*100).toFixed(1)}%"></div><div class="p" style="left:${(b.sp/b.n*100).toFixed(1)}%"></div></div><span>${Math.round(b.h/b.n*100)}% act · n ${b.n}</span></div>`:"").join("")+'<div class="note" style="margin-top:6px">Bar = how often the level was touched. White mark = the raw odds of the model. When they match, the model is attuned. The odds the page shows are already corrected with this table, so a level the raw model gives 5% shows the odds that came true in the past.</div>':"";
 
   const q=quant(),P=Q[FUND].c;
   const levCls=x=>!isFinite(x)?"":Math.abs(x-LEV)<0.3?"ok":Math.abs(x-LEV)<0.6?"meh":"bad";
