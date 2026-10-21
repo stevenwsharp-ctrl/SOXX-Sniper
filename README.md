@@ -14,8 +14,8 @@ Live site: https://stevenwsharp-ctrl.github.io/SOXX-Sniper/
 1. **Market strip:** $SOXL, the 30-stock index, the real **SOX, Nasdaq, S&P 500 and Dow levels with point changes**, VIX, the 10-year yield (in basis points) and Bitcoin.
 2. **After-hours / pre-market banner** (only outside regular hours).
 3. **Index cards:** the weighted index (% and ≈ SOX points), implied SOXL, SOXL actual ($ and %), and the tracking gap.
-4. **Post kit and live alerts** (see below).
-5. **Decision read**, then **Movers**, then the **30 holding tiles**.
+4. **Post kit and live alerts** (see below). Select **Hide posts** to collapse the posts; the alerts stay visible.
+5. **Decision read**, then **Game theory**, **Movers**, **Social pulse**, the **30 holding tiles**, and **Big money**.
 6. Liquidity map, cross-market table (now with a **Day chg** column), sessions, extended hours, price flow, rule finder, macro, news, and the memory sections.
 
 ### Post kit (for X and StockTwits)
@@ -25,6 +25,7 @@ Five updates that the page writes again every few seconds from live data. Each s
 - **Who's driving $SOXL:** the stocks that add or remove the most **$SOX points** today.
 - **Levels to watch:** the next levels above and below, with the touch odds in 30 minutes, and the liquidity flush level.
 - **After-hours / pre-market** (outside regular hours) or **Smart money** (during regular hours).
+- **Game theory read:** the crowd game state, run and squeeze risk, the tested best response, forced flows and focal levels.
 
 **Add link** puts a link to the live page on each post. **Download SOXL card** saves a 1200 × 675 image for a post. The chips open the live $cashtag feeds on X and StockTwits.
 
@@ -35,8 +36,26 @@ The page watches the market every 5 seconds and writes a post-ready alert when:
 - SOXL moves ±1, 2, 3 or 5% in after-hours or pre-market.
 - The tracking gap is 0.6% or more, or large prints are $3M or more net in 5 minutes.
 - Fear and greed is 25 or less, or 75 or more, or the VIX is up 10% or more.
+- Run risk or squeeze risk is 70 or more, or StockTwits message volume spikes to 2× its normal pace.
 
 Only the largest threshold that is crossed makes an alert. Select **Alerts: on** to also get browser notifications (the browser asks for permission once).
+
+### Game theory (the crowd as players)
+- **Crowd game (prisoner's dilemma):** in a sell-off, each holder gains by selling first. The score (−1 to +1) shows whether players now sell first ("defection") or hold and buy ("cooperation"). It uses breadth, order flow, SOXL vs SOXS money, large prints, the speed of the move and StockTwits mood.
+- **Run risk and squeeze risk (0–100):** the odds of a cascade down or up. They add the speed of the move, the leveraged-ETF flow near the close, the VIX and how near a crowded level is.
+- **Payoff matrix:** for 7 situations (gap up, gap down, a strong first 30 minutes, an after-hours move, a strong last hour, a big up day, a big down day), it tests on SOXL history whether following or fading the crowd paid. The row that applies now is marked, and a t-value of 2 or more is an edge.
+- **Players:** what retail, market makers, leveraged ETFs (forced players), institutions, insiders and SOXS holders do now, and their likely strategy.
+- **Focal points:** round numbers, the prior close, and the high and low of the day, where orders cluster.
+- The game score has a small weight (0.08) in the decision read. Strong results add flags.
+
+### Social pulse
+- The latest 30 **StockTwits** messages for SOXL, SOXS, SOXX, NVDA, AMD, AVGO, MU or TSM, with bullish and bearish tags, the bull share, the pace (messages per hour), spikes and watchers.
+- **Learning:** the page records SOXL's daily bull share. After 30 days, it shows the relation to the next day's SOXL return.
+- **X:** X does not give free read access (reading posts costs money per post), so the X buttons open the live $cashtag search on X.
+
+### Big money (funds, insiders, analysts)
+- For each of the 30 stocks: institutional ownership, the net change in fund shares last quarter, how many funds bought or sold, new and sold-out positions, insider buying or selling in 3 months, analyst buy share, the average price target and its upside, the trend (50-day and 200-day averages), and the latest inflection point.
+- Index-weighted totals at the top. The page loads one stock every 4 seconds and keeps the data for 12 hours.
 
 ### Live tracking
 - **After-hours and pre-market banner** at the top, with the live price and the change in $ and % since the close.
@@ -53,6 +72,10 @@ Click any tile, or SOXL, SOXS, SOXX, QQQ, SPY or DIA in the market tables. Each 
 - **Peers** in its group (AI compute, memory, equipment, analog, foundry, RF), with relative strength against the semis index.
 - **Key levels** with touch odds, tick-rule order flow, fundamentals, analyst ratings, the last 4 earnings (beat or miss), and the next earnings date.
 - **Live company news**, scored for sentiment.
+- **Consensus:** analysts (buy/hold/sell and the price target), funds, insiders, StockTwits mood, news tone and trend, with a plain-language game-theory read (for example, a crowded consensus).
+- **Trend and inflection points:** price vs the 20, 50 and 200-day averages, RSI, the 52-week range, and dated events from the last 90 days (crosses of the 50 and 200-day averages, golden and death crosses, RSI 70/30, new 52-week highs and lows, big moves, heavy volume).
+- **Funds:** the largest holders, the biggest buyers and sellers, new positions, sold-out positions, and the latest insider trades.
+- **Social pulse** for that stock.
 - **Share tools:** a written summary, **Post on X**, **Copy summary**, a downloadable **share card** image (1200 × 675), and links to the live $cashtag feeds on X and StockTwits.
 
 ### Analysis
@@ -136,7 +159,9 @@ Select **Demo mode** in the API key box to see every panel with simulated data. 
 | alternative.me | no | Crypto Fear & Greed | Daily |
 | FRED, via the Worker | yes | Yields, credit spreads, funding, liquidity, macro, consumer credit, debt ratios, oil | Daily to quarterly |
 | Massive (Polygon), via the Worker | yes | 2 years of 5-minute bars with extended hours | End of day |
-| Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, index levels (SOX, Dow, S&P 500, Nasdaq, VIX, 10Y), stock-page charts, volume, 52-week range | About 15–20 s |
+| Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, index levels (SOX, Dow, S&P 500, Nasdaq, VIX, 10Y), stock-page charts, daily bars for trend, volume, 52-week range | About 15–20 s |
+| Nasdaq.com, via the Worker | no | Fund holdings (13F), insider trades (Form 4), analyst price targets | Quarterly / daily; cached 6–12 h |
+| StockTwits, via the Worker | no | Latest messages with bullish/bearish tags | About 60 s |
 
 Yahoo Finance and Nasdaq.com do not officially support these data addresses, so they can change. If they stop, the banner shows an error, and **System health** shows "Extended-hours prices ✕".
 
@@ -150,4 +175,8 @@ Yahoo Finance and Nasdaq.com do not officially support these data addresses, so 
 - **Leveraged-ETF assets:** `LETF_AUM` in `index.html` holds approximate values for SOXL and SOXS. Update them from direxion.com when they change.
 - **Smart money:** no free source shows institutional orders directly. The Smart Money Index and large prints are proxies.
 - **Consumer credit:** no free source gives consumer credit scores in real time. The site uses the Fed's delinquency, charge-off and debt-service data, plus live market signals.
+- **13F filings** are quarterly and come up to 45 days after the quarter ends, so fund data shows positions, not today's trading.
+- **StockTwits** can limit or block requests from Cloudflare. If it does, the social panel shows the error, and the links to StockTwits still work.
+- **X (Twitter):** no free read access, so the site cannot show X posts. It opens X searches instead.
+- **Game theory** results are statistical tests on past SOXL days. A small sample (n under 15) is marked "Too few days".
 - **Recording:** the memory bank learns only while the page is open. Raw price bars older than 400 days are deleted to control storage; the learned knowledge stays permanently.

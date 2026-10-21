@@ -37,6 +37,20 @@ button.danger:hover{border-color:var(--down);color:var(--down)}
 .mi[data-go]{cursor:pointer}.mi:hover{border-color:var(--accent)}
 .mi .n{font-size:11px;color:var(--dim);letter-spacing:.5px}.mi .v{font-size:16px;font-weight:600;margin-top:2px}.mi .c{font-size:12px;margin-top:1px}
 .postkit{margin-bottom:12px;border-color:rgba(77,163,255,.45);background:linear-gradient(180deg,rgba(77,163,255,.07),transparent 50%),var(--panel)}
+.gtcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:14px}
+.gtwhy{margin-top:12px;font-size:13px;color:var(--dim)}.gtwhy summary{cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--accent)}
+.gtwhy p{margin:8px 0;line-height:1.5}.gtwhy a{color:var(--accent)}
+.gtread{margin-top:10px;font-size:13px;line-height:1.5;color:var(--ink)}
+.tbl td.wrap{white-space:normal;text-align:left;min-width:180px}
+.socbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;font-family:var(--mono);font-size:12px}
+.bbar{flex:1;min-width:140px;height:8px;border-radius:4px;background:var(--down);overflow:hidden}.bbar span{display:block;height:100%;background:var(--up)}
+.soclist{max-height:360px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px}
+.sm{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;line-height:1.4}
+.sm .h{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:3px}
+.sm .bull{color:var(--up);border:1px solid var(--up);border-radius:4px;padding:0 4px}.sm .bear{color:var(--down);border:1px solid var(--down);border-radius:4px;padding:0 4px}
+.sm .ct{color:var(--accent);cursor:pointer}.sm .tx{word-break:break-word}
+#socTabs button.on{border-color:var(--accent);color:var(--accent)}
+#pkBody.hide{display:none}
 .pkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
 .pk{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
 .pk .t{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between}
@@ -246,6 +260,20 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="card"><div class="label">Key levels · touch odds in 30 min</div><div class="tw"><table class="tbl" id="svLevels"></table></div><div class="kv" id="svFlow" style="margin-top:12px"></div></div>
       <div class="card"><div class="label">Fundamentals and analysts</div><div class="kv" id="svFund"></div><div class="anbar" id="svAn"></div><div class="label" style="margin-top:14px">Earnings · last 4 quarters</div><div class="tw"><table class="tbl" id="svEarn"></table></div></div>
     </section>
+    <section class="grid2">
+      <div class="card"><div class="label">Consensus · analysts, funds, insiders, crowd</div><div class="kv" id="svCons"></div><div class="gtread" id="svConsRead"></div></div>
+      <div class="card"><div class="label">Trend and inflection points · daily, 1 year</div><div class="kv" id="svTech"></div><div id="svInfl" style="margin-top:10px"></div></div>
+    </section>
+    <section class="card" style="margin-bottom:12px">
+      <div class="label">Funds · who holds, buys and sells (13F filings, latest quarter)</div>
+      <div class="stiles" id="svHoldS"></div>
+      <div class="gtcols" id="svHold"></div>
+    </section>
+    <section class="card" style="margin-bottom:12px">
+      <div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">Social pulse · latest StockTwits messages</div><div class="row" id="svSocX"></div></div>
+      <div class="socbar" id="svSocBar"></div>
+      <div class="soclist" id="svSocial" style="max-height:420px"></div>
+    </section>
     <section class="card" style="margin-bottom:12px">
       <div class="toolbar" style="margin:0 0 6px"><div class="label" style="margin:0">News · live, scored</div><div id="svNewsS"></div></div>
       <div class="news" id="svNews" style="max-height:520px"></div>
@@ -257,13 +285,15 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
 
   <section class="card postkit" id="postKit">
     <div class="toolbar" style="margin:0 0 10px">
-      <div class="label" style="margin:0">Post kit · ready-to-post updates, live</div>
+      <div class="label" style="margin:0;cursor:pointer" id="pkHead">Post kit · ready-to-post updates, live <span class="sub" id="pkSum"></span></div>
       <div class="row">
+        <button id="pkToggle" title="Show or hide the posts">Hide posts ▲</button>
         <label class="sub" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pkLink" checked> add link</label>
         <button id="pkCard">Download SOXL card</button>
         <button id="alertBtn">Alerts: off</button>
       </div>
     </div>
+    <div id="pkBody">
     <div class="row" style="margin-bottom:10px">
       <a class="chiplink" href="https://x.com/search?q=%24SOXL&f=live" target="_blank" rel="noopener">$SOXL live on X</a>
       <a class="chiplink" href="https://stocktwits.com/symbol/SOXL" target="_blank" rel="noopener">$SOXL on StockTwits</a>
@@ -272,8 +302,26 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <a class="chiplink" href="https://x.com/search?q=%24NVDA%20OR%20%24AMD%20OR%20%24MU%20OR%20%24AVGO&f=live" target="_blank" rel="noopener">Top holdings on X</a>
     </div>
     <div class="pkgrid" id="pkGrid"></div>
+    </div>
     <div class="label" style="margin-top:14px">Live alerts · post-ready</div>
     <div id="alertList" class="alerts"></div>
+  </section>
+
+  <section class="card" id="gameCard" style="margin-bottom:12px">
+    <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Game theory · the crowd as players</div><div class="sub" id="gtSub"></div></div>
+    <div class="stiles" id="gtTiles"></div>
+    <div class="gtcols">
+      <div><div class="label" style="margin-top:14px">Payoff matrix · follow the crowd or fade it? (SOXL history)</div><div class="tw"><table class="tbl" id="gtMat"></table></div></div>
+      <div><div class="label" style="margin-top:14px">Players · who moves now, and their likely move</div><div class="tw"><table class="tbl" id="gtPlay"></table></div></div>
+    </div>
+    <details class="gtwhy"><summary>How to read this</summary><div id="gtWhy"></div></details>
+  </section>
+
+  <section class="card" id="socialCard" style="margin-bottom:12px">
+    <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Social pulse · latest StockTwits messages</div><div class="row" id="socTabs"></div></div>
+    <div class="socbar" id="socBar"></div>
+    <div class="soclist" id="socList"></div>
+    <div class="row" style="margin-top:8px" id="socX"></div>
   </section>
 
   <section class="card" id="moversCard" style="margin-bottom:12px">
@@ -470,6 +518,13 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     </div>
   </div>
   <section class="tiles" id="tiles"></section>
+
+  <section class="card" id="fundCard" style="margin-bottom:12px">
+    <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Big money · funds, insiders and analysts for the 30 stocks</div><div class="sub" id="fdSub"></div></div>
+    <div class="stiles" id="fdTiles"></div>
+    <div class="tw" style="margin-top:10px;max-height:460px;overflow:auto"><table class="tbl" id="fdTbl"></table></div>
+    <div class="sub" style="margin-top:6px">13F filings are quarterly and come up to 45 days after the quarter ends. Insider data is from SEC Form 4. Select a row to open the stock page.</div>
+  </section>
 
   <section class="card" style="margin-top:12px">
     <div class="toolbar" style="margin-top:0">
@@ -752,7 +807,7 @@ async function extTick(force){
     extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
   }catch(e){extInfo.ok=false;extInfo.err="Worker /ext did not answer (update the Worker code)";srcOk.ext=false}
 }
-function startExt(){startIdx();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),15000)}
+function startExt(){startIdx();startFunds();startSocial();clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),15000)}
 
 /* ---------- off-hours memory: extended-hours learning, overnight recording ---------- */
 function offHours(M,d,bars,r){
@@ -1023,7 +1078,8 @@ function decide(){
   let sessPart=NaN;if(Mo&&isNum(Mo.E)&&isNum(Mo.sd)&&Mo.target!=="next day's gap"){const anUp=Mo.an?2*(Mo.an.up-0.5):NaN;sessPart=meanF([Math.tanh(Mo.E/(0.25*Mo.sd)),anUp])}
   const AR=applyRules(stS,T),lf=letfFlow(T);
   const bf=blockFlow(60),smartPart=meanF([isNum(bf.ratio)&&bf.n>=5?bf.ratio:NaN,stS.n>=40?sc(stS.smi20,0.05):NaN]);
-  const parts=[[a1,0.3],[a3,0.2],[rho,0.2],[isFinite(fg.score)?(fg.score-50)/50:NaN,0.15],[isFinite(net)?2*(net-0.5):NaN,0.15],
+  const GT=gameTheory({cr,pos,fg,lv,lf,T,stS,bf});
+  const parts=[[GT.part,0.08],[a1,0.3],[a3,0.2],[rho,0.2],[isFinite(fg.score)?(fg.score-50)/50:NaN,0.15],[isFinite(net)?2*(net-0.5):NaN,0.15],
     [ratesLive,0.1],[credLive,0.08],[nws.score,0.1],[con.score,0.05],[oil.score,0.04],[mac.score,0.05],[bon.score,0.05],[mic.score,0.03],
     [sessPart,0.12],[smartPart,0.08],[AR.today,0.14]];
   let s=0,w=0;parts.forEach(([v,k])=>{if(isFinite(v)){s+=v*k;w+=k}});
@@ -1066,8 +1122,12 @@ function decide(){
   if(stS.n>=40&&/Accumulation|Distribution/.test(stS.div))flags.push("Smart Money Index: "+stS.div);
   if(bf.n>=5&&Math.abs(bf.ratio)>=0.3)flags.push(`Large prints (≥$250k) in the last hour lean ${bf.ratio>0?"bullish":"bearish"}: net ${fmtBig(Math.abs(bf.net))} ${bf.ratio>0?"to the bull side":"to the bear side"}`);
   AR.list.filter(x=>x.r.verdict==="Reliable"&&x.active&&!x.info&&isNum(x.z)&&Math.abs(x.z)>=0.1).forEach(x=>flags.push(`Validated rule · ${x.r.title}: expects ${fmtPct(x.pred)} ${x.next?"tomorrow":"for "+({f30:"the first 30 min",oc:"the session",rest30:"the rest of the day",rLunch:"lunch",l60:"the last hour",l30:"the last 30 min",pmRet:"pre-market"}[x.r.win]||"the window")}${x.prov?" (if the move holds)":""}`));
+  if(GT.down>=60)flags.push(`Game theory: run risk ${GT.down}/100. Players race to sell first (prisoner's dilemma)`);
+  if(GT.up>=60)flags.push(`Game theory: squeeze risk ${GT.up}/100. Buyers and short sellers race to buy`);
+  if(GT.strong)flags.push(`Payoff matrix: ${GT.strong.label} → historically ${GT.strong.r.mu>0?"following":"fading"} the move paid (${Math.round((GT.strong.r.mu>0?GT.strong.r.winR:1-GT.strong.r.winR)*100)}% of ${GT.strong.r.n} days)`);
+  if(GT.so&&GT.so.tagged>=15&&(GT.so.bull>=0.85||GT.so.bull<=0.3))flags.push(`StockTwits is one-sided (${Math.round(GT.so.bull*100)}% bullish): a crowded side`);
   if(lf&&Math.abs(lf.usd)>=3e8&&(T.phase==="regular"))flags.push(`Leveraged-ETF rebalancing: about ${fmtBig(Math.abs(lf.usd))} of chip exposure to ${lf.usd>0?"buy":"sell"} into the close`);
-  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive,T,stS,sessPart,smartPart,bf,AR,lf};
+  return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive,T,stS,sessPart,smartPart,bf,AR,lf,GT};
 }
 
 /* ---------- external data: Coinbase, CoinGecko, alternative.me ---------- */
@@ -2002,6 +2062,7 @@ var pkT=0;
 function renderCross(){
   const D=decide(),cm=D.cm,pos=D.pos,fg=D.fg;lastD=D;
   try{renderStrip()}catch(e){console.warn("strip",e)}
+  try{renderGame(D)}catch(e){console.warn("game",e)}
   if(Date.now()-pkT>2500){pkT=Date.now();try{renderPostKit(D)}catch(e){console.warn("postkit",e)}}
   $("dStance").textContent=D.stance;$("dStance").className="stance "+(D.bias>0.25?"up":D.bias<-0.25?"down":"");
   $("dRegime").textContent=D.regime;
@@ -2308,7 +2369,7 @@ async function startDemo(){
   const mkt={v:0},cry={v:0},oil={v:0},beta={};HOLDINGS.forEach(h=>beta[h[0]]=0.6+Math.random()*0.9);
   let lagIdx=0;const vol=()=>Math.round(100+Math.random()*2000);
   const drift=(s,tgtR)=>{const q=Q[s];const tgt=q.pc*(1+tgtR+(Math.random()-0.5)*0.0015);onTick(s,+(q.c+(tgt-q.c)*0.35).toFixed(2),vol())};
-  startIdx();
+  startIdx();startFunds();startSocial();
   demoTimer=setInterval(()=>{
     mkt.v+=(Math.random()-0.5)*0.0003;cry.v+=(Math.random()-0.5)*0.0004+(Math.random()-0.5)*0.0002*Math.sign(mkt.v);
     HOLDINGS.forEach(h=>{if(Math.random()<0.6){const q=Q[h[0]];const tgt=q.pc*(1+mkt.v*beta[h[0]]+(Math.random()-0.5)*0.004);onTick(h[0],+(q.c+(tgt-q.c)*0.3).toFixed(2),Math.round(Math.random()*500))}});
@@ -2340,7 +2401,7 @@ async function pollIdx(){
 function startIdx(){clearInterval(idxTimer);pollIdx();idxTimer=setInterval(pollIdx,20000)}
 const fmtNum=(x,d=2)=>isFinite(x)?x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}):"--";
 const sgn=(x,d=2)=>isFinite(x)?(x>=0?"+":"−")+fmtNum(Math.abs(x),d):"--";
-function idxChg(k){const q=IDXQ[k];if(!q||!(q.p>0)||!(q.pc>0))return null;return{p:q.p,ch:q.p-q.pc,pct:q.p/q.pc-1}}
+function idxChg(k){const q=IDXQ&&IDXQ[k];if(!q||!(q.p>0)||!(q.pc>0))return null;return{p:q.p,ch:q.p-q.pc,pct:q.p/q.pc-1}}
 function renderStrip(){
   const items=[];
   const add=(n,v,ch,pct,go,inv,bp)=>items.push(`<div class="mi" ${go?`data-go="${go}" style="cursor:pointer"`:""}><div class="n">${n}</div><div class="v">${v}</div><div class="c ${cls(inv?-ch:ch)}">${!isFinite(ch)?"--":bp?(ch>=0?"+":"−")+Math.abs(ch).toFixed(1)+" bp":sgn(ch)+" ("+fmtPct(pct)+")"}</div></div>`);
@@ -2402,14 +2463,25 @@ function pkPosts(D){
     if(pos1&&isFinite(pos1.share))t.push(`Bull vs bear ETF $: ${Math.round(pos1.share*100)}% $SOXL / ${Math.round((1-pos1.share)*100)}% $SOXS`);
     P.push({k:"smart",title:"Smart money",text:t.join("\n")});
   }
+  // 6 game theory read
+  const G=D&&D.GT;if(G&&isFinite(G.coop)){
+    t=[`$SOXL crowd game: ${G.state} (${G.coop>=0?"+":""}${G.coop.toFixed(2)})`,`Run risk ${G.down}/100 · Squeeze risk ${G.up}/100`];
+    if(G.strong)t.push(`${G.strong.label}: ${G.strong.r.mu>0?"following":"fading"} it paid ${Math.round((G.strong.r.mu>0?G.strong.r.winR:1-G.strong.r.winR)*100)}% of the time (n=${G.strong.r.n})`);
+    if(D.lf&&Math.abs(D.lf.usd)>=1e8)t.push(`Forced flow: leveraged ETFs ${D.lf.usd>0?"buy":"sell"} ~${fmtBig(Math.abs(D.lf.usd))} into the close`);
+    if(G.so&&G.so.tagged>=8)t.push(`StockTwits ${Math.round(G.so.bull*100)}% bullish${G.so.bull>=0.8?" (crowded)":G.so.bull<=0.35?" (fearful)":""}`);
+    if(G.focal.length)t.push(`Focal levels: ${G.focal.slice(0,2).map(l=>fmtPx(l.price)).join(" / ")}`);
+    P.push({k:"game",title:"Game theory read",text:t.join("\n")+"\n#SOXL #gametheory"});
+  }
   return P;
 }
 const siteURL=s=>`${location.origin}${location.pathname}${s?"#/s/"+s:""}`;
 function xIntent(text,s){const u=$("pkLink")&&$("pkLink").checked?"&url="+encodeURIComponent(siteURL(s)):"";window.open("https://x.com/intent/tweet?text="+encodeURIComponent(text)+u,"_blank","noopener")}
 async function copyText(text,btn){try{await navigator.clipboard.writeText(text);if(btn){const o=btn.textContent;btn.textContent="Copied ✓";setTimeout(()=>btn.textContent=o,1500)}}catch(e){prompt("Copy this text:",text)}}
 var PK=[];
+var pkOpen=lsGet("soxx_pk")!=="closed";
+function pkApply(){$("pkBody").classList.toggle("hide",!pkOpen);$("pkToggle").textContent=pkOpen?"Hide posts ▲":"Show posts ▼"}
 function renderPostKit(D){
-  PK=pkPosts(D);const lim=$("pkLink").checked?257:280;
+  PK=pkPosts(D);$("pkSum").textContent=pkOpen?"":` · ${PK.length} posts ready · ${ALERTS.length} alerts`;const lim=$("pkLink").checked?257:280;
   $("pkGrid").innerHTML=PK.map((p,i)=>`<div class="pk"><div class="t"><span>${p.title}</span><span class="${p.text.length>lim?"down":""}">${p.text.length}/${lim}</span></div><pre>${esc(p.text)}</pre>
     <div class="b"><button class="x" data-pk="x" data-i="${i}">Post on X</button><button data-pk="st" data-i="${i}">StockTwits</button><button data-pk="c" data-i="${i}">Copy</button></div></div>`).join("");
   renderMovers();
@@ -2428,6 +2500,7 @@ document.addEventListener("click",e=>{
     if(b.dataset.pk==="x")xIntent(p.text,null);else if(b.dataset.pk==="c")copyText(p.text,b);else{copyText(p.text,b);window.open("https://stocktwits.com/symbol/SOXL","_blank","noopener")}}
   const a=e.target.closest("[data-al]");if(a){const al=ALERTS[+a.dataset.i];if(!al)return;if(a.dataset.al==="x")xIntent(al.text,al.s);else copyText(al.text,a)}
 });
+$("pkToggle").onclick=$("pkHead").onclick=()=>{pkOpen=!pkOpen;try{lsSet("soxx_pk",pkOpen?"open":"closed")}catch(e){}pkApply();pkT=0};pkApply();
 $("pkCard").onclick=()=>{const cv=drawCard(FUND);cv.toBlob(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`SOXL-soxx-sniper-${etDate()}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)},"image/png")};
 
 /* ---------- live alerts ---------- */
@@ -2461,6 +2534,9 @@ function checkAlerts(){
   if(m.live&&ph==="regular"&&isFinite(m.fr)&&Math.abs(m.fr-m.imp)>=0.006)alert1("gap"+Math.sign(m.fr-m.imp),30*60000,`$SOXL is ${fmtPct(Math.abs(m.fr-m.imp))} ${m.fr>m.imp?"above":"below"} its 3× implied value (index ${fmtPct(m.idx)})`,FUND);
   const b5=blockFlow(5);if(Math.abs(b5.net)>=3e6)alert1("blk"+Math.sign(b5.net),15*60000,`Large prints: ${b5.net>0?"+":"−"}${fmtBig(Math.abs(b5.net))} net ${b5.net>0?"bullish":"bearish"} in $SOXL/$SOXS in 5 minutes (${b5.n} prints ≥ $250k)`,FUND,true);
   if(D&&isFinite(D.fg.score)){if(D.fg.score>=75)alert1("fgG"+day,864e5,`Semis Fear & Greed at ${Math.round(D.fg.score)} (extreme greed) · $SOXL ${fmtPct(pr.pct)}`,FUND);if(D.fg.score<=25)alert1("fgF"+day,864e5,`Semis Fear & Greed at ${Math.round(D.fg.score)} (extreme fear) · $SOXL ${fmtPct(pr.pct)}`,FUND)}
+  const G=D&&D.GT;if(G){if(G.down>=70)alert1("run",30*60000,`⚠️ $SOXL run risk ${G.down}/100: players race to sell first (crowd game ${G.coop.toFixed(2)}) · ${fmtPx(P)} ${fmtPct(pr.pct)}`,FUND,true);
+    if(G.up>=70)alert1("sqz",30*60000,`🚀 $SOXL squeeze risk ${G.up}/100: buyers and shorts race in (crowd game +${G.coop.toFixed(2)}) · ${fmtPx(P)} ${fmtPct(pr.pct)}`,FUND,true)}
+  const so=socStats(FUND);if(so&&so.spike)alert1("socsp",60*60000,`$SOXL StockTwits message spike: ${so.rate.toFixed(0)}/h vs ${so.avg.toFixed(0)}/h normal, ${so.tagged?Math.round(so.bull*100)+"% bullish":""}`,FUND);
   const v=idxChg("^VIX");if(v&&v.pct>=0.1)alert1("vix"+day,864e5,`$VIX ${fmtNum(v.p)} ${fmtPct(v.pct)} today · $SOXL ${fmtPct(pr.pct)}`,FUND,true);
 }
 $("alertBtn").onclick=async()=>{
@@ -2470,9 +2546,313 @@ $("alertBtn").onclick=async()=>{
 $("alertBtn").textContent="Alerts: "+(alertsOn?"on":"off");$("alertBtn").classList.toggle("on",alertsOn);
 setInterval(()=>{try{checkAlerts()}catch(e){}},5000);
 
+/* ---------- game theory: the crowd as players ----------
+   Each trader chooses to hold/buy ("cooperate") or sell first ("defect"). In a sell-off, every holder gains by
+   selling before the others: a prisoner's dilemma that can become a run. Some players have no choice (leveraged
+   ETFs must rebalance), so others can act before them. Round numbers and the prior close are focal points where
+   orders cluster. The payoff matrix tests, on SOXL history, whether following or fading the crowd paid. */
+var GT_SIT=[
+ // id, label, x field, direction from x, y field, window, players
+ ["gapUp","Gap up ≥ 1.5%","gap",v=>v>=0.015?1:0,"f30","first 30 min","Overnight buyers vs market makers who sold them the gap"],
+ ["gapDn","Gap down ≤ −1.5%","gap",v=>v<=-0.015?-1:0,"f30","first 30 min","Overnight sellers vs dip buyers and market makers"],
+ ["open","First 30 min moves ≥ 1.5%","f30",v=>Math.abs(v)>=0.015?Math.sign(v):0,"rest30","rest of the day","Opening crowd vs institutions that trade after 10:00"],
+ ["ah","After-hours move ≥ 2%","ahRet",v=>Math.abs(v)>=0.02?Math.sign(v):0,"oc","next session","Thin evening traders vs the full-session crowd"],
+ ["last","Last hour moves ≥ 1.5%","l60",v=>Math.abs(v)>=0.015?Math.sign(v):0,"nGap","next day's gap","Closing buyers or sellers vs overnight traders"],
+ ["bigUp","Big up day (≥ +5%)","cc",v=>v>=0.05?1:0,"nCC","next day","Momentum chasers vs profit takers"],
+ ["bigDn","Big down day (≤ −5%)","cc",v=>v<=-0.05?-1:0,"nCC","next day","Panic sellers vs dip buyers"]
+];
+var gtMemo={k:"",rows:[]};
+function gtMatrix(st){
+  const D=(st&&st.D)||[],k=D.length+"|"+(D.length?D[D.length-1].d:"");if(gtMemo.k===k)return gtMemo.rows;
+  const rows=GT_SIT.map(([id,lab,xk,dirf,yk,win,who])=>{
+    const p=[];D.forEach(d=>{if(!isNum(d[xk])||!isNum(d[yk]))return;const dir=dirf(d[xk]);if(dir)p.push(dir*d[yk])});
+    const n=p.length,mu=n?mean(p):NaN,s=n>1?sd(p):NaN,t=n>2&&s>0?mu/s*Math.sqrt(n):NaN,wr=n?p.filter(x=>x>0).length/n:NaN;
+    const best=n<15?"Too few days":t>=2?"Follow the crowd":t<=-2?"Fade the crowd":t>=1.2?"Lean follow (weak)":t<=-1.2?"Lean fade (weak)":"No edge: a coin flip";
+    return{id,lab,xk,yk,win,who,n,mu,t,winR:wr,best,dirf};
+  });
+  gtMemo={k,rows};return rows;
+}
+function gtNow(rows,T,m,pr){
+  // which situations apply today (or tonight, for tomorrow)
+  const e=etInfo(Date.now()),min=demo?660:e.min,ph=T.phase,out=[];
+  const D=(sessStats().D)||[],today=etDate(),y=D.filter(d=>d.d<today).slice(-1)[0];
+  const add=(id,v,label,prov)=>{const r=rows.find(x=>x.id===id);if(!r||!isNum(v))return;const dir=GT_SIT.find(g=>g[0]===id)[3](v);if(dir)out.push({r,dir,v,label,prov})};
+  if(ph==="pre"||(ph==="regular"&&min<600))add(T.gap>0?"gapUp":"gapDn",T.gap,`${T.gapInd?"Indicated gap":"Gap"} ${fmtPct(T.gap)}`,T.gapInd);
+  if(ph==="regular"&&min>=600)add("open",T.f30,`First 30 min ${fmtPct(T.f30)}`);
+  if(ph==="pre"||ph==="regular")add("ah",T.ahRet,`Last evening's after-hours ${fmtPct(T.ahRet)}`);
+  if((ph==="post"||ph==="closed")&&pr&&pr.ext&&isNum(pr.xPct))add("ah",pr.xPct,`Tonight's after-hours ${fmtPct(pr.xPct)} (for tomorrow)`,true);
+  if(isNum(T.l60))add("last",T.l60,`Last hour ${fmtPct(T.l60)} (for tomorrow's gap)`,ph==="regular");
+  if(y&&isNum(y.cc)&&ph!=="post")add(y.cc>0?"bigUp":"bigDn",y.cc,`Yesterday ${fmtPct(y.cc)}`);
+  if(isNum(m.fr)&&(ph==="regular"||ph==="post"))add(m.fr>0?"bigUp":"bigDn",m.fr,`Today ${fmtPct(m.fr)} so far (for tomorrow)`,true);
+  return out;
+}
+function gameTheory(a){
+  const {cr,pos,fg,lv,lf,T,stS,bf}=a,m=compute(),now=Date.now(),e=etInfo(now),min=demo?660:e.min,ph=T.phase;
+  const P=Q[FUND].c,p15=findAt(hist[FUND]||[],nowM()-15,"c"),r15=P>0&&p15>0?P/p15-1:NaN;
+  const ref=isFinite(pos.base)?pos.base:pos.Day.share,dShare=isFinite(pos["30m"].share)&&isFinite(ref)?pos["30m"].share-ref:NaN;
+  const so=socStats(FUND),vx=idxChg("^VIX");
+  const C=[[cr?cr.wb:NaN,1,"Breadth (weighted)"],[isFinite(pos["1h"].net)?2*(pos["1h"].net-0.5):NaN,1,"Order flow 1h"],
+    [isFinite(dShare)?clamp(dShare/0.08,-1,1):NaN,0.7,"SOXL vs SOXS money"],[bf.n>=3?bf.ratio:NaN,0.7,"Large prints"],
+    [isFinite(r15)?Math.tanh(r15/0.01):NaN,0.8,"Speed (15 min)"],[so&&so.tagged>=8?2*(so.bull-0.5):NaN,0.5,"StockTwits mood"]];
+  let s=0,w=0;C.forEach(([v,k])=>{if(isFinite(v)){s+=v*k;w+=k}});
+  const coop=w>=1?s/w:NaN;
+  const state=!isFinite(coop)?"Collecting data":coop>=0.35?"Cooperation":coop<=-0.35?"Defection":"Standoff";
+  const lfLate=lf&&ph==="regular"&&min>=870&&min<960&&Math.abs(lf.usd)>=2e8?lf.usd:0;
+  const down=clamp(0.35*Math.max(0,-(coop||0))+0.2*clamp(-(r15||0)/0.02,0,1)+0.15*(lfLate<0?1:0)+0.15*(vx?clamp(vx.pct/0.1,0,1):0)+0.15*(lv&&lv.dn&&lv.dn.p30>0.6?1:0),0,1);
+  const up=clamp(0.35*Math.max(0,coop||0)+0.2*clamp((r15||0)/0.02,0,1)+0.15*(lfLate>0?1:0)+0.15*(vx?clamp(-vx.pct/0.08,0,1):0)+0.15*(lv&&lv.up&&lv.up.p30>0.6?1:0),0,1);
+  const rows=gtMatrix(stS),cur=gtNow(rows,T,m,svPrices(FUND));
+  const strong=cur.filter(c=>c.r.n>=15&&Math.abs(c.r.t)>=1.5).sort((a,b)=>Math.abs(b.r.t)-Math.abs(a.r.t))[0]||null;
+  const focal=lv?lv.levels.filter(l=>/Round|Prior close|High of day|Low of day|VWAP/.test(l.label)).sort((a,b)=>a.d-b.d).slice(0,4):[];
+  const FA=fundAgg();
+  const part=meanF([isFinite(coop)?0.6*coop:NaN,strong?strong.dir*Math.sign(strong.r.mu)*Math.min(1,Math.abs(strong.r.t)/3):NaN]);
+  return{coop,state,C,down:Math.round(down*100),up:Math.round(up*100),r15,rows,cur,strong,focal,lfLate,so,vx,FA,part,dShare};
+}
+function gtPlayers(G,D){
+  const P=[],so=G.so,lf=D.lf,stS=D.stS,bf=D.bf,FA=G.FA;
+  const gu=G.rows.find(r=>r.id==="gapUp"),gd=G.rows.find(r=>r.id==="gapDn");
+  P.push(["Retail traders",so?`${so.tagged?Math.round(so.bull*100)+"% bullish":"no tags"} on StockTwits · ${isFinite(so.rate)?so.rate.toFixed(0):"--"} msgs/h${so.spike?" · <b class=\"up\">spike</b>":""}`:"StockTwits not loaded",
+    !so||!so.tagged?"--":so.bull>=0.8?"Crowded long: they chase strength and sell late. The crowded side often loses (minority game).":so.bull<=0.35?"Fearful: they sell weakness. Capitulation can mark a low.":"Mixed: no one-sided crowd."]);
+  P.push(["Market makers / dealers",gu&&gu.n>=15?`Gap up: ${gu.best.toLowerCase()} (${Math.round(gu.winR*100)}%, n=${gu.n}) · gap down: ${gd.best.toLowerCase()} (${Math.round(gd.winR*100)}%, n=${gd.n})`:"Needs history",
+    G.focal.length?`Pin and defend focal levels: ${G.focal.slice(0,2).map(l=>fmtPx(l.price)+" ("+l.label.split(" + ")[0]+")").join(", ")}`:"--"]);
+  P.push(["Leveraged ETFs (forced)",lf?`Estimated ${lf.usd>=0?"buy":"sell"} ${fmtBig(Math.abs(lf.usd))} of chip exposure at the close`:"--",
+    "No choice: their move is known in advance, so others trade ahead of it (most of it at 3:45–4:00 pm)."]);
+  P.push(["Institutions",[bf.n?`Large prints 1h ${bf.net>=0?"+":"−"}${fmtBig(Math.abs(bf.net))}`:null,stS.n>=20?`SMI 20d: ${stS.div.split(":")[0]}`:null,FA.n?`13F: ${FA.netInst>=0?"+":""}${(FA.netInst*100).toFixed(2)}% shares last quarter (${FA.buyers}/${FA.n} net buyers)`:null].filter(Boolean).join(" · ")||"--",
+    FA.n&&FA.netInst>0.005?"Slow accumulation: they buy dips over weeks.":FA.n&&FA.netInst<-0.005?"Slow distribution: they sell rallies over weeks.":"Holding: no strong quarterly change."]);
+  P.push(["Insiders (officers, directors)",FA.nIns?`${FA.insSellers}/${FA.nIns} stocks net sellers in 3 months · net ${FA.insUsd>=0?"+":"−"}${fmtBig(Math.abs(FA.insUsd))}`:"Loading",
+    "Insider selling is usual (pay in stock). Insider buying is rare and a stronger signal."]);
+  P.push(["Bears (SOXS holders)",isFinite(G.dShare)?`SOXL share of bull+bear ETF $ ${G.dShare>=0?"+":""}${(G.dShare*100).toFixed(1)} pts vs normal`:"--",
+    isFinite(G.dShare)&&G.dShare<-0.05?"Bears add: a fast reversal up can force them to cover (squeeze).":isFinite(G.dShare)&&G.dShare>0.05?"Bears leave: less fuel for a squeeze.":"Normal."]);
+  return P;
+}
+var gtT=0;
+function renderGame(D){
+  const G=D.GT;if(!G)return;const now=Date.now();if(now-gtT<1500)return;gtT=now;
+  const st=(k,v,sub,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||""}">${v}</div><div class="s">${sub||""}</div></div>`;
+  const bs=G.strong;
+  $("gtTiles").innerHTML=
+    st("Crowd game",G.state,isFinite(G.coop)?`score ${G.coop>=0?"+":""}${G.coop.toFixed(2)} (−1 sell first … +1 hold/buy)`:"",G.state==="Cooperation"?"up":G.state==="Defection"?"down":"")+
+    st("Run risk (down)",G.down+"/100",G.down>=60?"Sellers race to exit":"Cascade odds now",G.down>=60?"down":"")+
+    st("Squeeze risk (up)",G.up+"/100",G.up>=60?"Shorts and buyers race in":"Cascade odds now",G.up>=60?"up":"")+
+    st("Best response now",bs?(bs.r.mu>0?"Follow":"Fade"):"No edge",bs?`${bs.label}: ${Math.round(bs.r.winR*100)}% win, n=${bs.r.n}`:"No current situation has a tested edge",bs?(bs.dir*Math.sign(bs.r.mu)>0?"up":"down"):"")+
+    st("Forced players",G.lfLate?`${G.lfLate>0?"Buy":"Sell"} ${fmtBig(Math.abs(G.lfLate))}`:D.lf?`${D.lf.usd>=0?"Buy":"Sell"} ${fmtBig(Math.abs(D.lf.usd))}`:"--","Leveraged-ETF rebalancing at the close",D.lf?(D.lf.usd>0?"up":"down"):"")+
+    st("Focal points",G.focal.length?G.focal.slice(0,2).map(l=>fmtPx(l.price)).join(" · "):"--",G.focal.length?G.focal.slice(0,2).map(l=>l.label.split(" + ")[0]).join(" · "):"");
+  $("gtSub").textContent=G.so&&G.so.tagged?`StockTwits ${Math.round(G.so.bull*100)}% bullish`:"";
+  const curIds=new Set(G.cur.map(c=>c.r.id));
+  $("gtMat").innerHTML=`<tr><th class="l">Situation</th><th>Then (window)</th><th>Follow pays</th><th>Follow wins</th><th>n</th><th class="l">Best response</th></tr>`+
+    G.rows.map(r=>`<tr class="${curIds.has(r.id)?"hl":""}" title="${r.who}"><td>${r.lab}${curIds.has(r.id)?" ◀ now":""}</td><td>${r.win}</td><td class="${cls(r.mu)}">${isFinite(r.mu)?fmtPct(r.mu):"--"}</td><td>${isFinite(r.winR)?Math.round(r.winR*100)+"%":"--"}</td><td>${r.n}</td><td class="wrap ${Math.abs(r.t)>=2?(r.mu>0?"up":"down"):"meh"}" style="min-width:150px">${r.best}${isFinite(r.t)?` <span class="sub">t=${r.t.toFixed(1)}</span>`:""}</td></tr>`).join("");
+  $("gtPlay").innerHTML=`<tr><th class="l">Player</th><th class="l">What they do now</th><th class="l">Likely strategy</th></tr>`+gtPlayers(G,D).map(([a,b,c])=>`<tr><td>${a}</td><td class="wrap">${b}</td><td class="wrap">${c}</td></tr>`).join("");
+  if(!$("gtWhy").innerHTML)$("gtWhy").innerHTML=`
+    <p><b>Prisoner's dilemma.</b> In a sell-off, all holders gain if all hold, but each holder gains more by selling first. When many players "defect" at the same time, price falls in a cascade (a run). The <b>crowd game score</b> measures how many players sell first now: breadth, order flow, SOXL vs SOXS money, large prints, speed and StockTwits mood. <b>Run risk</b> and <b>squeeze risk</b> add the speed of the move, forced flows, VIX and how near a crowded level is.</p>
+    <p><b>Payoff matrix.</b> For each situation, "follow" means trade in the direction of the crowd's move, and "fade" means trade against it. The table shows the average SOXL return of each choice in the next window, on all past days with that situation. A t-value of 2 or more means a real edge; less than 1.2 means the result is near a coin flip. The row marked "now" applies today.</p>
+    <p><b>Forced players.</b> Leveraged ETFs must buy after up days and sell after down days, near the close. A player whose move is known in advance is at a disadvantage: others trade before it. Studies found that this rebalancing explains about one third of late-day volatility, and more than half on days with a 3% move.</p>
+    <p><b>Focal points (Schelling points).</b> Without talking, traders put their orders at the same obvious levels: round numbers, the prior close, the high and low of the day. Stop orders cluster just past these levels, so price often stops at them, or speeds up after it breaks them.</p>
+    <p><b>Minority game and beauty contest.</b> When almost everyone is on one side (for example, StockTwits 85% bullish), there are few buyers left, so the crowded side often loses. Price follows what traders expect <i>other</i> traders to do, not only the facts.</p>
+    <p class="sub">These are statistical estimates, not advice. Sources: Rodier et al. (2012) on leveraged-ETF rebalancing; Osler (2000, NY Fed) on round-number order clustering; Morris and Shin (2003) on global games and runs; StockTwits sentiment studies.</p>`;
+}
+
+/* ---------- funds, insiders, analysts (Nasdaq via the Worker) and daily trend ---------- */
+var FUNDS={};try{FUNDS=JSON.parse(lsGet("soxx_funds")||"{}")||{}}catch(e){FUNDS={}}
+function saveFunds(){try{lsSet("soxx_funds",JSON.stringify(FUNDS))}catch(e){}}
+function techOf(bars){
+  // bars: [t,o,h,l,c,v] daily
+  const B=(bars||[]).filter(b=>b[4]>0);if(B.length<30)return null;
+  const c=B.map(b=>b[4]),v=B.map(b=>b[5]||0),n=c.length,dt=i=>new Date(B[i][0]).toISOString().slice(0,10);
+  const sma=(k,i)=>i+1>=k?c.slice(i+1-k,i+1).reduce((a,b)=>a+b,0)/k:NaN;
+  const rsiA=[];let ag=0,al=0;for(let i=1;i<n;i++){const d=c[i]-c[i-1],g=Math.max(d,0),l=Math.max(-d,0);if(i<=14){ag+=g/14;al+=l/14}else{ag=(ag*13+g)/14;al=(al*13+l)/14}rsiA[i]=i>=14?(al>0?100-100/(1+ag/al):100):NaN}
+  const ev=[],from=Math.max(1,n-90);
+  for(let i=from;i<n;i++){
+    const s50=sma(50,i),s50p=sma(50,i-1),s200=sma(200,i),s200p=sma(200,i-1),va=v.slice(Math.max(0,i-50),i),vAvg=va.length?va.reduce((a,b)=>a+b,0)/va.length:0,r=c[i]/c[i-1]-1;
+    if(isFinite(s50p)&&c[i-1]<=s50p&&c[i]>s50)ev.push([i,"Closed above the 50-day average",1]);
+    if(isFinite(s50p)&&c[i-1]>=s50p&&c[i]<s50)ev.push([i,"Closed below the 50-day average",-1]);
+    if(isFinite(s200p)&&c[i-1]<=s200p&&c[i]>s200)ev.push([i,"Closed above the 200-day average",1]);
+    if(isFinite(s200p)&&c[i-1]>=s200p&&c[i]<s200)ev.push([i,"Closed below the 200-day average",-1]);
+    if(isFinite(s200p)&&isFinite(s50p)&&s50p<=s200p&&s50>s200)ev.push([i,"Golden cross (50-day above 200-day)",1]);
+    if(isFinite(s200p)&&isFinite(s50p)&&s50p>=s200p&&s50<s200)ev.push([i,"Death cross (50-day below 200-day)",-1]);
+    if(rsiA[i-1]<70&&rsiA[i]>=70)ev.push([i,"RSI above 70 (overbought)",0]);
+    if(rsiA[i-1]>30&&rsiA[i]<=30)ev.push([i,"RSI below 30 (oversold)",0]);
+    const prev=c.slice(Math.max(0,i-252),i);if(prev.length>=120){if(c[i]>Math.max(...prev))ev.push([i,"New 52-week closing high",1]);if(c[i]<Math.min(...prev))ev.push([i,"New 52-week closing low",-1])}
+    if(Math.abs(r)>=0.06)ev.push([i,`Big move ${fmtPct(r)}`,Math.sign(r)]);
+    if(vAvg>0&&v[i]>=2.5*vAvg)ev.push([i,`Heavy volume (${(v[i]/vAvg).toFixed(1)}× normal) on ${r>=0?"an up":"a down"} day`,Math.sign(r)]);
+  }
+  // keep the newest event per type
+  const seen=new Set(),E=[];ev.reverse().forEach(([i,t,d])=>{const k=t.replace(/[-+]?\d.*$/,"").slice(0,22);if(seen.has(k))return;seen.add(k);E.push({d:dt(i),t,dir:d,ago:n-1-i})});
+  const L=n-1,P=c[L],s20=sma(20,L),s50=sma(50,L),s200=sma(200,L),w=c.slice(-252),hi=Math.max(...w),lo=Math.min(...w);
+  const trend=isFinite(s200)?(P>s50&&s50>s200?"Uptrend":P<s50&&s50<s200?"Downtrend":"Mixed"):isFinite(s50)?(P>s50?"Above 50-day":"Below 50-day"):"--";
+  return{P,s20,s50,s200,rsi:rsiA[L],hi,lo,pos:hi>lo?(P-lo)/(hi-lo):NaN,r20:n>20?P/c[n-21]-1:NaN,r60:n>60?P/c[n-61]-1:NaN,trend,events:E.slice(0,8),last:E[0]||null,at:Date.now()};
+}
+function netInst(h){const S=h&&h.summary;if(!S||!S.total||!(S.total.shares>0))return NaN;return((S.inc?S.inc.shares:0)-(S.dec?S.dec.shares:0)+(S.newp?S.newp.shares:0)-(S.sold?S.sold.shares:0))/S.total.shares}
+function insNet(h){const x=h&&h.insiders&&h.insiders.shares;if(!x)return NaN;const a=x["Net Activity"];if(a&&isNum(a.m3))return a.m3;const b=x["Number of Shares Bought"],s=x["Number of Shares Sold"];return b&&s?b.m3-s.m3:NaN}
+function fundAgg(){
+  const m=compute();let n=0,buyers=0,wsum=0,ni=0,nIns=0,insSellers=0,insUsd=0,up=0,wu=0,bp=0,wb=0;
+  m.rows.forEach(r=>{const F=FUNDS[r.s];if(!F||!F.h)return;const h=F.h,x=netInst(h);
+    if(isFinite(x)){n++;if(x>0)buyers++;ni+=r.w*x;wsum+=r.w}
+    const k=insNet(h);if(isFinite(k)){nIns++;if(k<0)insSellers++;insUsd+=k*(r.c||r.pc||0)}
+    const a=h.analysts;if(a&&a.target>0&&r.c>0){up+=r.w*(a.target/r.c-1);wu+=r.w;const t=(a.buy||0)+(a.hold||0)+(a.sell||0);if(t){bp+=r.w*(a.buy||0)/t;wb+=r.w}}});
+  return{n,buyers,netInst:wsum?ni/wsum:NaN,nIns,insSellers,insUsd,upside:wu?up/wu:NaN,buyShare:wb?bp/wb:NaN,cover:wsum};
+}
+var fdIdx=0,fdTimer=null,fdBusy=false;
+async function fdStep(){
+  if(fdBusy)return;const p=fredProxy();
+  const list=ORDER.filter(s=>HOLDINGS.some(h=>h[0]===s));if(!list.length)return;
+  if(demo){list.forEach(s=>{if(!FUNDS[s]||!FUNDS[s].demo)FUNDS[s]={demo:1,at:Date.now(),h:demoHolders(s,true),tech:techOf(demoDaily(s))}});renderFunds();return}
+  if(!p)return;
+  const stale=list.filter(s=>!FUNDS[s]||Date.now()-(FUNDS[s].at||0)>12*3600000||FUNDS[s].demo);if(!stale.length)return;
+  const s=stale[0];fdBusy=true;
+  try{
+    const [h,c]=await Promise.all([fetch(`${p}/holders?t=${s}&lite=1`).then(r=>r.json()).catch(()=>null),fetch(`${p}/chart?t=${ySym(s)}&range=1y&interval=1d`).then(r=>r.json()).catch(()=>null)]);
+    const F=FUNDS[s]&&!FUNDS[s].demo?FUNDS[s]:{};
+    if(h&&h.status==="ok")F.h=h;if(c&&c.status==="ok")F.tech=techOf(c.bars);
+    F.at=Date.now();F.err=!(h&&h.status==="ok")?(h&&h.error)||"no answer":"";FUNDS[s]=F;saveFunds();renderFunds();
+  }catch(e){}finally{fdBusy=false}
+}
+function startFunds(){clearInterval(fdTimer);fdStep();fdTimer=setInterval(fdStep,4000)}
+function renderFunds(){
+  if(!$("fdTbl"))return;const m=compute(),A=fundAgg(),st=(k,v,sub,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||""}">${v}</div><div class="s">${sub||""}</div></div>`;
+  const loaded=HOLDINGS.filter(h=>FUNDS[h[0]]&&FUNDS[h[0]].h).length;
+  const ferr=HOLDINGS.map(h=>FUNDS[h[0]]&&FUNDS[h[0]].err).find(Boolean);
+  $("fdSub").textContent=`${loaded}/30 loaded${!fredProxy()&&!demo?" · add the Worker URL to load":!loaded&&ferr?" · the Worker did not answer /holders: update the Worker code":""}`;
+  const techs=m.rows.map(r=>({r,t:FUNDS[r.s]&&FUNDS[r.s].tech})).filter(x=>x.t);
+  const upT=techs.filter(x=>x.t.trend==="Uptrend").reduce((a,x)=>a+x.r.w,0),dnT=techs.filter(x=>x.t.trend==="Downtrend").reduce((a,x)=>a+x.r.w,0),tw=techs.reduce((a,x)=>a+x.r.w,0);
+  $("fdTiles").innerHTML=
+    st("Funds · net change",isFinite(A.netInst)?(A.netInst>=0?"+":"")+(A.netInst*100).toFixed(2)+"%":"--",A.n?`${A.buyers}/${A.n} stocks net bought (shares, last quarter)`:"",cls(A.netInst))+
+    st("Insiders · 3 months",A.nIns?`${A.insUsd>=0?"+":"−"}${fmtBig(Math.abs(A.insUsd))}`:"--",A.nIns?`${A.insSellers}/${A.nIns} stocks net sold`:"",A.insUsd<0?"down":"up")+
+    st("Analysts · buy share",isFinite(A.buyShare)?Math.round(A.buyShare*100)+"%":"--","weighted by index weight")+
+    st("Analyst target upside",isFinite(A.upside)?fmtPct(A.upside):"--","weighted average",cls(A.upside))+
+    st("Trend · index weight",tw?`${Math.round(upT/tw*100)}% up`:"--",tw?`${Math.round(dnT/tw*100)}% in downtrend`:"");
+  const rows=[...m.rows].sort((a,b)=>b.w-a.w).map(r=>{const F=FUNDS[r.s]||{},h=F.h,S=h&&h.summary,t=F.tech,x=netInst(h),k=insNet(h),a=h&&h.analysts,tot=a?(a.buy||0)+(a.hold||0)+(a.sell||0):0;
+    return`<tr data-go="${r.s}" style="cursor:pointer"><td>${r.s} <span class="sub">${(r.w*100).toFixed(1)}%</span></td><td>${S&&isNum(S.instPct)?S.instPct.toFixed(0)+"%":"--"}</td><td class="${cls(x)}">${isFinite(x)?(x>=0?"+":"")+(x*100).toFixed(2)+"%":"--"}</td>
+      <td>${S&&S.inc&&S.dec?`<span class="up">${fmtInt(S.inc.holders)}</span>/<span class="down">${fmtInt(S.dec.holders)}</span>`:"--"}</td><td>${S&&S.newp&&S.sold?`<span class="up">${fmtInt(S.newp.holders)}</span>/<span class="down">${fmtInt(S.sold.holders)}</span>`:"--"}</td>
+      <td class="${cls(k)}">${isFinite(k)?(k>=0?"+":"−")+fmtBig(Math.abs(k*(r.c||r.pc))):"--"}</td><td>${tot?Math.round(a.buy/tot*100)+"% buy":"--"}</td><td class="${a&&a.target>0&&r.c>0?cls(a.target/r.c-1):""}">${a&&a.target>0&&r.c>0?fmtPct(a.target/r.c-1,0):"--"}</td>
+      <td class="${t?(t.trend==="Uptrend"?"up":t.trend==="Downtrend"?"down":"meh"):""}">${t?t.trend:"--"}</td><td class="l">${t&&t.last?`<span class="${t.last.dir>0?"up":t.last.dir<0?"down":"meh"}">${t.last.t}</span> <span class="sub">${t.last.ago?t.last.ago+"d ago":"today"}</span>`:"--"}</td></tr>`}).join("");
+  $("fdTbl").innerHTML=`<tr><th class="l">Stock</th><th>Inst. own</th><th>Funds net (qtr)</th><th>Buyers/sellers</th><th>New/sold out</th><th>Insiders 3m</th><th>Analysts</th><th>Target</th><th>Trend</th><th class="l">Latest inflection</th></tr>`+rows;
+}
+const fmtInt=x=>isNum(x)?Math.round(x).toLocaleString("en-US"):"--";
+function demoHolders(s,lite){
+  const rnd=k=>{let h=7;for(const ch of s+"|"+k)h=(h*31+ch.charCodeAt(0))%1000003;const x=Math.sin(h*12.9898)*43758.5453;return x-Math.floor(x)},T=1e9*(0.5+rnd("t")),inc=T*(0.02+0.04*rnd("i")),dec=T*(0.02+0.04*rnd("d"));
+  const names=["Vanguard Group Inc","Blackrock, Inc.","State Street Corp","Fmr Llc","Geode Capital Management","Capital World Investors","Jpmorgan Chase & Co","Morgan Stanley"];
+  const row=(n,i,sg)=>({name:n,date:"6/30/2026",held:T*(0.09-i*0.01),chg:sg*T*0.004*(1+rnd(n)),pct:sg*(0.3+rnd(n+"p")*3),value:T*(0.09-i*0.01)*(Q[s].c||100)/1000});
+  const P=Q[s].c||Q[s].pc||100;
+  return{status:"ok",t:s,demo:1,summary:{instPct:55+30*rnd("o"),sharesOut:T/0.7,total:{holders:3000,shares:T},inc:{holders:1500+Math.round(900*rnd("a")),shares:inc},dec:{holders:1300+Math.round(900*rnd("b")),shares:dec},newp:{holders:150+Math.round(100*rnd("c")),shares:T*0.006},sold:{holders:80+Math.round(80*rnd("e")),shares:T*0.003}},
+    top:lite?[]:names.map((n,i)=>row(n,i,rnd(n)>0.4?1:-1)),buyers:lite?[]:names.slice(0,5).map((n,i)=>row(n,i,1)),sellers:lite?[]:names.slice(3,8).map((n,i)=>row(n,i,-1)),newp:lite?[]:[row("Demo Capital Llc",4,1)],soldout:lite?[]:[row("Sample Partners Lp",5,-1)],
+    insiders:{shares:{"Net Activity":{m3:rnd("z")>0.85?3e4*rnd("x"):-(2e4+4e5*rnd("x")),m12:-(1e5+2e6*rnd("y"))}},trades:{"Number of Open Market Buys":{m3:Math.round(3*rnd("q")),m12:Math.round(10*rnd("r"))},"Number of Sells":{m3:5+Math.round(15*rnd("w")),m12:40}},recent:lite?[]:[{name:"DIRECTOR A",rel:"Director",date:"10/07/2026",type:"Automatic Sell",shares:50000,price:P}]},
+    analysts:{target:P*(1.05+0.35*rnd("tg")),low:P*0.8,high:P*1.7,buy:10+Math.round(25*rnd("by")),hold:Math.round(8*rnd("hd")),sell:Math.round(2*rnd("sl")),history:[]}};
+}
+function demoDaily(s){const out=[];let p=(Q[s].pc||100)*0.75;const t0=Date.now()-365*86400000;for(let i=0;i<252;i++){p*=1+(Math.random()-0.47)*0.04;out.push([t0+i*1.45*86400000,p,p*1.01,p*0.99,p,1e6*(1+Math.random()*(i%37===0?4:1))])}return out}
+
+/* ---------- social pulse (StockTwits via the Worker; X has no free read access) ---------- */
+var SOC={},socTab="SOXL",socTimer=null,SOC_TABS=["SOXL","SOXS","SOXX","NVDA","AMD","AVGO","MU","TSM"];
+var SOCR={};try{SOCR=JSON.parse(lsGet("soxx_socrate")||"{}")||{}}catch(e){SOCR={}}
+var SOCH={};try{SOCH=JSON.parse(lsGet("soxx_soch")||"{}")||{}}catch(e){SOCH={}}
+function socStats(s){
+  const d=SOC&&SOC[s];if(!d||!d.msgs||!d.msgs.length)return null;
+  const M=d.msgs,bull=M.filter(m=>m.sent==="Bullish").length,bear=M.filter(m=>m.sent==="Bearish").length,tagged=bull+bear;
+  const ts=M.map(m=>m.at).filter(x=>x>0).sort((a,b)=>b-a),span=ts.length>1?(ts[0]-ts[ts.length-1])/3600000:NaN;
+  const rate=span>0?(ts.length-1)/span:NaN,avg=SOCR[s]&&SOCR[s].n>=5?SOCR[s].v:NaN;
+  return{n:M.length,bull:tagged?bull/tagged:NaN,bear,bullN:bull,tagged,rate,avg,spike:isFinite(rate)&&isFinite(avg)&&rate>=2*avg&&rate>=10,watchers:d.watchers,at:d.at,err:d.err};
+}
+async function socLoad(s){
+  if(demo){if(!SOC[s]||Date.now()-SOC[s].at>60000)SOC[s]=demoSocial(s);return}
+  const p=fredProxy();if(!p)return;
+  try{const j=await(await fetch(`${p}/social?t=${s}`)).json();
+    if(j.status==="ok"){SOC[s]={at:Date.now(),msgs:j.msgs,watchers:j.watchers,err:""};
+      const S=socStats(s);if(S&&isFinite(S.rate)){const r=SOCR[s]||{v:S.rate,n:0};r.v=r.n?0.9*r.v+0.1*S.rate:S.rate;r.n++;SOCR[s]=r;try{lsSet("soxx_socrate",JSON.stringify(SOCR))}catch(e){}}
+      if(s===FUND&&S&&S.tagged>=5){const d=etDate(),h=SOCH[d]||{b:0,t:0,k:0};h.b+=S.bullN;h.t+=S.tagged;h.k++;SOCH[d]=h;const ks=Object.keys(SOCH).sort();while(ks.length>400)delete SOCH[ks.shift()];try{lsSet("soxx_soch",JSON.stringify(SOCH))}catch(e){}}
+    }else SOC[s]={...(SOC[s]||{msgs:[]}),at:Date.now(),err:j.error||"no answer"};
+  }catch(e){SOC[s]={...(SOC[s]||{msgs:[]}),at:Date.now(),err:"Worker /social did not answer (update the Worker code)"}}
+}
+function socLearn(){
+  // after 30 days: does the daily StockTwits bull share relate to SOXL's next-day return?
+  const D=(sessStats().D)||[],pts=[];D.forEach(d=>{const h=SOCH[d.d];if(h&&h.t>=20&&isNum(d.nCC))pts.push([h.b/h.t,d.nCC])});
+  const n=pts.length;if(n<30)return{n,days:Object.keys(SOCH).length};
+  const mx=mean(pts.map(p=>p[0])),my=mean(pts.map(p=>p[1]));let sxy=0,sxx=0,syy=0;pts.forEach(([x,y])=>{sxy+=(x-mx)*(y-my);sxx+=(x-mx)**2;syy+=(y-my)**2});
+  const r=sxx>0&&syy>0?sxy/Math.sqrt(sxx*syy):NaN;return{n,days:Object.keys(SOCH).length,r,t:r*Math.sqrt((n-2)/Math.max(1e-9,1-r*r))};
+}
+function socHtml(s,listId,barId){
+  const d=SOC[s],S=socStats(s);
+  const L=socLearn();
+  $(barId).innerHTML=S?`<span class="up">${S.bullN} bullish</span><div class="bbar"><span style="width:${S.tagged?Math.round(S.bull*100):50}%"></span></div><span class="down">${S.bear} bearish</span>
+    <span class="chip">Bull share <b>${S.tagged?Math.round(S.bull*100)+"%":"--"}</b></span><span class="chip">Pace <b>${isFinite(S.rate)?S.rate.toFixed(0)+"/h":"--"}</b>${S.spike?' <b class="up">spike</b>':""}</span>${S.watchers?`<span class="chip">Watchers <b>${fmtInt(S.watchers)}</b></span>`:""}${s===FUND?`<span class="chip">Learning <b>${L.n>=30?`r=${L.r.toFixed(2)} vs next day (n=${L.n})`:`${L.days} days recorded`}</b></span>`:""}`
+    :`<span class="sub">${d&&d.err?esc(d.err):demo||fredProxy()?"Loading StockTwits…":"Add the Worker URL (API key box) to load StockTwits."}</span>`;
+  const now=Date.now(),ago=t=>{const m=Math.max(0,Math.round((now-t)/60000));return m<60?m+"m":m<1440?Math.round(m/60)+"h":Math.round(m/1440)+"d"};
+  const body=t=>esc(t).replace(/\$([A-Z][A-Z.]{0,6})\b/g,(x,k)=>SYMS.includes(k)?`<span class="ct" data-go="${k}">$${k}</span>`:`<span class="ct">$${k}</span>`);
+  $(listId).innerHTML=d&&d.msgs&&d.msgs.length?d.msgs.slice(0,30).map(m=>`<div class="sm"><div class="h"><span>${ago(m.at)}</span><a href="https://stocktwits.com/${encodeURIComponent(m.user)}/message/${m.id}" target="_blank" rel="noopener" style="color:var(--dim)">@${esc(m.user)}</a><span>${fmtInt(m.followers)} followers</span>${m.sent?`<span class="${m.sent==="Bullish"?"bull":"bear"}">${m.sent}</span>`:""}${m.likes?`<span>♥ ${m.likes}</span>`:""}</div><div class="tx">${body(m.body)}</div></div>`).join(""):"";
+}
+function socXLinks(s){const q=encodeURIComponent("$"+s);return`<a class="chiplink" href="https://x.com/search?q=${q}&f=live" target="_blank" rel="noopener">$${s} latest on X</a><a class="chiplink" href="https://x.com/search?q=${q}&f=top" target="_blank" rel="noopener">$${s} top on X</a><a class="chiplink" href="https://stocktwits.com/symbol/${s}" target="_blank" rel="noopener">$${s} on StockTwits</a><span class="sub">X does not offer free read access, so X posts open on X.</span>`}
+function renderSocial(){
+  if(!$("socTabs"))return;
+  $("socTabs").innerHTML=SOC_TABS.map(s=>`<button data-soc="${s}" class="${s===socTab?"on":""}">${s}</button>`).join("");
+  socHtml(socTab,"socList","socBar");$("socX").innerHTML=socXLinks(socTab);
+}
+async function socTick(){await socLoad(socTab);if(socTab!==FUND&&(!SOC[FUND]||Date.now()-SOC[FUND].at>120000))await socLoad(FUND);if(curSym&&curSym!==socTab&&!CRYPTO.includes(curSym))await socLoad(curSym);renderSocial();if(curSym)renderSvExtra(curSym)}
+function startSocial(){clearInterval(socTimer);socTick();socTimer=setInterval(socTick,60000)}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-soc]");if(!b)return;socTab=b.dataset.soc;renderSocial();socLoad(socTab).then(renderSocial)});
+function demoSocial(s){
+  const P=["breaking out, $100 next","fade this gap, too extended","loaded calls into close","$SOXS hedge on, CPI tomorrow","dip bought, holding","this is a trap, watch $NVDA","rebalance flows into the close","AH pump again lol","semis lead, $AMD strong","taking profits here"];
+  const now=Date.now();return{at:now,watchers:41058,msgs:P.map((t,i)=>({id:1000+i,body:"$"+s+" "+t,at:now-i*4*60000,user:"trader"+(i+1),followers:50*(i+1),sent:i%3===0?"Bearish":i%4===1?null:"Bullish",likes:i%3,syms:[s]}))};
+}
+
+/* ---------- stock page: funds, trend, consensus, social ---------- */
+async function svLoadExtra(s){
+  const d=svData[s]||(svData[s]={news:[],earn:null,c1d:null,c5d:null,t:0});if(CRYPTO.includes(s))return;
+  if(demo){d.hold=d.hold||demoHolders(s,false);d.tech=d.tech||techOf(demoDaily(s));SOC[s]=SOC[s]||demoSocial(s);return}
+  const p=fredProxy();if(!p)return;
+  const jobs=[];
+  if(!d.hold||Date.now()-(d.holdAt||0)>6*3600000)jobs.push(fetch(`${p}/holders?t=${s}`).then(r=>r.json()).then(j=>{d.hold=j;d.holdAt=Date.now()}).catch(()=>{d.hold={status:"error",error:"Worker /holders did not answer (update the Worker code)"}}));
+  if(!d.tech||Date.now()-(d.techAt||0)>3600000)jobs.push(fetch(`${p}/chart?t=${ySym(s)}&range=1y&interval=1d`).then(r=>r.json()).then(j=>{if(j.status==="ok"){d.tech=techOf(j.bars);d.techAt=Date.now()}}).catch(()=>{}));
+  jobs.push(socLoad(s));
+  await Promise.all(jobs);if(curSym===s)renderSvExtra(s);
+}
+function renderSvExtra(s){
+  if(!$("svCons")||curSym!==s)return;const d=svData[s]||{},h=d.hold,t=d.tech||(FUNDS[s]&&FUNDS[s].tech),q=Q[s],P=q.c||q.pc;
+  const isFund=!HOLDINGS.some(x=>x[0]===s);
+  // consensus
+  const a=h&&h.status==="ok"?h.analysts:null,tot=a?(a.buy||0)+(a.hold||0)+(a.sell||0):0,x=netInst(h),k=insNet(h),S=socStats(s),nw=(d.news||[]).slice(0,15),ns=nw.length?mean(nw.map(n=>n.s||0)):NaN;
+  const rec=MICRO.r&&MICRO.r[s];
+  $("svCons").innerHTML=kvHtml([
+    ["Analysts (Nasdaq)",tot?`${a.buy} buy · ${a.hold} hold · ${a.sell} sell`:"--"],
+    ["Price target",a&&a.target>0?`${fmtPx(a.target)} <span class="${cls(a.target/P-1)}">(${fmtPct(a.target/P-1,0)})</span> <span class="sub">${fmtPx(a.low)}–${fmtPx(a.high)}</span>`:"--"],
+    ["Funds (13F, last quarter)",isFinite(x)?`<span class="${cls(x)}">${x>=0?"+":""}${(x*100).toFixed(2)}% shares</span>`:isFund?"Fund: see its holdings":"--"],
+    ["Insiders (3 months)",isFinite(k)?`<span class="${cls(k)}">${k>=0?"+":"−"}${fmtInt(Math.abs(k))} sh (${fmtBig(Math.abs(k*P))})</span>`:"--"],
+    ["StockTwits mood",S&&S.tagged?`<span class="${S.bull>=0.5?"up":"down"}">${Math.round(S.bull*100)}% bullish</span> <span class="sub">${S.tagged} tagged</span>`:"--"],
+    ["News tone (15 latest)",isFinite(ns)?`<span class="${cls(ns)}">${ns>=0?"+":""}${ns.toFixed(2)}</span>`:"--"],
+    ["Trend",t?`<span class="${t.trend==="Uptrend"?"up":t.trend==="Downtrend"?"down":"meh"}">${t.trend}</span>`:"--"]]);
+  // game read for this stock
+  const R=[];
+  if(tot&&a.buy/tot>=0.85&&a.target>0&&a.target/P-1<0.1)R.push("Analysts are almost all \"buy\" but the target is close to the price. The good news is mostly priced in, so a miss can hurt more than a beat helps (beauty contest).");
+  else if(tot&&a.buy/tot>=0.85)R.push("Analyst consensus is one-sided bullish. Consensus is crowded, so watch for downgrades as inflection points.");
+  if(a&&a.target>0&&a.target/P-1>0.25)R.push(`Price is ${fmtPct(1-P/a.target,0)} below the average target: analysts expect more upside than the market pays for now.`);
+  if(isFinite(x)&&x>0.01)R.push("Funds added shares last quarter: slow, patient demand that tends to buy dips.");
+  if(isFinite(x)&&x<-0.01)R.push("Funds cut shares last quarter: slow supply that tends to sell rallies.");
+  if(isFinite(k)&&k>0)R.push("Insiders were net buyers: rare, and historically a stronger signal than insider selling.");
+  if(S&&S.tagged>=10&&S.bull>=0.8)R.push("StockTwits is very one-sided bullish: a crowded trade. In a minority game the crowded side often loses on short horizons.");
+  if(S&&S.tagged>=10&&S.bull<=0.35)R.push("StockTwits is fearful: retail is selling first. If big money buys while retail sells, lows often form.");
+  if(S&&S.spike)R.push("Message volume is spiking. Studies found that StockTwits mood predicts returns mainly around such spikes.");
+  if(t&&t.rsi>=70)R.push("RSI is above 70: overbought, more players are positioned to sell into strength.");
+  if(t&&t.rsi<=30)R.push("RSI is below 30: oversold, sellers are tired.");
+  if(t&&t.last&&t.last.ago<=5)R.push(`Fresh inflection ${t.last.ago?t.last.ago+" sessions ago":"today"}: ${t.last.t}.`);
+  $("svConsRead").innerHTML=R.length?"<b>Read:</b> "+R.join(" "):`<span class="sub">${h&&h.status==="error"?esc(h.error):"Waiting for data…"}</span>`;
+  // trend and inflection points
+  $("svTech").innerHTML=t?kvHtml([["Price vs 20 / 50 / 200-day",[t.s20,t.s50,t.s200].map(v=>isFinite(v)?`<span class="${cls(t.P-v)}">${fmtPct(t.P/v-1,1)}</span>`:"--").join(" · ")],
+    ["RSI (14)",isFinite(t.rsi)?`<span class="${t.rsi>=70?"down":t.rsi<=30?"up":""}">${t.rsi.toFixed(0)}</span>`:"--"],
+    ["52-week range",`${fmtPx(t.lo)} – ${fmtPx(t.hi)} · at ${isFinite(t.pos)?Math.round(t.pos*100)+"%":"--"}`],["Return 20d / 60d",`<span class="${cls(t.r20)}">${fmtPct(t.r20,1)}</span> · <span class="${cls(t.r60)}">${fmtPct(t.r60,1)}</span>`]]):`<span class="sub">${demo||fredProxy()?"Loading daily bars…":"Add the Worker URL to load daily bars."}</span><span></span>`;
+  $("svInfl").innerHTML=t&&t.events.length?`<table class="tbl"><tr><th class="l">Date</th><th class="l">Inflection point</th><th>Days ago</th></tr>${t.events.map(e=>`<tr><td>${e.d}</td><td class="l ${e.dir>0?"up":e.dir<0?"down":"meh"}">${e.t}</td><td>${e.ago}</td></tr>`).join("")}</table>`:t?'<div class="sub">No inflection points in the last 90 days.</div>':"";
+  // funds
+  const HS=h&&h.status==="ok"?h.summary:null,stt=(kk,v,sub,c)=>`<div class="st"><div class="k">${kk}</div><div class="v ${c||""}">${v}</div><div class="s">${sub||""}</div></div>`;
+  $("svHoldS").innerHTML=HS?stt("Institutional ownership",isNum(HS.instPct)?HS.instPct.toFixed(1)+"%":"--",HS.total?`${fmtInt(HS.total.holders)} funds`:"")+stt("Net change (shares)",isFinite(x)?(x>=0?"+":"")+(x*100).toFixed(2)+"%":"--","last quarter",cls(x))+
+    stt("Buyers / sellers",HS.inc&&HS.dec?`<span class="up">${fmtInt(HS.inc.holders)}</span> / <span class="down">${fmtInt(HS.dec.holders)}</span>`:"--","funds that added / cut")+
+    stt("New / sold out",HS.newp&&HS.sold?`<span class="up">${fmtInt(HS.newp.holders)}</span> / <span class="down">${fmtInt(HS.sold.holders)}</span>`:"--","funds that opened / closed")
+    :`<span class="sub">${h&&h.status==="error"?esc(h.error):isFund?"Funds data is for stocks. Open a holding to see its funds.":demo||fredProxy()?"Loading funds…":"Add the Worker URL to load funds."}</span>`;
+  const tb=(title,rows,mode)=>`<div><div class="label" style="margin-top:12px">${title}</div><div class="tw"><table class="tbl"><tr><th class="l">Fund</th><th>Shares held</th><th>Change</th><th>%</th><th>Date</th></tr>${(rows||[]).map(r=>`<tr><td class="l">${esc(r.name||"")}</td><td>${fmtInt(r.held)}</td><td class="${cls(r.chg)}">${r.chg>=0?"+":"−"}${fmtInt(Math.abs(r.chg))}</td><td class="${cls(r.chg)}">${r.pct==="New"?"New":isNum(r.pct)?r.pct.toFixed(2)+"%":"--"}</td><td>${esc(r.date||"")}</td></tr>`).join("")||'<tr><td class="l sub" colspan="5">--</td></tr>'}</table></div></div>`;
+  const ins=h&&h.insiders&&h.insiders.recent||[];
+  $("svHold").innerHTML=HS?tb("Largest holders",h.top)+tb("Biggest buyers",h.buyers)+tb("Biggest sellers",h.sellers)+tb("New positions",h.newp)+tb("Sold out",h.soldout)+
+    `<div><div class="label" style="margin-top:12px">Insider trades (latest)</div><div class="tw"><table class="tbl"><tr><th class="l">Insider</th><th class="l">Type</th><th>Shares</th><th>Price</th><th>Date</th></tr>${ins.map(r=>`<tr><td class="l">${esc(r.name||"")} <span class="sub">${esc(r.rel||"")}</span></td><td class="l ${/buy/i.test(r.type)?"up":/sell/i.test(r.type)?"down":""}">${esc(r.type||"")}</td><td>${fmtInt(r.shares)}</td><td>${r.price>0?fmtPx(r.price):"--"}</td><td>${esc(r.date||"")}</td></tr>`).join("")||'<tr><td class="l sub" colspan="5">--</td></tr>'}</table></div></div>`:"";
+  // social
+  if(!CRYPTO.includes(s)){socHtml(s,"svSocial","svSocBar");$("svSocX").innerHTML=socXLinks(s)}else{$("svSocBar").innerHTML='<span class="sub">StockTwits uses different symbols for crypto.</span>';$("svSocial").innerHTML="";$("svSocX").innerHTML=""}
+}
+
 /* ---------- main page order: most useful first ---------- */
 function reorderMain(){
-  const mv=$("mainView"),seq=["mStrip","extBar","idxPct","postKit","dStance","moversCard","tiles","nuPx","xmTbl","sTiles","xTiles","pFlow","gapTbl","ruleStory","macT","xm2Tbl","todTbl","atScore","chart","knTbl","memKv"];
+  const mv=$("mainView"),seq=["mStrip","extBar","idxPct","postKit","dStance","gtTiles","moversCard","socList","tiles","fdTbl","nuPx","xmTbl","sTiles","xTiles","pFlow","gapTbl","ruleStory","macT","xm2Tbl","todTbl","atScore","chart","knTbl","memKv"];
   const top=id=>{let e=$(id);while(e&&e.parentElement!==mv)e=e.parentElement;return e};
   seq.forEach(id=>{const e=top(id);if(!e)return;if(id==="tiles"&&e.previousElementSibling&&e.previousElementSibling.classList.contains("toolbar"))mv.appendChild(e.previousElementSibling);mv.appendChild(e)});
 }
@@ -2497,7 +2877,7 @@ function route(){
 function openStock(s){
   const first=curSym!==s;curSym=s;
   $("mainView").style.display="none";$("stockView").style.display="block";
-  if(first){window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true)}
+  if(first){window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true);svLoadExtra(s);svxT=0}
   renderStock(true);
 }
 function closeStock(){curSym=null;$("stockView").style.display="none";$("mainView").style.display="block";document.title="SOXX Sniper";dirty=true}
@@ -2599,8 +2979,10 @@ function drawCard(s){
   g.textAlign="right";g.fillText("not investment advice",W-60,645);g.textAlign="left";
   return cv;
 }
+var svxT=0;
 function renderStock(force){
   if(!curSym)return;const now=Date.now();if(!force&&now-svT<1000)return;svT=now;
+  if(force||now-svxT>10000){svxT=now;try{renderSvExtra(curSym)}catch(e){console.warn("svx",e)}}
   const s=curSym,q=Q[s],d=svData[s]||{},S=svSummary(s),pr=S.pr,meta=(d.c1d&&d.c1d.meta)||{},mic=(MICRO.m&&MICRO.m[s])||((MICRO.prevM||{})[s])||{};
   const i=ORDER.indexOf(s);
   $("svNav").innerHTML=(i>=0?`<button data-go="${ORDER[(i-1+ORDER.length)%ORDER.length]}">← ${ORDER[(i-1+ORDER.length)%ORDER.length]}</button><button data-go="${ORDER[(i+1)%ORDER.length]}">${ORDER[(i+1)%ORDER.length]} →</button>`:"")+

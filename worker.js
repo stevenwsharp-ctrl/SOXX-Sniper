@@ -8,6 +8,10 @@
 //        GET https://<your-worker>.workers.dev/hist?t=SOXL&mult=5&span=minute&from=2026-01-02&to=2026-03-31
 //        GET https://<your-worker>.workers.dev/ext?t=SOXL,NVDA        (live pre-market / after-hours prices)
 //        GET https://<your-worker>.workers.dev/chart?t=NVDA&range=1d&interval=1m   (intraday chart with extended hours)
+//        GET https://<your-worker>.workers.dev/chart?t=NVDA&range=1y&interval=1d   (daily bars for trend and inflection points)
+//        GET https://<your-worker>.workers.dev/holders?t=NVDA          (funds that hold, buy and sell; insiders; analyst target)
+//        GET https://<your-worker>.workers.dev/holders?t=NVDA&lite=1   (summary only, for the index scan)
+//        GET https://<your-worker>.workers.dev/social?t=SOXL           (latest StockTwits messages with bull/bear tags)
 
 const ALLOW = new Set([
   "DFF","CPIAUCSL","CPILFESL","UNRATE","A191RL1Q225SBEA","ICSA","UMCSENT","NFCI","T10YIE",
@@ -132,10 +136,10 @@ async function extQuote(t) {
 const chartMemo = new Map();
 async function yahooChart(t, range, interval) {
   const k = [t, range, interval].join("|"), hit = chartMemo.get(k);
-  if (hit && Date.now() - hit.at < (interval === "1m" ? 20000 : 60000)) return hit.body;
+  if (hit && Date.now() - hit.at < (interval === "1m" ? 20000 : interval === "1d" || interval === "1wk" ? 3600000 : 60000)) return hit.body;
   for (const host of ["query1", "query2"]) {
     try {
-      const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?interval=${interval}&range=${range}&includePrePost=true`, { headers: UA });
+      const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?interval=${interval}&range=${range}${interval === "1d" || interval === "1wk" ? "" : "&includePrePost=true"}`, { headers: UA });
       if (!r.ok) continue;
       const j = await r.json(), res = j && j.chart && j.chart.result && j.chart.result[0];
       if (!res) continue;
@@ -151,6 +155,76 @@ async function yahooChart(t, range, interval) {
     } catch (e) {}
   }
   return { status: "error", error: "chart source did not answer" };
+}
+
+// ---- funds and insiders (Nasdaq.com, free, no key; 13F data is quarterly). Unofficial endpoints: they can change.
+const holdMemo = new Map();
+const HOLD_TTL_MS = 6 * 60 * 60 * 1000;
+const NQ = { ...UA, "Origin": "https://www.nasdaq.com", "Referer": "https://www.nasdaq.com/" };
+async function nq(path) {
+  try {
+    const r = await fetch("https://api.nasdaq.com" + path, { headers: NQ, cf: { cacheTtl: 3600, cacheEverything: true } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.data ? j.data : null;
+  } catch (e) { return null; }
+}
+const nnum = s => { if (s == null) return null; const t = String(s).replace(/[$,%\s]/g, ""); const neg = /^\(.*\)$/.test(t); const v = Number(t.replace(/[()]/g, "")); return isFinite(v) ? (neg ? -v : v) : null; };
+const holdRows = d => ((d && d.holdingsTransactions && d.holdingsTransactions.table && d.holdingsTransactions.table.rows) || []).map(r => ({
+  name: r.ownerName, date: r.date, held: nnum(r.sharesHeld), chg: nnum(r.sharesChange), pct: r.sharesChangePCT === "New" ? "New" : nnum(r.sharesChangePCT), value: nnum(r.marketValue) }));
+function holdSummary(d) {
+  if (!d) return null;
+  const rowsOf = o => Object.fromEntries(((o && o.rows) || []).map(r => [r.positions, { holders: nnum(r.holders), shares: nnum(r.shares) }]));
+  const a = rowsOf(d.activePositions), n = rowsOf(d.newSoldOutPositions), o = d.ownershipSummary || {};
+  return {
+    instPct: nnum(o.SharesOutstandingPCT && o.SharesOutstandingPCT.value),
+    sharesOut: nnum(o.ShareoutstandingTotal && o.ShareoutstandingTotal.value) * 1e6 || null,
+    valueM: nnum(o.TotalHoldingsValue && o.TotalHoldingsValue.value),
+    inc: a["Increased Positions"] || null, dec: a["Decreased Positions"] || null, held: a["Held Positions"] || null,
+    total: a["Total Institutional Shares"] || null, newp: n["New Positions"] || null, sold: n["Sold Out Positions"] || null };
+}
+async function getHolders(t, lite) {
+  const k = t + "|" + (lite ? 1 : 0), hit = holdMemo.get(k);
+  if (hit && Date.now() - hit.at < HOLD_TTL_MS) return hit.body;
+  const base = `/api/company/${t}/institutional-holdings?type=`;
+  const reqs = [nq(`${base}TOTAL&limit=${lite ? 1 : 8}&sortColumn=marketValue&sortOrder=DESC`), nq(`/api/analyst/${t}/targetprice`), nq(`/api/company/${t}/insider-trades?limit=${lite ? 1 : 8}&type=ALL&sortColumn=lastDate&sortOrder=DESC`)];
+  if (!lite) reqs.push(
+    nq(`${base}INCREASED&limit=5&sortColumn=sharesChange&sortOrder=DESC`), nq(`${base}DECREASED&limit=5&sortColumn=sharesChange&sortOrder=ASC`),
+    nq(`${base}NEW&limit=4&sortColumn=sharesChange&sortOrder=DESC`), nq(`${base}SOLDOUT&limit=4&sortColumn=sharesChange&sortOrder=ASC`));
+  const [tot, tp, ins, inc, dec, nw, so] = await Promise.all(reqs);
+  if (!tot && !tp && !ins) return { status: "error", error: "Nasdaq did not answer" };
+  const insRows = rows => Object.fromEntries(((rows) || []).map(r => [r.insiderTrade, { m3: nnum(r.months3), m12: nnum(r.months12) }]));
+  const co = tp && tp.consensusOverview, hc = (tp && tp.historicalConsensus) || [];
+  const body = { status: "ok", t, at: Date.now(), summary: holdSummary(tot),
+    top: lite ? [] : holdRows(tot), buyers: holdRows(inc), sellers: holdRows(dec), newp: holdRows(nw), soldout: holdRows(so),
+    insiders: ins ? { trades: insRows(ins.numberOfTrades && ins.numberOfTrades.rows), shares: insRows(ins.numberOfSharesTraded && ins.numberOfSharesTraded.rows),
+      recent: lite ? [] : (((ins.transactionTable && ins.transactionTable.table && ins.transactionTable.table.rows) || []).map(r => ({ name: r.insider, rel: r.relation, date: r.lastDate, type: r.transactionType, shares: nnum(r.sharesTraded), price: nnum(r.lastPrice) }))) } : null,
+    analysts: co ? { target: co.priceTarget, low: co.lowPriceTarget, high: co.highPriceTarget, buy: co.buy, hold: co.hold, sell: co.sell,
+      history: hc.slice(-12).map(h => ({ date: h.z && h.z.date, consensus: h.z && h.z.consensus, buy: h.z && h.z.buy, hold: h.z && h.z.hold, sell: h.z && h.z.sell, price: h.y })) } : null };
+  holdMemo.set(k, { at: Date.now(), body });
+  return body;
+}
+
+// ---- StockTwits public stream (free, no key). Unofficial for this use: it can change or block.
+const stMemo = new Map();
+async function getSocial(t) {
+  const hit = stMemo.get(t);
+  if (hit && Date.now() - hit.at < 45000) return hit.body;
+  let body = { status: "error", error: "StockTwits did not answer" };
+  try {
+    const r = await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${encodeURIComponent(t)}.json`, { headers: { ...UA, "Referer": "https://stocktwits.com/" } });
+    if (r.ok) {
+      const j = await r.json();
+      const msgs = (j.messages || []).map(m => ({ id: m.id, body: String(m.body || "").slice(0, 600), at: Date.parse(m.created_at) || 0,
+        user: m.user ? m.user.username : "", followers: m.user ? m.user.followers || 0 : 0, official: !!(m.user && m.user.official),
+        sent: m.entities && m.entities.sentiment ? m.entities.sentiment.basic || null : null, likes: m.likes ? m.likes.total || 0 : 0,
+        syms: (m.symbols || []).map(x => x.symbol).slice(0, 8) }));
+      body = { status: "ok", t, at: Date.now(), watchers: j.symbol ? j.symbol.watchlist_count || null : null, msgs };
+    } else body = { status: "error", error: "StockTwits answered " + r.status };
+  } catch (e) { body = { status: "error", error: String(e) }; }
+  if (body.status === "ok") stMemo.set(t, { at: Date.now(), body });
+  else if (hit) return { ...hit.body, stale: true };
+  return body;
 }
 
 export default {
@@ -171,11 +245,17 @@ export default {
     }
     if (url.pathname === "/chart") {
       const t = (url.searchParams.get("t") || "").toUpperCase();
-      const range = ["1d", "5d", "1mo"].includes(url.searchParams.get("range")) ? url.searchParams.get("range") : "1d";
-      const interval = ["1m", "2m", "5m", "15m", "30m", "60m"].includes(url.searchParams.get("interval")) ? url.searchParams.get("interval") : "1m";
+      const range = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y"].includes(url.searchParams.get("range")) ? url.searchParams.get("range") : "1d";
+      const interval = ["1m", "2m", "5m", "15m", "30m", "60m", "1d", "1wk"].includes(url.searchParams.get("interval")) ? url.searchParams.get("interval") : "1m";
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       if (!/^\^?[A-Z][A-Z.\-]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
       return json(await yahooChart(t, range, interval));
+    }
+    if (url.pathname === "/holders" || url.pathname === "/social") {
+      const t = (url.searchParams.get("t") || "").toUpperCase();
+      const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      if (!/^[A-Z][A-Z.\-]{0,7}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
+      return json(url.pathname === "/holders" ? await getHolders(t, url.searchParams.get("lite") === "1") : await getSocial(t));
     }
     if (url.pathname === "/hist") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
