@@ -158,6 +158,36 @@ async function stQuotes(list) {
   stqMemo.set(k, { at: Date.now(), q: out });
   return out;
 }
+// StockTwits symbol endpoint (price v2): includes the overnight session (8 pm - 4 am ET). One call per symbol,
+// so it is used only for the first symbols of each request (SOXL first).
+const st2Memo = new Map();
+async function stQuoteV2(t) {
+  const hit = st2Memo.get(t);
+  if (hit && Date.now() - hit.at < EXT_TTL_MS) return hit.q;
+  let q = null;
+  try {
+    const r = await fetch(`https://api.stocktwits.com/api/2/symbols/with_price/${encodeURIComponent(t)}.json?enable_price_v2=true&limit=1`, { headers: { ...UA, "Referer": "https://stocktwits.com/" } });
+    if (r.ok) {
+      const j = await r.json(), d = j && j.symbol && j.symbol.price_data;
+      if (d) {
+        const x = d.extended_hours, rt = Date.parse(d.timestamp) || 0, xt = x ? Date.parse(x.timestamp) || 0 : 0;
+        const useX = x && x.price > 0 && xt >= rt, ty = String((x && x.session_type) || "").toUpperCase();
+        q = { t, price: useX ? x.price : d.last, time: useX ? xt : rt, vol: 0,
+          session: useX ? (ty.includes("OVERNIGHT") ? "overnight" : ty.includes("PRE") ? "pre" : "post") : "regular",
+          regularClose: d.last, prevClose: d.previous_close, src: "stocktwits" };
+      }
+    }
+  } catch (e) {}
+  st2Memo.set(t, { at: Date.now(), q });
+  return q;
+}
+async function stAll(list) {
+  const st = await stQuotes(list);
+  const main = list.filter(t => !t.startsWith("^") && !t.includes("-USD")).slice(0, 6);
+  const v2 = await Promise.all(main.map(stQuoteV2));
+  main.forEach((t, i) => { const q = v2[i]; if (q && q.price > 0 && (!st[t] || q.time > st[t].time)) st[t] = q; });
+  return st;
+}
 async function extQuote(t, st) {
   const hit = extMemo.get(t);
   let q = hit && Date.now() - hit.at < EXT_TTL_MS ? hit.q : null;
@@ -278,7 +308,7 @@ export default {
     }
     if (url.pathname === "/ext") {
       const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^\^?[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 24);
-      const quotes = {}, st = await stQuotes(list);
+      const quotes = {}, st = await stAll(list);
       await Promise.all(list.map(async t => { const q = await extQuote(t, st); if (q) quotes[t] = q; }));
       return new Response(JSON.stringify({ t: Date.now(), quotes }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }

@@ -165,7 +165,7 @@ Select **Demo mode** in the API key box to see every panel with simulated data. 
 | alternative.me | no | Crypto Fear & Greed | Daily |
 | FRED, via the Worker | yes | Yields, credit spreads, funding, liquidity, macro, consumer credit, debt ratios, oil | Daily to quarterly |
 | Massive (Polygon), via the Worker | yes | 2 years of 5-minute bars with extended hours | End of day |
-| StockTwits quotes, via the Worker | no | A second source for pre-market, after-hours and overnight (8 pm–4 am ET) prices. The Worker keeps the quote with the newest trade time. | About 5 s |
+| StockTwits quotes, via the Worker | no | A second source for pre-market and after-hours prices, and the only free source here for **overnight** prices (8 pm–4 am ET, 24-hour venues). The Worker keeps the quote with the newest trade time. | About 5 s |
 | Yahoo Finance (Nasdaq.com as a backup), via the Worker | no | Live pre-market and after-hours prices, index levels (SOX, Dow, S&P 500, Nasdaq, VIX, 10Y), stock-page charts, daily bars for trend, volume, 52-week range | About 15–20 s |
 | Nasdaq.com, via the Worker | no | Fund holdings (13F), insider trades (Form 4), analyst price targets | Quarterly / daily; cached 6–12 h |
 | StockTwits, via the Worker | no | Latest messages with bullish/bearish tags | About 60 s |
