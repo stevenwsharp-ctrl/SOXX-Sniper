@@ -3367,8 +3367,8 @@ function mhResolve(S,now,useLive){
 }
 function mhStep(S,P,i,L,live){const x=mhX(S,P,i,L),z=mhZ(x,true),t=S[i][0];
   MH.H.forEach(H=>{const{p,lg}=mhP(H,z);H.q.push({z,p,lg,c0:S[i][1],T:t+H.h*3600000,live:live?1:0});if(H.q.length>400)H.q.shift()})}
-async function mhSeries(range){const p=fredProxy();if(!p||demo)return null;
-  try{const j=await(await fetch(`${p}/chart?t=SOXL&range=${range}&interval=60m`)).json();if(j.status!=="ok"||!j.bars||j.bars.length<200)return null;
+async function mhSeries(range,minN=200){const p=fredProxy();if(!p||demo)return null;
+  try{const j=await(await fetch(`${p}/chart?t=SOXL&range=${range}&interval=60m`)).json();if(j.status!=="ok"||!j.bars||j.bars.length<minN)return null;
     const now=Date.now();return j.bars.filter(b=>b[4]>0&&b[0]+3600000<=now).map(b=>[b[0]+3600000,b[4]])}catch(e){return null}}
 async function mhInit(){
   if(mhBusy)return;mhBusy=true;
@@ -3376,7 +3376,7 @@ async function mhInit(){
     MH=mhLoad();const fresh=MH&&Date.now()-MH.last<5*86400000;
     if(!fresh)MH=mhNew();
     mhMsg=fresh?"catching up…":"learning 2 years of hourly SOXL…";
-    const S=await mhSeries(fresh?"5d":"2y");
+    const S=await mhSeries(fresh?"1mo":"2y");
     if(!S){mhMsg=demo?"Demo: multi-timeframe read needs live data":fredProxy()?"Worker /chart did not answer":"Add the Worker URL to train the multi-timeframe read";mhBusy=false;return}
     MHS=S;mhSerAt=Date.now();const P=mhPre(S);let n=0;
     for(let i=100;i<S.length;i++){if(S[i][0]<=MH.last)continue;mhResolve(S,S[i][0],false);mhStep(S,P,i,null,false);MH.last=S[i][0];
@@ -3389,7 +3389,7 @@ function mhLiveSeries(){const P=Q[FUND].c,now=Date.now();if(!(P>0)||MHS.length<1
 function mhLiveL(){const D=lastD;if(!D)return null;return{bias:D.bias,fg:D.fg&&isFinite(D.fg.score)?(D.fg.score-50)/50:NaN,cs:D.CS?D.CS.part:NaN,gt:D.GT?D.GT.part:NaN,news:D.nws?D.nws.score:NaN,al:D.a1}}
 async function mhTick(){
   if(!MH||mhBusy)return;const now=Date.now();
-  if(now-mhSerAt>60*60000){const S=await mhSeries("5d");if(S){const have=new Set(MHS.map(x=>x[0]));S.forEach(x=>{if(!have.has(x[0]))MHS.push(x)});MHS.sort((a,b)=>a[0]-b[0]);if(MHS.length>20000)MHS=MHS.slice(-20000)}mhSerAt=now}
+  if(now-mhSerAt>60*60000||MHS.length<120){const S=await mhSeries(MHS.length<120?"1mo":"5d",10);if(S){const have=new Set(MHS.map(x=>x[0]));S.forEach(x=>{if(!have.has(x[0]))MHS.push(x)});MHS.sort((a,b)=>a[0]-b[0]);if(MHS.length>20000)MHS=MHS.slice(-20000)}mhSerAt=now}
   mhResolve(MHS,now,true);
   if(now-mhSnapAt>=30*60000){const S=mhLiveSeries();if(S){mhSnapAt=now;mhStep(S,mhPre(S),S.length-1,mhLiveL(),true)}}
   mhSave();
