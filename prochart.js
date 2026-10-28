@@ -237,8 +237,9 @@
     // overlays
     ind = { c };
     const vw = intraday() && (O.ind.vwap || O.ind.vwapb) ? vwap(b) : null; ind.vw = vw;
-    if (vw && O.ind.vwap) lineS("vwap", T.amber, 2).setData(ln(b, vw.m)); else dropLine("vwap");
-    [["vb1u", 1], ["vb1d", -1], ["vb2u", 2], ["vb2d", -2]].forEach(([k, m]) => { if (vw && O.ind.vwapb) lineS(k, alpha(T.amber, Math.abs(m) === 1 ? 0.55 : 0.35), 1, 2).setData(ln(b, vw.m.map((x, i) => x + m * vw.s1[i]))); else dropLine(k); });
+    const brk = a => a.map((x, i) => i && etInfo(b[i].t).d !== etInfo(b[i - 1].t).d ? NaN : x); // gap at each new session
+    if (vw && O.ind.vwap) lineS("vwap", T.amber, 2).setData(lnW(b, brk(vw.m))); else dropLine("vwap");
+    [["vb1u", 1], ["vb1d", -1], ["vb2u", 2], ["vb2d", -2]].forEach(([k, m]) => { if (vw && O.ind.vwapb) lineS(k, alpha(T.amber, Math.abs(m) === 1 ? 0.55 : 0.35), 1, 2).setData(lnW(b, brk(vw.m.map((x, i) => x + m * vw.s1[i])))); else dropLine(k); });
     [["ema9", 9, T.acc], ["ema21", 21, T.violet], ["ema50", 50, "#22c3e6"]].forEach(([k, n, col]) => { if (O.ind[k]) { const e = ema(c, n); ind[k] = e; lineS(k, col, 2).setData(ln(b, e)); } else dropLine(k); });
     if (O.ind.sma200) { const s2 = sma(c, 200); ind.sma200 = s2; lineS("sma200", "#e05cc7", 2).setData(ln(b, s2)); } else dropLine("sma200");
     if (O.ind.bb) { const m = sma(c, 20), d = sd(c, 20, m); ind.bb = { m, d }; lineS("bbm", alpha(T.dim, 0.7), 1, 2).setData(ln(b, m)); lineS("bbu", T.dim, 1).setData(ln(b, m.map((x, i) => x + 2 * d[i]))); lineS("bbl", T.dim, 1).setData(ln(b, m.map((x, i) => x - 2 * d[i]))); } else ["bbm", "bbu", "bbl"].forEach(dropLine);
@@ -307,7 +308,8 @@
   const barMs = () => TF[O.tf].s * 1000;
   function tToL(ms) { const b = data(); if (!b.length) return NaN; const k = idxAt(ms); if (k < 0) return (ms - b[0].t) / barMs(); if (k === b.length - 1) return k + (ms - b[k].t) / barMs(); const f = (ms - b[k].t) / Math.max(1, b[k + 1].t - b[k].t); return k + Math.min(1, f); }
   function lToT(l) { const b = data(); if (!b.length) return NaN; const k = Math.floor(l); if (k < 0) return b[0].t + l * barMs(); if (k >= b.length - 1) return b[b.length - 1].t + (l - (b.length - 1)) * barMs(); return b[k].t + (l - k) * (b[k + 1].t - b[k].t); }
-  const X = ms => chart.timeScale().logicalToCoordinate(tToL(ms));
+  // logicalToCoordinate is only exact for whole bars (fractions past the last bar return 0): interpolate ourselves
+  const X = ms => { const L = tToL(ms); if (!isFinite(L)) return null; const ts = chart.timeScale(), f = Math.floor(L), x = ts.logicalToCoordinate(f); return x == null ? null : x + (L - f) * (ts.options().barSpacing || 6); };
   const Y = p => S.main ? S.main.priceToCoordinate(p) : null;
   function ptFrom(param) { if (!param.point || !S.main) return null; const l = chart.timeScale().coordinateToLogical(param.point.x), p = S.main.coordinateToPrice(param.point.y); if (l == null || p == null) return null; return { t: lToT(Math.round(l)), p }; }
   const ONE = { hline: 1, alert: 1, vline: 1 };
