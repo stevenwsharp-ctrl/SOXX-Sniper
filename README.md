@@ -10,6 +10,12 @@ Live site: https://stevenwsharp-ctrl.github.io/SOXX-Sniper/
 
 ## What it does
 
+### Headlines (top of the page)
+Two lines at the top tell you what is happening now:
+- **LIVE** updates every 2 seconds. It shows the largest current SOXL move (15-minute or 1-hour jump or drop, or "holds" near the high or low of the day), and below it the decision read, breadth, fear and greed, the most important warning flag and the newest strong chip headline.
+- **TODAY** (or **PRE-MARKET** / **CLOSE**) is the story of the day: the SOXL move and price, the stocks that lead or drag the index, the day range, breadth, earnings that come soon and the top news story.
+- The page keeps the last headline of each trading day for 10 days in your browser, and shows the previous day's headline below. **Copy** copies both lines, ready to post.
+
 ### Heartbeat ring
 The small ring in the header spins all the time. Its color shows that data is arriving: **green = live** (new data in the last 10 s during market hours, 45 s at other times), **amber = slow or reconnecting**, **red = stale**, **violet = demo**. It spins faster when more updates arrive, and a ripple shows each new update. Hover over it to see the time since the last update, updates per minute and latency. A watchdog turns the dot red by itself if the page stops working.
 
