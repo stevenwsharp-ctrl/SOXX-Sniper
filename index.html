@@ -91,6 +91,10 @@ button.danger:hover{border-color:var(--down);color:var(--down)}
 .mi[data-ix]{cursor:pointer}.mi[data-ix]:hover,.mi[data-go]:hover{border-color:var(--accent)}
 @media(max-width:600px){.ixr{grid-template-columns:1fr 1fr 64px}.ixr .sub{display:none}.ixp{text-align:left}}
 .edge{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:0 0 12px;padding:12px 16px;border-radius:14px;border:1px solid var(--line);background:linear-gradient(90deg,color-mix(in srgb,var(--violet) 14%,var(--panel)),var(--panel));font-family:var(--mono);font-size:13px}
+.edge .mhrow{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;border-top:1px dashed var(--line);padding-top:10px}
+.edge .mhrow>.tag{flex-basis:100%}.edge .mhrow>.sub{flex-basis:100%;font-size:11.5px}
+.edge .mh{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1px 8px;padding:6px 10px;border-radius:9px;border:1px solid var(--line);background:var(--panel);min-width:0;flex:1 1 130px;cursor:help}
+.edge .mhk{grid-row:span 3;align-self:center;font-weight:700;font-size:15px;color:var(--violet)}.edge .mh b{font-weight:600}.edge .mhs{grid-column:2;color:var(--dim);font-size:11.5px}
 .edge:empty{display:none}.edge .tag{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--violet);font-weight:600}.edge .it{display:flex;gap:6px;align-items:baseline;white-space:nowrap}.edge .it span{color:var(--dim)}.edge .it b{font-weight:600}.edge .sp{flex:1}
 .pro{border-color:color-mix(in srgb,var(--violet) 45%,var(--line));background:linear-gradient(160deg,color-mix(in srgb,var(--violet) 10%,var(--panel)),var(--panel) 60%)}.pro h3{margin:6px 0 10px;font-size:19px}
 .prol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;font-size:13.5px;line-height:1.4}.prol li{display:flex;gap:8px;align-items:baseline}
@@ -3310,6 +3314,97 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&IX.key)ixClose()});
 
 /* ---------- the Sniper read (one-line summary) and the track record ---------- */
 var edgeT=0;
+/* ---------- multi-timeframe Sniper read: 1h / 4h / 12h / 24h, self-learning ----------
+   One online logistic model pair per timeframe (fast + slow learner). Trained walk-forward on 2 years of hourly SOXL bars
+   (with pre-market and after-hours), with no look-ahead: a sample is learned only after its target time has passed.
+   Live: a new forecast every 30 min; each one is graded and learned when its time is up. The blend shifts to the learner
+   with the lower recent loss, and the fast learner is re-seeded from the slow one when its recent hit rate drops below 47%. */
+const MH_H=[1,4,12,24],MH_V=4,MH_PF=["1h move","4h move","12h move","24h move","vs 20h average","vs 100h average","RSI","5-day range spot","volatility","pre-market","after-hours","overnight","Friday"],
+  MH_LF=["Sniper bias","fear and greed","proven callers","game theory","news tone","market alignment"],MH_F=[...MH_PF,...MH_LF];
+var MH=null,MHS=[],mhMsg="",mhBusy=false,mhSnapAt=0,mhSerAt=0;
+const sig_=x=>1/(1+Math.exp(-clamp(x,-30,30)));
+function mhNew(){const nf=MH_F.length,m=()=>({w:new Array(nf+1).fill(0)});
+  return{v:MH_V,last:0,sc:{n:0,mu:new Array(MH_PF.length).fill(0),m2:new Array(MH_PF.length).fill(1)},
+    H:MH_H.map(h=>({h,f:m(),s:m(),ca:{a:0.3,b:0},Lf:0.693,Ls:0.693,absR:0.012*Math.sqrt(h),bt:{n:0,hit:0,cn:0,chit:0},lv:{n:0,hit:0,cn:0,chit:0},rec:[],rew:0,q:[]}))}}
+function mhSave(){try{lsSet("soxx_mh",JSON.stringify(MH))}catch(e){}}
+function mhLoad(){try{const o=JSON.parse(lsGet("soxx_mh")||"null");if(o&&o.v===MH_V)return o}catch(e){}return null}
+// hourly series: [time the bar closed, close]
+function mhPre(S){const N=S.length,e20=new Array(N),e100=new Array(N),rsi=new Array(N),sd=new Array(N),sda=new Array(N);
+  let a20=S[0][1],a100=S[0][1],up=0,dn=0,sa=0.01;
+  for(let i=0;i<N;i++){const c=S[i][1];a20+=(c-a20)*2/21;a100+=(c-a100)*2/101;e20[i]=a20;e100[i]=a100;
+    if(i){const d=c-S[i-1][1];up=(up*13+Math.max(d,0))/14;dn=(dn*13+Math.max(-d,0))/14}rsi[i]=dn+up>0?100*up/(up+dn):50;
+    let s2=0,k=0;for(let j=Math.max(1,i-23);j<=i;j++){const r=Math.log(S[j][1]/S[j-1][1]);s2+=r*r;k++}sd[i]=Math.max(k?Math.sqrt(s2/k):0.01,0.002);sa+=(sd[i]-sa)*0.01;sda[i]=sa}
+  return{e20,e100,rsi,sd,sda}}
+function mhX(S,P,i,L){const c=S[i][1],t=S[i][0],at=k=>S[Math.max(0,i-k)][1],sd=P.sd[i],z=k=>Math.log(c/at(k))/(sd*Math.sqrt(k));
+  let hi=-Infinity,lo=Infinity;for(let j=Math.max(0,i-80);j<=i;j++){hi=Math.max(hi,S[j][1]);lo=Math.min(lo,S[j][1])}
+  const ph=phaseAt(t-60000),wd=etInfo(t).wd;
+  const pf=[z(1),z(4),z(12),z(24),Math.log(c/P.e20[i])/sd/3,Math.log(c/P.e100[i])/sd/6,(P.rsi[i]-50)/20,hi>lo?2*(c-lo)/(hi-lo)-1:0,Math.log(sd/P.sda[i]),ph==="pre"?1:0,ph==="post"?1:0,ph==="closed"?1:0,wd===5?1:0];
+  const lf=L?[L.bias,L.fg,L.cs,L.gt,L.news,L.al].map(v=>isFinite(v)?clamp(v,-1,1)*2:0):new Array(MH_LF.length).fill(0);
+  return{pf,lf}}
+function mhZ(x,learn){const S=MH.sc;if(learn){S.n=Math.min(S.n+1,3000);x.pf.forEach((v,j)=>{const d=v-S.mu[j];S.mu[j]+=d/S.n;S.m2[j]+=(d*(v-S.mu[j])-S.m2[j])/S.n})}
+  return[...x.pf.map((v,j)=>clamp((v-S.mu[j])/Math.sqrt(Math.max(S.m2[j],1e-6)),-4,4)),...x.lf]}
+const mhDot=(w,z)=>w[0]+z.reduce((a,v,j)=>a+v*w[j+1],0);
+function mhP(H,z){const pf=sig_(mhDot(H.f.w,z)),ps=sig_(mhDot(H.s.w,z)),m=Math.min(H.Lf,H.Ls),af=Math.exp(-(H.Lf-m)*150),as=Math.exp(-(H.Ls-m)*150),raw=(af*pf+as*ps)/(af+as),lg=Math.log(raw/(1-raw));
+  return{p:sig_(H.ca.a*lg+H.ca.b),raw,lg,pf,ps}}
+function mhLearn(H,it,ret,live){
+  const y=ret>0?1:0,{p,lg,pf,ps}=mhP(H,it.z),ll=q=>-(y*Math.log(Math.max(q,1e-6))+(1-y)*Math.log(Math.max(1-q,1e-6)));
+  H.Lf=0.995*H.Lf+0.005*ll(pf);H.Ls=0.995*H.Ls+0.005*ll(ps);H.absR=0.995*H.absR+0.005*Math.abs(ret);
+  const st=live?H.lv:H.bt,hit=(it.p>0.5)===(y===1)?1:0;st.n++;st.hit+=hit;if(Math.abs(it.p-0.5)>=0.06){st.cn++;st.chit+=hit}
+  H.rec.push(hit);if(H.rec.length>150)H.rec.shift();
+  const upd=(M,lr,q)=>{const g=q-y;M.w[0]-=lr*g;it.z.forEach((v,j)=>{M.w[j+1]-=lr*(g*v+2e-4*M.w[j+1])})};
+  const k=1/H.h;upd(H.f,0.03*k,pf);upd(H.s,0.006*k,ps);
+  {const q=sig_(H.ca.a*it.lg+H.ca.b),g=q-y,lr=0.004/Math.sqrt(H.h);H.ca.a=clamp(H.ca.a-lr*(g*it.lg+0.02*(H.ca.a-0.3)),0,3);H.ca.b=clamp(H.ca.b-lr*g,-1,1)}
+  if(H.rec.length>=120){const r=H.rec.reduce((a,b)=>a+b,0)/H.rec.length;if(r<0.47&&H.Lf>H.Ls){H.f.w=H.s.w.slice();H.Lf=H.Ls;H.rew++;H.rec=[]}}
+}
+function mhPxAt(S,T){let lo=0,hi=S.length-1,k=-1;while(lo<=hi){const m=(lo+hi)>>1;if(S[m][0]<=T){k=m;lo=m+1}else hi=m-1}return k>=0&&T-S[k][0]<4*86400000?S[k][1]:NaN}
+function mhResolve(S,now,useLive){
+  MH.H.forEach(H=>{H.q=H.q.filter(it=>{if(it.T>now)return true;
+    let px=NaN;if(useLive&&now-it.T<15*60000&&Q[FUND].c>0)px=Q[FUND].c;else if(S.length&&S[S.length-1][0]>=it.T)px=mhPxAt(S,it.T);
+    if(!(px>0))return now-it.T<3*86400000;
+    mhLearn(H,it,Math.log(px/it.c0),!!it.live);return false})});
+}
+function mhStep(S,P,i,L,live){const x=mhX(S,P,i,L),z=mhZ(x,true),t=S[i][0];
+  MH.H.forEach(H=>{const{p,lg}=mhP(H,z);H.q.push({z,p,lg,c0:S[i][1],T:t+H.h*3600000,live:live?1:0});if(H.q.length>400)H.q.shift()})}
+async function mhSeries(range){const p=fredProxy();if(!p||demo)return null;
+  try{const j=await(await fetch(`${p}/chart?t=SOXL&range=${range}&interval=60m`)).json();if(j.status!=="ok"||!j.bars||j.bars.length<200)return null;
+    const now=Date.now();return j.bars.filter(b=>b[4]>0&&b[0]+3600000<=now).map(b=>[b[0]+3600000,b[4]])}catch(e){return null}}
+async function mhInit(){
+  if(mhBusy)return;mhBusy=true;
+  try{
+    MH=mhLoad();const fresh=MH&&Date.now()-MH.last<5*86400000;
+    if(!fresh)MH=mhNew();
+    mhMsg=fresh?"catching up…":"learning 2 years of hourly SOXL…";
+    const S=await mhSeries(fresh?"5d":"2y");
+    if(!S){mhMsg=demo?"Demo: multi-timeframe read needs live data":fredProxy()?"Worker /chart did not answer":"Add the Worker URL to train the multi-timeframe read";mhBusy=false;return}
+    MHS=S;mhSerAt=Date.now();const P=mhPre(S);let n=0;
+    for(let i=100;i<S.length;i++){if(S[i][0]<=MH.last)continue;mhResolve(S,S[i][0],false);mhStep(S,P,i,null,false);MH.last=S[i][0];
+      if(++n%800===0){await sleep(0)}}
+    mhResolve(S,Date.now(),true);mhSave();mhMsg="";
+  }catch(e){mhMsg="training error: "+e.message}
+  mhBusy=false;
+}
+function mhLiveSeries(){const P=Q[FUND].c,now=Date.now();if(!(P>0)||MHS.length<120)return null;const S=MHS.slice();if(now>S[S.length-1][0]+60000)S.push([now,P]);return S}
+function mhLiveL(){const D=lastD;if(!D)return null;return{bias:D.bias,fg:D.fg&&isFinite(D.fg.score)?(D.fg.score-50)/50:NaN,cs:D.CS?D.CS.part:NaN,gt:D.GT?D.GT.part:NaN,news:D.nws?D.nws.score:NaN,al:D.a1}}
+async function mhTick(){
+  if(!MH||mhBusy)return;const now=Date.now();
+  if(now-mhSerAt>60*60000){const S=await mhSeries("5d");if(S){const have=new Set(MHS.map(x=>x[0]));S.forEach(x=>{if(!have.has(x[0]))MHS.push(x)});MHS.sort((a,b)=>a[0]-b[0]);if(MHS.length>20000)MHS=MHS.slice(-20000)}mhSerAt=now}
+  mhResolve(MHS,now,true);
+  if(now-mhSnapAt>=30*60000){const S=mhLiveSeries();if(S){mhSnapAt=now;mhStep(S,mhPre(S),S.length-1,mhLiveL(),true)}}
+  mhSave();
+}
+function mhRead(){const S=mhLiveSeries();if(!MH||!S)return null;const P=mhPre(S),i=S.length-1,x=mhX(S,P,i,mhLiveL()),z=mhZ(x,false),px=S[i][1];
+  return MH.H.map(H=>{const{p}=mhP(H,z),w=H.f.w.map((v,j)=>(v+H.s.w[j])/2),con=z.map((v,j)=>({n:MH_F[j],c:v*w[j+1]})).sort((a,b)=>Math.abs(b.c)-Math.abs(a.c)).slice(0,3);
+    const er=(2*p-1)*H.absR,r=H.rec.length?H.rec.reduce((a,b)=>a+b,0)/H.rec.length:NaN;
+    return{h:H.h,p,er,tgt:px*Math.exp(er),bt:H.bt,lv:H.lv,rec:r,rew:H.rew,con,pend:H.q.filter(q=>q.live).length}})}
+function mhHtml(){
+  const R=mhRead();
+  if(!R)return`<div class="mhrow"><span class="tag">Read by timeframe</span><span class="sub">${esc(mhMsg||"learning…")}</span></div>`;
+  const pc=(a,b)=>b?Math.round(a/b*100)+"%":"--";
+  return`<div class="mhrow"><span class="tag" title="Self-learning model per timeframe. Learns from every forecast when its time is up.">Read by timeframe</span>`+R.map(r=>{const up=r.p>=0.5,edge=Math.abs(r.p-0.5),c=edge<0.03?"":up?"up":"down";
+    const tip=`${r.h}h model · chance up ${(r.p*100).toFixed(1)}% · drivers now: ${r.con.map(x=>x.n+(x.c>0?" ↑":" ↓")).join(", ")} · backtest hit ${pc(r.bt.hit,r.bt.n)} of ${r.bt.n} (when confident ${pc(r.bt.chit,r.bt.cn)} of ${r.bt.cn}) · live hit ${pc(r.lv.hit,r.lv.n)} of ${r.lv.n} · last 150: ${isFinite(r.rec)?Math.round(r.rec*100)+"%":"--"} · rewired ${r.rew}× · ${r.pend} live forecasts waiting`;
+    return`<div class="mh" title="${esc(tip)}"><span class="mhk">${r.h}h</span><b class="${c}">${edge<0.03?"→ flat":up?"▲ up":"▼ down"} ${Math.round(Math.max(r.p,1-r.p)*100)}%</b><span class="mhs">${fmtPct(r.er,1)} → ${fmtPx(r.tgt)}</span><span class="mhs">${r.lv.n>=20?`hit ${pc(r.lv.hit,r.lv.n)} live (${r.lv.n})`:r.bt.cn>=30?`hit ${pc(r.bt.chit,r.bt.cn)} test (${r.bt.cn})`:r.bt.n?`no edge yet (${r.bt.n} tested)`:"learning…"}</span></div>`}).join("")+(mhMsg?`<span class="sub">${esc(mhMsg)}</span>`:"")+`</div>`;
+}
+setTimeout(()=>{mhInit()},7000);setInterval(()=>{mhTick().catch(()=>{})},60000);
 function renderEdge(D){
   const now=Date.now();if(now-edgeT<1500)return;edgeT=now;
   const pr=svPrices(FUND),G=D.GT,lv=D.lv,fav=D.fav;if(!(Q[FUND].c>0)){$("edgeBar").innerHTML="";return}
@@ -3320,6 +3415,7 @@ function renderEdge(D){
   if(G&&isFinite(G.coop))parts.push(it("Crowd",G.state,G.state==="Cooperation"?"up":G.state==="Defection"?"down":""),it("Run / squeeze",`${G.down} / ${G.up}`,G.down>=60?"down":G.up>=60?"up":""));
   if(G&&G.strong)parts.push(it("Edge",`${G.strong.r.mu>0?"follow":"fade"} · ${Math.round((G.strong.r.mu>0?G.strong.r.winR:1-G.strong.r.winR)*100)}% (n ${G.strong.r.n})`,G.strong.dir*Math.sign(G.strong.r.mu)>0?"up":"down"));
   parts.push(`<span class="sp"></span><button id="edgePost" title="Post this read on X">Post ↗</button>`);
+  try{parts.push(mhHtml())}catch(e){console.warn("mh",e)}
   $("edgeBar").innerHTML=parts.join("");
   const at=attunement("reg"),ax=attunement("ext"),n=(at.n||0)+(ax.n||0),dh=at.dirN?at.dirHit/at.dirN:NaN,st=(k,v,sub,c)=>`<div class="st"><div class="k">${k}</div><div class="v ${c||""}">${v}</div><div class="s">${sub||""}</div></div>`;
   const R=(D.AR&&D.AR.list||[]).filter(x=>x.r.verdict==="Reliable").length;
