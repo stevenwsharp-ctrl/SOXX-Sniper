@@ -34,6 +34,16 @@ Select any item in the market strip (Semis 30, SOX, Nasdaq, S&P 500, Dow, VIX, 1
 - **10-year yield:** the yield curve (3 months, 5, 10 and 30 years) and what it means for chip valuations.
 - **Bitcoin:** Ethereum, total crypto market cap and crypto fear and greed.
 
+### Pro chart (free, TradingView engine)
+The live chart uses TradingView's open-source Lightweight Charts engine (Apache 2.0). It has no subscription and no limits:
+- **Any symbol** (type it in the box): SOXL, the 30 stocks, ETFs, BTC. **Timeframes** 1m, 5m, 15m, 1h, 4h, D, W, with pre-market and after-hours. **Types:** candles, hollow candles, Heikin Ashi, bars, line, area. **Log** scale and **compare** (a second symbol in %).
+- **Indicators:** volume, session VWAP with ±1σ/±2σ bands, EMA 9/21/50, SMA 200, Bollinger 20/2, RSI and MACD panes, volume profile of the visible range (with POC).
+- **Levels:** prior-day high, low and close; pre-market high and low; auto Fibonacci; SOXL liquidity levels; the Sniper 1h–24h targets.
+- **Context:** pre-market and after-hours shading, strong news markers (hover a bar to read the headline), earnings and macro events as vertical lines.
+- **Drawing tools:** trend line, ray, horizontal level, **alert line** (alerts when the price crosses it), vertical line, zone, Fibonacci retracement, measure. Drawings are kept per symbol in your browser. Select a drawing and press Delete to remove it.
+- **Bar replay:** select Replay, click a bar, then play or step forward to practice.
+- **Snapshot** saves a PNG; **⤢** opens full screen. On a stock page, **Pro chart ⤢** opens that stock. **Classic** goes back to the old chart.
+
 ### Live chart and big-move radar (made for large moves)
 A candle chart for SOXL near the top of the page, and on every stock page. It updates every 15 seconds from the Worker, and every second from live trades. Everything is calculated in the browser from real-time prices:
 - **Candles:** 1, 5 or 15 minutes; Today or 5 days; pre-market and after-hours shaded. Point at a bar to see its open, high, low, close, volume, VWAP and EMA.
