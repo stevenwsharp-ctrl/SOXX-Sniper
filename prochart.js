@@ -237,9 +237,7 @@
     // overlays
     ind = { c };
     const vw = intraday() && (O.ind.vwap || O.ind.vwapb) ? vwap(b) : null; ind.vw = vw;
-    const brk = a => a.map((x, i) => i && etInfo(b[i].t).d !== etInfo(b[i - 1].t).d ? NaN : x); // gap at each new session
-    if (vw && O.ind.vwap) lineS("vwap", T.amber, 2).setData(lnW(b, brk(vw.m))); else dropLine("vwap");
-    [["vb1u", 1], ["vb1d", -1], ["vb2u", 2], ["vb2d", -2]].forEach(([k, m]) => { if (vw && O.ind.vwapb) lineS(k, alpha(T.amber, Math.abs(m) === 1 ? 0.55 : 0.35), 1, 2).setData(lnW(b, brk(vw.m.map((x, i) => x + m * vw.s1[i])))); else dropLine(k); });
+    // VWAP and bands are drawn on the overlay (one line per session; the engine joins lines across gaps)
     [["ema9", 9, T.acc], ["ema21", 21, T.violet], ["ema50", 50, "#22c3e6"]].forEach(([k, n, col]) => { if (O.ind[k]) { const e = ema(c, n); ind[k] = e; lineS(k, col, 2).setData(ln(b, e)); } else dropLine(k); });
     if (O.ind.sma200) { const s2 = sma(c, 200); ind.sma200 = s2; lineS("sma200", "#e05cc7", 2).setData(ln(b, s2)); } else dropLine("sma200");
     if (O.ind.bb) { const m = sma(c, 20), d = sd(c, 20, m); ind.bb = { m, d }; lineS("bbm", alpha(T.dim, 0.7), 1, 2).setData(ln(b, m)); lineS("bbu", T.dim, 1).setData(ln(b, m.map((x, i) => x + 2 * d[i]))); lineS("bbl", T.dim, 1).setData(ln(b, m.map((x, i) => x - 2 * d[i]))); } else ["bbm", "bbu", "bbl"].forEach(dropLine);
@@ -273,6 +271,7 @@
       const pd = BD.filter(x => etInfo(x.t).d < today).pop(); if (pd) { add(pd.h, T.dim, "PDH"); add(pd.l, T.dim, "PDL"); add(pd.c, T.mute, "Prev close", LW.LineStyle.Dotted); }
       const pm = b.filter(x => { const e = etInfo(x.t); return e.d === today && e.min >= 240 && e.min < 570; }); if (pm.length) { add(Math.max(...pm.map(x => x.h)), T.amber, "PM high", LW.LineStyle.SparseDotted); add(Math.min(...pm.map(x => x.l)), T.amber, "PM low", LW.LineStyle.SparseDotted); }
     }
+    if (ind.vw && O.ind.vwap) add(ind.vw.m[ind.vw.m.length - 1], T.amber, "VWAP", LW.LineStyle.Solid, 1);
     if (O.ind.fib) {
       const day = b.filter(x => intraday() ? etInfo(x.t).d === today : true).slice(intraday() ? 0 : -60);
       if (day.length > 4) { let H = -Infinity, L = Infinity, iH = 0, iL = 0; day.forEach((x, i) => { if (x.h > H) { H = x.h; iH = i; } if (x.l < L) { L = x.l; iL = i; } }); const up = iL < iH, R = H - L;
@@ -373,6 +372,18 @@
     if (O.ind.sess && intraday() && TF[O.tf].s <= 3600) {
       g.fillStyle = alpha(T.amber, 0.06);
       for (let i = i0; i <= i1; i++) { const e = etInfo(b[i].t); if (e.min < 570 || e.min >= 960) { const x = ts.logicalToCoordinate(i); if (x != null) g.fillRect(x - bs / 2, 0, bs, h); } }
+    }
+    // session VWAP with ±1σ / ±2σ bands
+    if (ind.vw && (O.ind.vwap || O.ind.vwapb)) {
+      const vw = ind.vw, lines = [];
+      if (O.ind.vwapb) [[2, 0.3], [1, 0.5], [-1, 0.5], [-2, 0.3]].forEach(([m, a]) => lines.push({ m, a, w: 1, dash: [4, 3] }));
+      if (O.ind.vwap) lines.push({ m: 0, a: 1, w: 2, dash: [] });
+      const s0 = Math.max(0, i0 - 1);
+      lines.forEach(L => {
+        g.strokeStyle = alpha(T.amber, L.a); g.lineWidth = L.w; g.setLineDash(L.dash); g.beginPath(); let on = false, day = "";
+        for (let i = s0; i <= i1; i++) { const d = etInfo(b[i].t).d, v = vw.m[i] + L.m * vw.s1[i], x = ts.logicalToCoordinate(i), y = Y(v); if (x == null || y == null || !isFinite(v)) { on = false; continue; } if (!on || d !== day) { g.moveTo(x, y); on = true; day = d; } else g.lineTo(x, y); }
+        g.stroke(); g.setLineDash([]);
+      });
     }
     // volume profile of the visible range
     if (O.ind.vp && i1 > i0 + 5) {
