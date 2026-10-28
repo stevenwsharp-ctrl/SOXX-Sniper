@@ -14,6 +14,7 @@ Live site: https://stevenwsharp-ctrl.github.io/SOXX-Sniper/
 Two lines at the top tell you what is happening now:
 - **LIVE** updates every 2 seconds. It shows the largest current SOXL move (15-minute or 1-hour jump or drop, or "holds" near the high or low of the day), and below it the decision read, breadth, fear and greed, the most important warning flag and the newest strong chip headline.
 - **TODAY** (or **PRE-MARKET** / **CLOSE**) is the story of the day: the SOXL move and price, the stocks that lead or drag the index, the day range, breadth, earnings that come soon and the top news story.
+- **MACRO** lists today's and the next session's US releases that move chip stocks: Fed decisions and minutes, CPI, PPI, PCE, GDP, the jobs report, JOLTS, retail sales, ISM, jobless claims, market holidays and early closes, plus earnings of the big AI spenders (MSFT, GOOGL, META, AMZN and others) and the largest chip stocks. Red dot = high impact, amber = medium. Each chip shows a countdown, and after the release the SOXL move since then. Select a chip to read why it matters. The live line warns you 60 minutes before a high-impact release. With the updated Worker (`/econ`), chips also show the forecast, previous and actual values.
 - The page keeps the last headline of each trading day for 10 days in your browser, and shows the previous day's headline below. **Copy** copies both lines, ready to post.
 
 ### Heartbeat ring

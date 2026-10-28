@@ -108,6 +108,10 @@ button.danger:hover{border-color:var(--down);color:var(--down)}
 .hld{font-size:13.5px;color:var(--dim);line-height:1.45;margin-top:3px}.hld b{color:var(--ink);font-weight:600}
 .hlside{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.hlside .sub{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .hlprev{font-size:12.5px;color:var(--mute);border-top:1px dashed var(--line);padding-top:8px;line-height:1.45}.hlprev b{color:var(--dim)}
+.mcal{display:flex;flex-wrap:wrap;gap:6px}.mev{display:inline-flex;gap:6px;align-items:center;padding:4px 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:12.5px;cursor:pointer;color:var(--ink);font-family:var(--sans)}
+.mev .mt{font-family:var(--mono);font-size:11px;color:var(--dim)}.mev .mi3{width:8px;height:8px;border-radius:50%;background:var(--down)}.mev .mi2{width:8px;height:8px;border-radius:50%;background:var(--amber)}.mev .mi1{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.mev.soon{border-color:var(--amber)}.mev.now{border-color:var(--down);box-shadow:0 0 0 2px color-mix(in srgb,var(--down) 25%,transparent)}.mev.done{opacity:.6}.mev.sel{outline:2px solid var(--accent)}
+.mev .mx{font-family:var(--mono);font-size:11px;color:var(--dim)}.mday{font-family:var(--mono);font-size:11px;color:var(--mute);align-self:center;margin:0 2px 0 6px;text-transform:uppercase;letter-spacing:.08em}
 .hlh.flash{animation:hlf 1.2s ease-out}@keyframes hlf{0%{color:var(--accent)}100%{color:inherit}}
 @media (prefers-reduced-motion:reduce){.hlh.flash{animation:none}}
 @media (max-width:560px){.hlrow{grid-template-columns:minmax(0,1fr)}.hlside{flex-direction:row;align-items:center;justify-content:space-between}.hltag{justify-self:start}}
@@ -368,6 +372,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   <section class="hl" id="hlBar" aria-live="polite">
     <div class="hlrow live"><span class="hltag"><span class="livedot"></span>LIVE</span><div><div class="hlh" id="hlLive">Waiting for SOXL prices…</div><div class="hld" id="hlLiveD"></div></div><div class="hlside"><span class="sub" id="hlLiveT">--</span><button id="hlCopy" title="Copy both headlines">Copy</button></div></div>
     <div class="hlrow day"><span class="hltag" id="hlDayTag">TODAY</span><div><div class="hlh" id="hlDay">--</div><div class="hld" id="hlDayD"></div></div><div class="hlside"><span class="sub" id="hlDayT"></span></div></div>
+    <div class="hlrow macro"><span class="hltag">MACRO</span><div style="min-width:0"><div class="mcal" id="mcal"><span class="sub">Loading the calendar…</span></div><div class="hld" id="mcalWhy"></div></div><div class="hlside"><span class="sub" id="mcalSrc"></span></div></div>
     <div class="hlprev" id="hlPrev" hidden></div>
   </section>
   <section class="mstrip" id="mStrip"></section>
@@ -1526,6 +1531,7 @@ async function fetchEarnings(){
   const j=await fhGet(`calendar/earnings?from=${a}&to=${b}`,"earn");
   const set=new Set(SYMS);EARN=((j&&j.earningsCalendar)||[]).filter(e=>set.has(e.symbol)).map(e=>({s:e.symbol,d:e.date,h:e.hour,est:e.epsEstimate}));
   lsSet("soxx_earn",JSON.stringify(EARN));
+  BIGEARN=((j&&j.earningsCalendar)||[]).filter(e=>BIG_AI.includes(e.symbol)&&!set.has(e.symbol)).map(e=>({s:e.symbol,d:e.date,h:e.hour,est:e.epsEstimate}));lsSet("soxx_bigearn",JSON.stringify(BIGEARN));
 }
 function microModel(){
   const m=compute(),w={};m.rows.forEach(r=>w[r.s]=r.w);
@@ -2272,6 +2278,79 @@ function hlVerb(r,big){const a=Math.abs(r);return a<0.004?"is flat":r>0?(a>=0.05
 function hlNames(rows,n,up){return rows.filter(r=>(up?r.contrib>0:r.contrib<0)&&Math.abs(r.r)>=0.001).sort((a,b)=>up?b.contrib-a.contrib:a.contrib-b.contrib).slice(0,n).map(r=>`${r.s} ${fmtPct(r.r,1)}`)}
 function hlNews(maxMin){const now=Date.now()/1000;let best=null,bs=0;
   (FRESH||[]).forEach(n=>{const age=(now-n.t)/60;if(age<0||age>maxMin||!n.h)return;const sc=(Math.abs(n.s||0)+0.15)*(n.syms&&n.syms.includes(FUND)?1.4:1)*Math.pow(0.5,age/(maxMin/3));if(sc>bs){bs=sc;best=n}});return best}
+/* ---------- macro calendar: scheduled US releases that move chip stocks (official agency schedules, checked Oct 2026) ---------- */
+const BIG_AI=["MSFT","GOOGL","META","AMZN","AAPL","ORCL","TSLA","ARM","SMCI","DELL","CRWV","NFLX"];
+var BIGEARN=[];try{BIGEARN=JSON.parse(lsGet("soxx_bigearn")||"[]")||[]}catch(e){}
+const MWHY={
+ fomc:"Fed rate decision (2:00 pm) and press conference (2:30 pm). The largest scheduled event for growth and chip stocks: SOXL often moves 3–8% in the next 2 hours.",
+ minutes:"Minutes of the last Fed meeting. A hawkish tone (fewer cuts) can push yields up and chips down.",
+ cpi:"Consumer inflation. A hot number lifts yields and hits high-valuation chip stocks; a soft number helps them. SOXL gaps often follow.",
+ ppi:"Producer inflation. Smaller than CPI, but a surprise moves yields and rate-cut odds.",
+ pce:"The Fed's preferred inflation gauge (with personal spending). Surprises move rate-cut odds and yields.",
+ gdp:"Economic growth for the quarter. Weak growth = recession fear; very hot growth = fewer rate cuts.",
+ jobs:"Monthly jobs report (payrolls, unemployment, wages). Often the largest data move of the month for SOXL.",
+ jolts:"Job openings. A cooling labor market supports rate cuts.",
+ retail:"Retail sales. Shows consumer demand; surprises move yields.",
+ claims:"Weekly jobless claims. Small, but a jump points to a weaker job market.",
+ ismm:"ISM Manufacturing. Includes new orders and prices for factories, which tie to chip demand cycles.",
+ isms:"ISM Services. The largest part of the economy; the prices index moves inflation fears.",
+ holiday:"US stock market closed. SOXL does not trade; Hyperliquid and other 24/7 venues still trade.",
+ half:"Early close at 1:00 pm ET. Thin volume: moves can be larger than normal.",
+ earn:"Big AI spender earnings. Their data-center spending plans drive chip demand: NVDA, AVGO, MU and others often react after hours."
+};
+const MCAL_FIX=[
+ ["2026-10-28","14:00","FOMC rate decision","fomc",3],["2026-10-29","08:30","GDP Q3 (advance)","gdp",3],["2026-10-29","08:30","PCE inflation (Sep)","pce",3],
+ ["2026-11-03","10:00","JOLTS job openings","jolts",2],["2026-11-06","08:30","Jobs report (Oct)","jobs",3],["2026-11-10","08:30","CPI inflation (Oct)","cpi",3],
+ ["2026-11-13","08:30","PPI inflation (Oct)","ppi",2],["2026-11-17","08:30","Retail sales (Oct)","retail",2],["2026-11-18","14:00","FOMC minutes","minutes",2],
+ ["2026-11-25","08:30","GDP Q3 (second)","gdp",2],["2026-11-25","08:30","PCE inflation (Oct)","pce",3],["2026-11-26","00:00","Market closed (Thanksgiving)","holiday",3],
+ ["2026-11-27","13:00","Early close 1:00 pm","half",2],["2026-12-01","10:00","JOLTS job openings","jolts",2],["2026-12-04","08:30","Jobs report (Nov)","jobs",3],
+ ["2026-12-09","14:00","FOMC rate decision","fomc",3],["2026-12-10","08:30","CPI inflation (Nov)","cpi",3],["2026-12-15","08:30","PPI inflation (Nov)","ppi",2],
+ ["2026-12-16","08:30","Retail sales (Nov)","retail",2],["2026-12-23","08:30","GDP Q3 (third)","gdp",1],["2026-12-23","08:30","PCE inflation (Nov)","pce",3],
+ ["2026-12-24","13:00","Early close 1:00 pm","half",2],["2026-12-25","00:00","Market closed (Christmas)","holiday",3],["2027-01-01","00:00","Market closed (New Year)","holiday",3]];
+var MXT={t:0,ev:[],err:""},mcalSel=null;
+function bizDay(y,mo,n){let d=new Date(Date.UTC(y,mo,1)),c=0;const hol=new Set(MCAL_FIX.filter(x=>x[3]==="holiday").map(x=>x[0]));
+  for(;;){const iso=d.toISOString().slice(0,10),wd=d.getUTCDay();if(wd&&wd<6&&!hol.has(iso)&&++c===n)return iso;d.setUTCDate(d.getUTCDate()+1)}}
+function macroEvents(from,to){
+  const L=MCAL_FIX.map(([d,t,n,k,i])=>({d,t,n,k,i}));
+  for(let d=from;d<=to;d=addDays(d,1)){const wd=new Date(d+"T12:00:00Z").getUTCDay(),y=+d.slice(0,4),mo=+d.slice(5,7)-1;
+    const hol=x=>MCAL_FIX.some(z=>z[0]===x&&z[3]==="holiday");
+    if((wd===4&&!hol(d))||(wd===3&&hol(addDays(d,1))))L.push({d,t:"08:30",n:"Jobless claims",k:"claims",i:1});
+    if(d===bizDay(y,mo,1))L.push({d,t:"10:00",n:"ISM Manufacturing",k:"ismm",i:2});
+    if(d===bizDay(y,mo,3))L.push({d,t:"10:00",n:"ISM Services",k:"isms",i:2})}
+  const big=[...EARN.filter(e=>(HOLDINGS.find(h=>h[0]===e.s)||[0,0,0,0])[3]>0&&["NVDA","AVGO","AMD","MU","TSM","ASML","QCOM","INTC","LRCX","AMAT","KLAC","MRVL","ARM"].includes(e.s)),...BIGEARN];
+  big.forEach(e=>L.push({d:e.d,t:e.h==="bmo"?"07:00":e.h==="amc"?"16:05":"12:00",n:`${e.s} earnings ${e.h==="bmo"?"(pre-market)":e.h==="amc"?"(after close)":""}`.trim(),k:"earn",i:["NVDA","MSFT","GOOGL","META","AMZN","AVGO","TSM"].includes(e.s)?3:2,s:e.s}));
+  // merge the Worker feed (forecast / previous / actual and anything we do not list)
+  (MXT.ev||[]).forEach(x=>{const m=L.find(y=>y.d===x.d&&y.t===x.t&&y.k!=="earn"&&(y.i>=2||x.i>=2)&&simWords(y.n,x.n));
+    if(m){m.fc=x.fc;m.pv=x.pv;m.ac=x.ac}else if(x.i>=3)L.push({...x,k:"ext"})});
+  return L.filter(x=>x.d>=from&&x.d<=to).sort((a,b)=>(a.d+a.t).localeCompare(b.d+b.t)||b.i-a.i);
+}
+function simWords(a,b){const w=t=>t.toLowerCase().replace(/[^a-z ]/g," ").split(" ").filter(z=>z.length>2);const A=w(a);return w(b).some(z=>A.some(y=>y.startsWith(z.slice(0,4))||z.startsWith(y.slice(0,4))))}
+function evMs(e){const[h,m]=e.t.split(":").map(Number);return etEpochMin(e.d,h*60+m)*60000}
+async function fetchMacroFeed(){const p=fredProxy();if(!p||demo)return;
+  try{const j=await(await fetch(`${p}/econ`)).json();if(j.status==="ok"){MXT={t:Date.now(),ev:j.items,err:""}}else MXT.err=j.error||"no answer"}catch(e){MXT.err="Worker /econ did not answer (update the Worker code for forecasts)"}}
+setTimeout(fetchMacroFeed,4000);setInterval(fetchMacroFeed,30*60000);
+function macroState(){
+  const now=Date.now(),today=etDate(now);let tom=addDays(today,1);while([0,6].includes(new Date(tom+"T12:00:00Z").getUTCDay()))tom=addDays(tom,1);
+  const L=macroEvents(today,tom).filter(e=>e.i>=2||e.d===today);
+  L.forEach(e=>{e.ms=evMs(e);const dt=(e.ms-now)/60000;e.st=e.k==="holiday"||e.k==="half"?(e.d===today?"now":"later"):dt>60?"later":dt>0?"soon":dt>-45?"now":"done";
+    if(e.st==="now"||e.st==="done"){const pE=findAt(hist[FUND]||[],Math.floor(e.ms/60000)-1,"c"),P=Q[FUND].c;if(pE>0&&P>0&&e.k!=="holiday")e.react=P/pE-1}});
+  return{L,today,tom};
+}
+function fmtMt(e){if(e.k==="holiday")return"all day";const[h,m]=e.t.split(":").map(Number);return`${h%12||12}:${String(m).padStart(2,"0")}${h<12?"a":"p"}`}
+function renderMacro2(){
+  const el=$("mcal");if(!el)return null;const M=macroState(),now=Date.now();
+  const chip=e=>{const dt=Math.round((e.ms-now)/60000);const when=e.st==="soon"?`in ${dt}m`:e.st==="now"&&e.k!=="holiday"&&e.k!=="half"?"just out":e.st==="done"?"done":"";
+    const vals=[e.ac!=null&&e.ac!==""?`act ${e.ac}`:"",e.fc?`exp ${e.fc}`:"",e.pv?`prev ${e.pv}`:""].filter(Boolean).join(" · ");
+    return`<button class="mev ${e.st}${mcalSel===e.d+e.n?" sel":""}" data-mev="${esc(e.d+e.n)}"><span class="mi${e.i}"></span><span class="mt">${fmtMt(e)}</span>${esc(e.n)}${when?` <span class="mx">${when}</span>`:""}${vals?` <span class="mx">${esc(vals)}</span>`:""}${isFinite(e.react)?` <span class="mx ${cls(e.react)}">SOXL ${fmtPct(e.react,1)} since</span>`:""}</button>`};
+  const T=M.L.filter(e=>e.d===M.today),N=M.L.filter(e=>e.d===M.tom);
+  const lab=d=>new Date(d+"T12:00:00Z").toLocaleDateString("en-US",{weekday:"short",timeZone:"UTC"});
+  el.innerHTML=`<span class="mday">Today</span>${T.map(chip).join("")||'<span class="sub">No major US data</span>'}<span class="mday">${lab(M.tom)}</span>${N.map(chip).join("")||'<span class="sub">No major US data</span>'}`;
+  const pick=M.L.find(e=>mcalSel===e.d+e.n)||M.L.filter(e=>e.st!=="done").sort((a,b)=>b.i-a.i||a.ms-b.ms)[0];
+  $("mcalWhy").innerHTML=pick?`<b>${esc(pick.n)}</b> (${pick.d===M.today?"today":lab(pick.d)} ${fmtMt(pick)} ET): ${MWHY[pick.k]||"High-impact US release. Expect larger swings around the time."}`:"";
+  $("mcalSrc").textContent=MXT.t?"with forecasts":"";$("mcalSrc").title=MXT.err||"";
+  return M;
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-mev]");if(b){mcalSel=mcalSel===b.dataset.mev?null:b.dataset.mev;renderMacro2()}});
 function hlStore(){try{return JSON.parse(lsGet("soxx_hl")||"{}")||{}}catch(e){return{}}}
 function renderHeadline(D){
   if(!$("hlLive"))return;
@@ -2299,6 +2378,9 @@ function renderHeadline(D){
   if(cr&&ph!=="closed")dl.push(`${cr.adv} of ${cr.n} chip stocks up`);
   if(D&&D.fg&&isFinite(D.fg.score))dl.push(`mood ${D.fg.label.toLowerCase()} (${Math.round(D.fg.score)})`);
   const fl=D&&D.flags&&D.flags.find(f=>!/^Validated rule|^History:|^Earnings/.test(f));if(fl)dl.push(esc(fl.replace(/<[^>]+>/g,"")));
+  const MC=renderMacro2();
+  if(MC){const hot=MC.L.filter(e=>e.i>=3&&e.k!=="holiday"&&(e.st==="soon"||e.st==="now")).sort((a,b)=>a.ms-b.ms)[0];
+    if(hot){const dt=Math.round((hot.ms-now)/60000);dl.unshift(hot.st==="soon"?`<b>${esc(hot.n)} in ${dt} min</b>: expect big swings`:`<b>${esc(hot.n)} just out</b>${isFinite(hot.react)?`: SOXL ${fmtPct(hot.react,1)} since`:""}`)}}
   const nw=hlNews(45);if(nw)dl.push(`News: “${esc(nw.h.slice(0,110))}${nw.h.length>110?"…":""}”`);
   if(h!==HL.live){HL.live=h;HL.liveAt=now;const e=$("hlLive");e.textContent=h;e.classList.remove("flash");void e.offsetWidth;e.classList.add("flash")}
   $("hlLiveD").innerHTML=dl.join(" · ");
@@ -2314,6 +2396,8 @@ function renderHeadline(D){
   if(cr&&ph!=="pre")dd.push(`breadth ${cr.adv} up / ${cr.dec} down${cr.narrow?" (narrow: a few heavy stocks carry it)":""}`);
   if(ph!=="regular"){if(leadTxt)dd.push(leadTxt);if(lagTxt)dd.push(lagTxt)}else if(!idxUp&&leadTxt)dd.push(leadTxt);else if(idxUp&&lagTxt)dd.push(lagTxt);
   if(D&&D.mic&&D.mic.near&&D.mic.near.length)dd.push(`earnings soon: ${D.mic.near.map(e=>e.s).slice(0,4).join(", ")}`);
+  if(MC){const k=MC.L.filter(e=>e.i>=3);const t=k.filter(e=>e.d===MC.today),n=k.filter(e=>e.d===MC.tom);
+    if(t.length)dd.push(`macro today: ${t.map(e=>esc(e.n)+" "+fmtMt(e)).join(", ")}`);if(n.length)dd.push(`next session: ${n.map(e=>esc(e.n)+" "+fmtMt(e)).join(", ")}`)}
   const dn=hlNews(ph==="pre"?720:600);if(dn)dd.push(`top story: “${esc(dn.h.slice(0,120))}${dn.h.length>120?"…":""}”`);
   if(dh!==HL.day){HL.day=dh;const e=$("hlDay");e.textContent=dh;e.classList.remove("flash");void e.offsetWidth;e.classList.add("flash")}
   $("hlDayTag").textContent=tag;$("hlDayD").innerHTML=dd.join(" · ");

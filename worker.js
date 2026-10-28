@@ -11,6 +11,7 @@
 //        GET https://<your-worker>.workers.dev/chart?t=NVDA&range=1y&interval=1d   (daily bars for trend and inflection points)
 //        GET https://<your-worker>.workers.dev/holders?t=NVDA          (funds that hold, buy and sell; insiders; analyst target)
 //        GET https://<your-worker>.workers.dev/holders?t=NVDA&lite=1   (summary only, for the index scan)
+//        GET https://<your-worker>.workers.dev/econ                    (US economic calendar this week and next, with forecasts)
 //        GET https://<your-worker>.workers.dev/social?t=SOXL           (latest StockTwits messages with bull/bear tags)
 //        GET https://<your-worker>.workers.dev/social?t=SOXL&max=123   (older messages, for the caller track record)
 //        GET https://<your-worker>.workers.dev/news?t=NVDA&q=Nvidia    (fresh headlines: Google News + Yahoo Finance, newest first)
@@ -372,6 +373,11 @@ export default {
       if (!/^[A-Z][A-Z.\-]{0,7}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
       return json(url.pathname === "/holders" ? await getHolders(t, url.searchParams.get("lite") === "1") : await getSocial(t, /^\d{1,15}$/.test(url.searchParams.get("max") || "") ? url.searchParams.get("max") : null));
     }
+    if (url.pathname === "/econ") {
+      // US economic calendar for this week and next (Forex Factory public feed): time in ET, impact, forecast, previous, actual
+      const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=900" } });
+      return json(await getEcon());
+    }
     if (url.pathname === "/hist") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
       if (!env.POLYGON_KEY) return json({ status: "error", error: "POLYGON_KEY secret is not set" }, 500);
@@ -400,3 +406,22 @@ export default {
     });
   }
 };
+
+// ---- economic calendar ----
+async function getEcon() {
+  const out = [];
+  for (const w of ["thisweek", "nextweek"]) {
+    try {
+      const r = await fetch(`https://nfs.faireconomy.media/ff_calendar_${w}.json`, { headers: { "User-Agent": "Mozilla/5.0" }, cf: { cacheTtl: 900 } });
+      if (!r.ok) continue;
+      for (const e of await r.json()) {
+        if (e.country !== "USD" || !["High", "Medium"].includes(e.impact)) continue;
+        const t = Date.parse(e.date); if (!isFinite(t)) continue;
+        const et = new Date(t).toLocaleString("en-CA", { timeZone: "America/New_York", hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+        const [d, hm] = et.split(", ");
+        out.push({ d, t: hm.replace(/^24/, "00"), n: e.title, i: e.impact === "High" ? 3 : 2, fc: e.forecast || "", pv: e.previous || "", ac: e.actual || "" });
+      }
+    } catch (e) { }
+  }
+  return out.length ? { status: "ok", items: out } : { status: "error", error: "calendar feed did not answer" };
+}
