@@ -313,7 +313,7 @@
   function ptFrom(param) { if (!param.point || !S.main) return null; const l = chart.timeScale().coordinateToLogical(param.point.x), p = S.main.coordinateToPrice(param.point.y); if (l == null || p == null) return null; return { t: lToT(Math.round(l)), p }; }
   const ONE = { hline: 1, alert: 1, vline: 1 };
   chart.subscribeClick(param => {
-    if (rp && rp.pick) { if (param.logical != null) { rp.i = Math.max(20, Math.min(B.length - 2, Math.round(param.logical))); rp.pick = false; rpTxt(); update(); } return; }
+    if (rp && rp.pick) { if (param.logical != null) { rp.i = Math.max(20, Math.min(B.length - 2, Math.round(param.logical))); rp.pick = false; rpTxt(); stat(""); update(); } return; }
     const pt = ptFrom(param); if (!pt) return;
     if (tool) {
       if (ONE[tool]) { drawings().push({ type: tool, p1: pt, p2: pt, hit: null }); finish(); return; }
