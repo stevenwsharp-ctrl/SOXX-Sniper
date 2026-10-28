@@ -449,6 +449,13 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </section>
 
   <section class="edge" id="edgeBar"></section>
+  <section class="card" id="whaleCard" style="margin-bottom:12px">
+    <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Whale watch · the best and worst SOXL traders on Hyperliquid, live</div><div class="sub" id="wwSub"></div></div>
+    <div class="stiles" id="wwTiles"></div>
+    <div class="row wwtabs" id="wwTabs" style="margin:12px 0 8px"></div>
+    <div id="wwBody"></div>
+    <div class="wwnote">Wallets from the SOXL trader study of Oct 28, 2026 (248 wallets; ranked by full SOXL profit on Hyperdash). Positions come live from Hyperliquid every minute. You get an alert when a top wallet opens, closes, flips, adds or cuts $50K or more, or when a $500K+ position comes within 3% of liquidation.</div>
+  </section>
 
   <section class="card" id="taCard" style="margin-bottom:12px">
     <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Live chart · drawings, indicators, replay and alerts · any symbol</div><div class="row" id="taCtl"></div></div>
@@ -1328,6 +1335,7 @@ function decide(){
   if(GT.up>=60)flags.push(`Game theory: squeeze risk ${GT.up}/100. Buyers and short sellers race to buy`);
   if(GT.strong)flags.push(`Payoff matrix: ${GT.strong.label} → historically ${GT.strong.r.mu>0?"following":"fading"} the move paid (${Math.round((GT.strong.r.mu>0?GT.strong.r.winR:1-GT.strong.r.winR)*100)}% of ${GT.strong.r.n} days)`);
   if(GT.so&&GT.so.tagged>=15&&(GT.so.bull>=0.85||GT.so.bull<=0.3))flags.push(`StockTwits is one-sided (${Math.round(GT.so.bull*100)}% bullish): a crowded side`);
+  try{const wf=window.wwFlag&&wwFlag();if(wf)flags.push(wf)}catch(e){}
   if(lf&&Math.abs(lf.usd)>=3e8&&(T.phase==="regular"))flags.push(`Leveraged-ETF rebalancing: about ${fmtBig(Math.abs(lf.usd))} of chip exposure to ${lf.usd>0?"buy":"sell"} into the close`);
   return{cm,pos,fg,ls,lv,bias,regime,stance,fav,flags,a1,a3,rho,net,lw,mac,bon,con,oil,mic,nws,ratesLive,credLive,T,stS,sessPart,smartPart,bf,AR,lf,GT,CS};
 }
@@ -2387,6 +2395,7 @@ function renderHeadline(D){
   const MC=renderMacro2();
   if(MC){const hot=MC.L.filter(e=>e.i>=3&&e.k!=="holiday"&&(e.st==="soon"||e.st==="now")).sort((a,b)=>a.ms-b.ms)[0];
     if(hot){const dt=Math.round((hot.ms-now)/60000);dl.unshift(hot.st==="soon"?`<b>${esc(hot.n)} in ${dt} min</b>: expect big swings`:`<b>${esc(hot.n)} just out</b>${isFinite(hot.react)?`: SOXL ${fmtPct(hot.react,1)} since`:""}`)}}
+  try{const wh=window.wwHeadline&&wwHeadline();if(wh)dl.unshift(`<b>${esc(wh)}</b>`)}catch(e){}
   const nw=hlNews(45);if(nw)dl.push(`News: “${esc(nw.h.slice(0,110))}${nw.h.length>110?"…":""}”`);
   if(h!==HL.live){HL.live=h;HL.liveAt=now;const e=$("hlLive");e.textContent=h;e.classList.remove("flash");void e.offsetWidth;e.classList.add("flash")}
   $("hlLiveD").innerHTML=dl.join(" · ");
@@ -4154,5 +4163,6 @@ render();renderAnalysis();drawChart();
 </script>
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="prochart.js?v=5"></script>
+<script src="whales.js?v=1"></script>
 </body>
 </html>

@@ -34,6 +34,9 @@ Select any item in the market strip (Semis 30, SOX, Nasdaq, S&P 500, Dow, VIX, 1
 - **10-year yield:** the yield curve (3 months, 5, 10 and 30 years) and what it means for chip valuations.
 - **Bitcoin:** Ethereum, total crypto market cap and crypto fear and greed.
 
+### Whale watch
+Tracks the 20 best and 10 worst SOXL traders on Hyperliquid (from the SOXL trader study of Oct 28, 2026: 248 wallets, ranked by full SOXL profit on Hyperdash). Positions come live from Hyperliquid every minute: side, size, entry, leverage, liquidation price, distance to liquidation and open profit. The tiles show the net position of the top 20 and the worst 10, whether they are on opposite sides, and the largest liquidation levels near the price. You get an alert (and a line in the live headline) when a top wallet opens, closes, flips, adds or cuts $50K or more, or when a $500K+ position comes within 3% of liquidation. The decision read adds a flag when the top 20 lean strongly to one side.
+
 ### Pro chart (free, TradingView engine)
 The live chart uses TradingView's open-source Lightweight Charts engine (Apache 2.0). It has no subscription and no limits:
 - **Any symbol** (type it in the box): SOXL, the 30 stocks, ETFs, BTC. **Timeframes** 1m, 5m, 15m, 1h, 4h, D, W, with pre-market and after-hours. **Types:** candles, hollow candles, Heikin Ashi, bars, line, area. **Log** scale and **compare** (a second symbol in %).
