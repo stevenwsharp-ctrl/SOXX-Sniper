@@ -30,7 +30,7 @@
   function shareLab() {
     try {
       const st = typeof ST !== "undefined" && ST ? ST : (typeof sessStats === "function" && typeof SESS !== "undefined" && SESS.length ? sessStats() : null);
-      if (!st || !st.rebal) return null;
+      if (!st || !st.rebal || !(st.n >= 60)) return null;   // keep the last good study; do not overwrite it with an empty one
       const out = { at: Date.now(), n: st.n, first: st.first, last: st.last, rebal: st.rebal,
         rules: (st.rules || []).map(r => ({ id: r.id, title: r.title, r: r.full && isFinite(r.full.r) ? r.full.r : null, oos: r.oos && isFinite(r.oos.r) ? r.oos.r : null, verdict: r.verdict, who: r.who })) };
       localStorage.setItem("soxx_lab_share", JSON.stringify(out)); return out;
