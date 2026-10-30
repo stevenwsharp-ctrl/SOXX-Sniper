@@ -140,7 +140,12 @@
     document.getElementById("rdTbl").innerHTML = `<div style="overflow-x:auto"><table><tr><th class="l">Input</th><th>Lean</th><th>Weight</th><th class="l">Reading</th></tr>${grp.map(g => `<tr><td class="l" colspan="4" style="color:var(--dim);font-weight:600">${g}</td></tr>` + I.filter(x => x.grp === g).map(x => `<tr><td class="l">${esc(x.k)}</td><td class="${cl(x.v)}">${x.v > 0.05 ? "▲" : x.v < -0.05 ? "▼" : "–"} ${x.v.toFixed(2)}</td><td>${x.w}</td><td class="l">${esc(x.txt)}</td></tr>`).join("")).join("")}</table></div>
       <div class="sub" style="margin-top:4px">Lean −1 … +1 (+ = up, SOXL). Weights are fixed today; the signal web learns which inputs predict, and its forecast is one of the inputs. Market makers and the worst wallets count against their own side, because their positions show the other side of the flow.</div>`;
     document.getElementById("rdAt").textContent = "updated " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
-    try { if (window.Web) { Web.emit("read.score", "SOXL", score, "SOXX · Sniper read (all inputs)"); } } catch (e) { }
+    // every input is also its own node in the signal web, so the web learns how much each one is worth
+    try { if (window.Web) { Web.emit("read.score", "SOXL", score, "SOXX · Sniper read (all inputs)");
+      I.forEach(x => { if (x.k === "Page decision read" || /Signal web/.test(x.k)) return; Web.emit("read." + x.k.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40), "SOXL", x.v, "SOXX · " + x.k); });
+      if (R && isFinite(R.LEAN)) Web.emit("radar.lean", "SOXL", R.LEAN, "Radar · direction lean");
+      if (R && isFinite(R.MS)) Web.emit("macro.calm", "SOXL", -Math.max(-1, Math.min(1, R.MS / 1.5)), "Macro · calm (low cross-asset stress)");
+      if (R && R.SH) Web.emit("ah.perp", "SOXL", Math.max(-1, Math.min(1, R.SH.mv / 0.05)), "After-hours SOXL perp move"); } } catch (e) { }
   }
   function web() { if (!window.Web || document.hidden) return; try { Web.render(document.getElementById("rdWeb"), { h: 300, compact: true }); } catch (e) { } }
   setTimeout(web, 8000); setInterval(web, 60000);

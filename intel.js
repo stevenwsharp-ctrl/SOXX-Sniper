@@ -70,7 +70,12 @@
       if (isFinite(d.gap)) x["soxl.gap"] = cl1(d.gap / 0.05);
       const ts = vixTs(d.d); if (isFinite(ts)) x["macro.vixts"] = cl1(-(ts - 0.92) * 5);
       Object.keys(x).forEach(k => { if (!x[k]) delete x[k]; });
-      items.push({ t: etEpochMin(d.d, 900) * 60000, a: "SOXL", x, r: (1 + d.l60) * (1 + d.nAh) - 1 });
+      // volatility regime: today's move vs the average of the last 20 days
+      const av = D.slice(Math.max(0, i - 20), i).reduce((a, q) => a + (isFinite(q.cc) ? Math.abs(q.cc) : 0), 0) / Math.min(20, i);
+      const reg = av > 0 && isFinite(d.r15) ? cl1(Math.abs(d.r15) / av - 1) : 0;
+      // 4h ≈ 3 pm → end of after-hours; 24h ≈ 3 pm → next day's close
+      const r4 = (1 + d.l60) * (1 + d.nAh) - 1, r24 = isFinite(d.nCC) ? (1 + d.l60) * (1 + d.nCC) - 1 : null, r1 = d.l60;
+      items.push({ t: etEpochMin(d.d, 900) * 60000, a: "SOXL", x, reg, rh: { 1: r1, 4: r4, 24: r24 } });
     }
     Web.ingest("soxl-sessions", items, "SOXL sessions (2y)");
   }
