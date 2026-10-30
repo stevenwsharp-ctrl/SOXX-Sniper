@@ -1011,7 +1011,10 @@ async function extTick(force){
     const j={quotes:Object.assign({},...parts.map(x=>x.quotes||{}))};let n=0;
     for(const s in j.quotes){const x=j.quotes[s],q=Q[s];if(!q||!(x.price>0))continue;n++;
       if(x.time&&q.xt&&x.time<q.xt-500)continue; // never replace a newer trade with an older one
-      if(x.regularClose>0)q.regClose=x.regularClose;q.xsess=x.session;q.xt=x.time;q.xsrc=x.src;q.xalt=x.alt||null;
+      if(x.regularClose>0)q.regClose=x.regularClose;
+      // the regular close must come from a trade at or after 3:55 pm ET today: Finnhub's quote is right; an old Worker can pass Yahoo's value, which can lag by an hour
+      {const e=etInfo(Date.now()),qe=q.qt?etInfo(q.qt):null;if(q.qc>0&&qe&&qe.d===e.d&&qe.min>=955&&e.min>=960)q.regClose=q.qc}
+      q.xsess=x.session;q.xt=x.time;q.xsrc=x.src;q.xalt=x.alt||null;
       const key=s+"|"+x.time,prev=extVol[s]&&extVol[s].k===key?extVol[s].v:0,dv=Math.max(0,(x.vol||0)-prev);extVol[s]={k:key,v:x.vol||0};
       if(x.session==="pre"||x.session==="post"||x.price!==q.c)onTick(s,x.price,dv);
     }
@@ -2707,7 +2710,7 @@ function fhTick(){
 async function fetchQuote(s){
   const j=await fhGet(`quote?symbol=${encodeURIComponent(s)}`,"quote");
   if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;saveQuoteCache();if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
-    if(j.c>0)q.qc=j.c;
+    if(j.c>0){q.qc=j.c;q.qt=j.t>0?j.t*1000:Date.now()}
     const ph=phaseAt(Date.now()),ext=ph==="pre"||ph==="post"||ph==="closed";
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
     const extLive=ext&&q.lt&&Date.now()-q.lt<6*3600000;
@@ -4240,7 +4243,7 @@ render();renderAnalysis();drawChart();
 <script src="spotflow.js?v=1"></script>
 <script src="why.js?v=2"></script>
 <script src="intel.js?v=8"></script>
-<script src="radar.js?v=2"></script>
+<script src="radar.js?v=3"></script>
 <script src="trio.js?v=4"></script>
 <script src="gtlog.js?v=1"></script>
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;

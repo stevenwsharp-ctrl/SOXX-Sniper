@@ -164,7 +164,7 @@
       const r = await fetch("https://api.hyperliquid.xyz/info", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "metaAndAssetCtxs", dex: "xyz" }) }); if (!r.ok) return;
       const [m, c] = await r.json(), i = m.universe.findIndex(u => /SOXL$/i.test(u.name)); if (i < 0) return;
       const perp = +c[i].markPx, L = await daily("SOXL"), last = L[L.length - 1], close = e.min < 570 && last && last.d === etDate() ? L[L.length - 2].c : last && last.c;
-      const qc = Q && Q[FUND] && Q[FUND].c; const ref = close || qc; if (!(perp > 0 && ref > 0)) return;
+      const rcl = Q && Q[FUND] && Q[FUND].regClose > 0 ? Q[FUND].regClose : null, qc = Q && Q[FUND] && Q[FUND].c; const ref = rcl || close || qc;   // the live regular close first (daily bars can lag) if (!(perp > 0 && ref > 0)) return;
       const mv = perp / ref - 1; SH = { perp, ref, mv };
       const lvl = Math.abs(mv) >= 0.10 ? 3 : Math.abs(mv) >= 0.06 ? 2 : Math.abs(mv) >= 0.03 ? 1 : 0;
       document.getElementById("rdShock").innerHTML = `<div class="rdshock ${lvl ? (mv < 0 ? "down" : "up") : ""}">${lvl ? "⚡ " : ""}SOXL perp (Hyperliquid, trades 24/7) ${pc(mv, 1)} vs the last close ($${perp.toFixed(2)} vs $${ref.toFixed(2)}) · implied SOXS ≈ ${pc(-mv, 1)} at the open${lvl >= 2 ? " · a big overnight move is under way" : ""}</div>`;

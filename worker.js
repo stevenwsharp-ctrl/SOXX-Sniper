@@ -111,7 +111,7 @@ async function yahooQuote(t) {
       const inP = p => p && t0 >= p.start && t0 < p.end;
       const session = inP(tp.pre) ? "pre" : inP(tp.regular) ? "regular" : inP(tp.post) ? "post" : "closed";
       return { t, price: q.close[i], time: t0 * 1000, vol: (q.volume && q.volume[i]) || 0, session,
-        regularClose: m.regularMarketPrice, prevClose: m.chartPreviousClose ?? m.previousClose, src: "yahoo" };
+        regularClose: m.regularMarketPrice, regTime: (m.regularMarketTime || 0) * 1000, prevClose: m.chartPreviousClose ?? m.previousClose, src: "yahoo" };
     } catch (e) {}
   }
   return null;
@@ -159,7 +159,7 @@ async function stQuotes(list) {
         const type = String(d.ExtendedHoursType || "").toLowerCase();
         out[t] = { t, price: useX ? d.ExtendedHoursPrice : d.Last, time: useX ? xt : rt, vol: 0,
           session: useX ? (type.includes("pre") ? "pre" : type.includes("over") ? "overnight" : "post") : "regular",
-          regularClose: d.Last, prevClose: d.PreviousClose, src: "stocktwits" };
+          regularClose: d.Last, regTime: rt, prevClose: d.PreviousClose, src: "stocktwits" };
       }
     }
   } catch (e) {}
@@ -182,7 +182,7 @@ async function stQuoteV2(t) {
         const useX = x && x.price > 0 && xt >= rt, ty = String((x && x.session_type) || "").toUpperCase();
         q = { t, price: useX ? x.price : d.last, time: useX ? xt : rt, vol: 0,
           session: useX ? (ty.includes("OVERNIGHT") ? "overnight" : ty.includes("PRE") ? "pre" : "post") : "regular",
-          regularClose: d.last, prevClose: d.previous_close, src: "stocktwits" };
+          regularClose: d.last, regTime: rt, prevClose: d.previous_close, src: "stocktwits" };
       }
     }
   } catch (e) {}
@@ -207,8 +207,10 @@ async function extQuote(t, st, useYahoo) {
   }
   // keep the quote with the newest trade time
   const s = st && st[t];
-  if (s && s.price > 0 && (!q || s.time > (q.time || 0) + 1000)) return { ...s, regularClose: (q && q.regularClose) || s.regularClose, prevClose: (q && q.prevClose) || s.prevClose, alt: q ? { src: q.src, price: q.price, time: q.time } : null };
-  if (q && s && s.price > 0) return { ...q, alt: { src: s.src, price: s.price, time: s.time } };
+  // regular close: from the source with the newest regular-session trade (Yahoo's regularMarketPrice can lag by an hour)
+  const rc = (a, b) => { const A = a && a.regularClose > 0 ? a : null, B = b && b.regularClose > 0 ? b : null; if (!A || !B) return (A || B || {}).regularClose || null; return (A.regTime || 0) >= (B.regTime || 0) ? A.regularClose : B.regularClose; };
+  if (s && s.price > 0 && (!q || s.time > (q.time || 0) + 1000)) return { ...s, regularClose: rc(s, q), prevClose: (q && q.prevClose) || s.prevClose, alt: q ? { src: q.src, price: q.price, time: q.time } : null };
+  if (q && s && s.price > 0) return { ...q, regularClose: rc(q, s), alt: { src: s.src, price: s.price, time: s.time } };
   return q;
 }
 
