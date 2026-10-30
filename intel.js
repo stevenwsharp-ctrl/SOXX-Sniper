@@ -163,21 +163,26 @@
   let WC = null, wcT = 0;
   async function why() {
     if (!window.Why) return; const el = document.getElementById("inWhyBody"); if (!el || !document.getElementById("inWhy").open) return;
-    if (!WC || Date.now() - wcT > 10 * 6e4) { try { const c = await post({ type: "candleSnapshot", req: { coin: "xyz:SOXL", interval: "15m", startTime: Date.now() - 50 * 864e5, endTime: Date.now() } });
+    if (!WC || Date.now() - wcT > 10 * 6e4) { try { const c = await post({ type: "candleSnapshot", req: { coin: "xyz:SOXL", interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } });
       if (Array.isArray(c) && c.length) { WC = c.map(x => ({ t: x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c })); wcT = Date.now(); } } catch (e) { } }
     if (!WC) { el.innerHTML = `<div class="bk-f" style="font-size:12px">Loading SOXL perp price history…</div>`; return; }
     const L = window.wwList ? wwList() : [], rank = {}; ["B", "W"].forEach(g => L.filter(w => w.g === g).forEach((w, i) => rank[w.a] = (g === "B" ? "Top #" : "Worst #") + (i + 1)));
     const M = [];
+    // the growing log from the data job (Cohort Sniper's data branch): every move of the 40 wallets, up to 200 days
+    if (!why.log || Date.now() - why.logT > 5 * 6e4) { try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/data/whalelog.json?t=" + Math.floor(Date.now() / 3e5)); if (r.ok) { why.log = await r.json(); why.logT = Date.now(); } } catch (e) { } }
+    const lastLog = {};
+    if (why.log && why.log.moves) why.log.moves.forEach(m => { const w = why.log.wallets[m[1]]; if (!w) return; const a = w[0]; lastLog[a] = Math.max(lastLog[a] || 0, m[0]);
+      M.push({ t: m[0], a, g: w[1] === "B" ? "best" : "worst", who: rank[a] || (w[1] === "B" ? "top trader" : "worst wallet"), entry: !!m[2], dir: m[3], px: m[4], usd: m[5] }); });
     const F = window.inFills ? inFills() : {};
     // top wallets without loaded fills yet: use the whale tracker's move list
-    (window.wwMoves ? wwMoves() : []).filter(m => !F[m.a]).forEach(m => M.push({ t: m.t0, a: m.a, g: "best", who: rank[m.a] || "top trader", entry: m.grp !== "shrink", dir: m.side === "long" ? 1 : -1, px: m.px, usd: m.usd }));
-    L.forEach(w => { const f = (F[w.a] && F[w.a].f || []).filter(x => x.coin === "xyz:SOXL").sort((a, b) => a.time - b.time); let cur = null;
+    (window.wwMoves ? wwMoves() : []).filter(m => !F[m.a] && m.t0 > (lastLog[m.a] || 0) + 30 * 6e4).forEach(m => M.push({ t: m.t0, a: m.a, g: "best", who: rank[m.a] || "top trader", entry: m.grp !== "shrink", dir: m.side === "long" ? 1 : -1, px: m.px, usd: m.usd }));
+    L.forEach(w => { const f = (F[w.a] && F[w.a].f || []).filter(x => x.coin === "xyz:SOXL" && x.time > (lastLog[w.a] || 0) + 30 * 6e4).sort((a, b) => a.time - b.time); let cur = null;
       f.forEach(x => { const d = x.dir || "", entry = /Open|>/.test(d), dir = /> Long|Open Long|Close Short/.test(d) ? (entry ? 1 : -1) : (entry ? -1 : 1), sideDir = dir;   // entry: the new side; exit: the side they leave
         const v = +x.sz * +x.px; if (cur && cur.entry === entry && cur.dir === sideDir && x.time - cur.t1 < 30 * 6e4) { cur.usd += v; cur.t1 = x.time; cur.sz += +x.sz; cur.px = cur.usd / cur.sz; }
         else { cur = { t: x.time, t1: x.time, a: w.a, g: w.g === "B" ? "best" : "worst", who: rank[w.a], entry, dir: sideDir, px: +x.px, usd: v, sz: +x.sz }; M.push(cur); } }); });
     const evs = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^rd_e_/.test(k)) continue; (JSON.parse(localStorage.getItem(k)).L || []).forEach(e => { try { evs.push(etEpochMin(e.d, e.h === "bmo" ? 480 : 960) * 60000); } catch (x) { } }); } } catch (e) { }
     const rows = Why.analyze(M.filter(m => m.usd >= 5000), WC, { events: evs });
-    el.innerHTML = Why.html(rows, WC, { sym: "SOXL", events: evs, recent: 12 }) + `<div class="bk-f" style="font-size:11.5px;margin-top:4px">${M.length} tracked moves ($5K+): top traders from their fills (newest 2,000 each), worst wallets from their fills as they load. Prices: the SOXL perp on Hyperliquid, 15-minute bars, 50 days.</div>`;
+    el.innerHTML = Why.html(rows, WC, { sym: "SOXL", events: evs, recent: 12 }) + `<div class="bk-f" style="font-size:11.5px;margin-top:4px">${M.length} tracked moves ($5K+): top traders from their fills (newest 2,000 each), worst wallets from their fills as they load. ${why.log ? `Log: ${why.log.moves.length.toLocaleString()} moves since ${new Date(why.log.moves[0] ? why.log.moves[0][0] : Date.now()).toLocaleDateString()}, saved by the data job and growing.` : "The data job's move log loads with its next run."} Prices: the SOXL perp on Hyperliquid, hourly bars, 200 days.</div>`;
   }
   basket(); rebal(); spot();
   setTimeout(why, 9000); setInterval(why, 5 * 6e4);
