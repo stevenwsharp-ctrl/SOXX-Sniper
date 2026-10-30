@@ -298,7 +298,7 @@ Yahoo Finance and Nasdaq.com do not officially support these data addresses, so 
 
 Built after the Oct 29 night, when Intel's warning after the close took the chip group down overnight.
 - **Earnings tonight / this week**: each SOXX holding that reports, its weight, and how far the stock, SOXX and SOXL gapped after its past reports (Finnhub dates + Yahoo daily bars). "SOXX per 1% of stock" measures contagion, not only weight.
-- **Big overnight move model**: logistic regression fitted in the browser on 2 years of SOXL nights (target: a 5%+ gap from close to next open). Inputs: VIX ÷ VIX3M, VIX, MOVE, SOXL realized-volatility percentile, 5-day move, big holding reports tonight. Shows today's odds vs the base rate and an out-of-sample check.
+- **Big overnight move model**: logistic regression fitted in the browser on 2 years of SOXL nights (target: a 7%+ gap from close to next open). Inputs: VIX ÷ VIX3M, VIX, MOVE, SOXL realized-volatility percentile, 5-day move, big holding reports tonight. Shows today's odds vs the base rate and an out-of-sample check.
 - **Direction lean**: signal web, cohort smart vs fools on the holdings and on the reporter's perp, top and worst SOXL whales.
 - **After-hours shock watch**: the SOXL perp on Hyperliquid trades 24/7; after 4 pm ET it is compared with the close, with alerts at 3%, 6% and 10% and the implied SOXS move.
 - **Macro live**: VIX, VIX3M, MOVE, SKEW, 10Y, 3M bill, dollar, copper, gold, oil, SOX, Nasdaq-100 with z-scores, the 10Y−2Y curve and high-yield spread, and a stress index.

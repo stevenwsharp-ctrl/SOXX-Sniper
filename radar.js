@@ -2,7 +2,7 @@
    1. Event risk: SOXX holdings that report earnings in the next days, their weight, how far they and SOXX gapped after
       their past reports (Finnhub past dates + Yahoo daily bars), and the move that implies for SOXL tonight.
    2. Big-move model: logistic regression fitted in the browser on 2 years of SOXL days. Target: an overnight gap
-      (close → next open) of 5% or more. Inputs known at the close: VIX term structure, VIX level, bond volatility (MOVE),
+      (close → next open) of 7% or more. Inputs known at the close: VIX term structure, VIX level, bond volatility (MOVE),
       SOXL realized-volatility percentile, the 5-day move, and "a big holding reports tonight". Output: today's odds vs the base rate.
    3. Direction lean: positioning that tends to precede the direction (cohort basket gap, smart money on the reporter's
       perp, the top/worst SOXL whales, the signal web).
@@ -111,7 +111,7 @@
       const ts = v[d] && v3[d] ? v[d].c / v3[d].c : NaN, lvl = v[d] ? v[d].c : NaN, mo = mv[d] ? mv[d].c : NaN, r5 = L[i].c / L[i - 5].c - 1;
       const x = [ts, lvl, isFinite(mo) ? mo : 100, pct, Math.abs(r5), Math.min(1, (evN[d] || 0) / 0.05)];
       if (x.some(z => !isFinite(z))) continue;
-      X.push(x); Y.push(Math.abs(L[i + 1].o / L[i].c - 1) >= 0.05 ? 1 : 0); D.push(d);
+      X.push(x); Y.push(Math.abs(L[i + 1].o / L[i].c - 1) >= 0.07 ? 1 : 0); D.push(d);
     }
     // standardize and fit (gradient descent, L2)
     const k = X[0].length, mu = [...Array(k)].map((_, j) => mean(X.map(x => x[j]))), sg = [...Array(k)].map((_, j) => sdv(X.map(x => x[j])) || 1);
@@ -136,7 +136,7 @@
   function renderMod() {
     const el = document.getElementById("rdMod"); if (!MOD) { el.innerHTML = `<div class="nt">Fitting…</div>`; return; } if (MOD.err) { el.innerHTML = `<div class="nt">${esc(MOD.err)}</div>`; return; }
     const fx = (n, x) => /term/.test(n) ? x.toFixed(2) + (x > 1 ? " (backwardation: stress)" : " (contango)") : /percentile/.test(n) ? Math.round(x * 100) + "th" : /5-day/.test(n) ? (x * 100).toFixed(1) + "%" : /reports/.test(n) ? (x ? "yes" : "no") : x.toFixed(1);
-    el.innerHTML = `<div class="nt">Odds of a SOXL overnight gap of 5%+ (either way) after tonight's close: <b style="font-size:15px">${(MOD.p * 100).toFixed(0)}%</b> vs the usual ${(MOD.base * 100).toFixed(0)}% (${MOD.big} of ${MOD.n} nights). Out of sample (last 25% of the data), the nights the model ranked in its top fifth had a big gap ${(MOD.topR * 100).toFixed(0)}% of the time, vs ${(MOD.restR * 100).toFixed(0)}% for the other nights${MOD.topR > MOD.restR * 1.3 ? ": the model has real skill." : ": skill is weak; use it as a rough guide."}</div>
+    el.innerHTML = `<div class="nt">Odds of a SOXL overnight gap of 7%+ (either way) after tonight's close: <b style="font-size:15px">${(MOD.p * 100).toFixed(0)}%</b> vs the usual ${(MOD.base * 100).toFixed(0)}% (${MOD.big} of ${MOD.n} nights). Out of sample (last 25% of the data), the nights the model ranked in its top fifth had a big gap ${(MOD.topR * 100).toFixed(0)}% of the time, vs ${(MOD.restR * 100).toFixed(0)}% for the other nights${MOD.topR > MOD.restR * 1.3 ? ": the model has real skill." : ": skill is weak; use it as a rough guide."}</div>
       <div class="tw"><table><tr><th class="l">Input (at the close)</th><th>Now</th><th>Push on the odds</th></tr>${MOD.contrib.map(c => `<tr><td class="l">${c.n}</td><td>${fx(c.n, c.x)}</td><td class="${c.c > 0 ? "down" : "up"}">${c.c > 0 ? "▲" : "▼"} ${Math.abs(c.c).toFixed(2)}</td></tr>`).join("")}</table></div>`;
   }
 
@@ -196,12 +196,12 @@
 
   function top() {
     const p = MOD && !MOD.err ? MOD.p : null, ex = EVT ? EVT.expL : 0;
-    document.getElementById("rdTop").innerHTML = `<div><span class="bk-f">Big overnight gap odds (5%+)</span><b class="${p != null && MOD && p > MOD.base * 1.5 ? "bk-S" : ""}">${p != null ? Math.round(p * 100) + "%" : "–"}</b>usual ${MOD && MOD.base ? Math.round(MOD.base * 100) + "%" : "–"}</div>
+    document.getElementById("rdTop").innerHTML = `<div><span class="bk-f">Big overnight gap odds (7%+)</span><b class="${p != null && MOD && p > MOD.base * 1.5 ? "bk-S" : ""}">${p != null ? Math.round(p * 100) + "%" : "–"}</b>usual ${MOD && MOD.base ? Math.round(MOD.base * 100) + "%" : "–"}</div>
       <div><span class="bk-f">Earnings move priced from history</span><b>${ex ? "±" + (ex * 100).toFixed(1) + "%" : "none tonight"}</b>SOXL overnight${EVT && EVT.tonight && EVT.tonight.length ? " · " + EVT.tonight.map(e => e.s).join(", ") : ""}</div>
       <div><span class="bk-f">Direction lean</span><b class="${LEAN > 0.15 ? "bk-L" : LEAN < -0.15 ? "bk-S" : ""}">${LEAN > 0.15 ? "UP · SOXL" : LEAN < -0.15 ? "DOWN · SOXS" : "unclear"}</b>${LEAN.toFixed(2)}</div>
       <div><span class="bk-f">Macro stress</span><b class="${MS > 0.5 ? "bk-S" : ""}">${isFinite(MS) ? MS.toFixed(2) : "–"}</b>${MS > 1 ? "high" : MS > 0.5 ? "rising" : "normal / calm"}</div>`;
     // alert once a day when size and side line up
-    try { if (p != null && MOD && p >= Math.max(0.15, MOD.base * 2) && Math.abs(LEAN) >= 0.25) alert1(`rdset:${etDate()}:${Math.sign(LEAN)}`, 12 * 36e5, `🎯 Big-move setup: ${Math.round(p * 100)}% odds of a 5%+ SOXL overnight gap (usual ${Math.round(MOD.base * 100)}%), lean ${LEAN > 0 ? "UP → SOXL" : "DOWN → SOXS"}${ex ? `, earnings priced ±${(ex * 100).toFixed(1)}%` : ""}`, FUND, true); } catch (e) { }
+    try { if (p != null && MOD && p >= Math.max(0.15, MOD.base * 2) && Math.abs(LEAN) >= 0.25) alert1(`rdset:${etDate()}:${Math.sign(LEAN)}`, 12 * 36e5, `🎯 Big-move setup: ${Math.round(p * 100)}% odds of a 7%+ SOXL overnight gap (usual ${Math.round(MOD.base * 100)}%), lean ${LEAN > 0 ? "UP → SOXL" : "DOWN → SOXS"}${ex ? `, earnings priced ±${(ex * 100).toFixed(1)}%` : ""}`, FUND, true); } catch (e) { }
   }
 
   async function all() { try { await events(); } catch (e) { console.warn("radar events", e); } try { await model(); } catch (e) { console.warn("radar model", e); } try { await lean(); } catch (e) { } try { await macro(); } catch (e) { } }
