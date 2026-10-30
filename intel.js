@@ -181,7 +181,7 @@
         const v = +x.sz * +x.px; if (cur && cur.entry === entry && cur.dir === sideDir && x.time - cur.t1 < 30 * 6e4) { cur.usd += v; cur.t1 = x.time; cur.sz += +x.sz; cur.px = cur.usd / cur.sz; }
         else { cur = { t: x.time, t1: x.time, a: w.a, g: w.g === "B" ? "best" : "worst", who: rank[w.a], entry, dir: sideDir, px: +x.px, usd: v, sz: +x.sz }; M.push(cur); } }); });
     const evs = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^rd_e_/.test(k)) continue; (JSON.parse(localStorage.getItem(k)).L || []).forEach(e => { try { evs.push(etEpochMin(e.d, e.h === "bmo" ? 480 : 960) * 60000); } catch (x) { } }); } } catch (e) { }
-    const rows = Why.analyze(M.filter(m => m.usd >= 5000), WC, { events: evs });
+    const rows = Why.analyze(M.filter(m => m.usd >= 5000), WC, { events: evs }); window.inWhy = { rows, C: WC, evs };
     el.innerHTML = Why.html(rows, WC, { sym: "SOXL", events: evs, recent: 12 }) + `<div class="bk-f" style="font-size:11.5px;margin-top:4px">${M.length} tracked moves ($5K+): top traders from their fills (newest 2,000 each), worst wallets from their fills as they load. ${why.log ? `Log: ${why.log.moves.length.toLocaleString()} moves since ${new Date(why.log.moves[0] ? why.log.moves[0][0] : Date.now()).toLocaleDateString()}, saved by the data job and growing.` : "The data job's move log loads with its next run."} Prices: the SOXL perp on Hyperliquid, hourly bars, 200 days.</div>`;
   }
   basket(); rebal(); spot();

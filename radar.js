@@ -204,6 +204,7 @@
     try { if (p != null && MOD && p >= Math.max(0.15, MOD.base * 2) && Math.abs(LEAN) >= 0.25) alert1(`rdset:${etDate()}:${Math.sign(LEAN)}`, 12 * 36e5, `🎯 Big-move setup: ${Math.round(p * 100)}% odds of a 7%+ SOXL overnight gap (usual ${Math.round(MOD.base * 100)}%), lean ${LEAN > 0 ? "UP → SOXL" : "DOWN → SOXS"}${ex ? `, earnings priced ±${(ex * 100).toFixed(1)}%` : ""}`, FUND, true); } catch (e) { }
   }
 
+  window.Radar = { get: () => ({ MOD, LEAN, MS, EVT, SH }) };
   async function all() { try { await events(); } catch (e) { console.warn("radar events", e); } try { await model(); } catch (e) { console.warn("radar model", e); } try { await lean(); } catch (e) { } try { await macro(); } catch (e) { } }
   renderEv(); renderMod(); top();
   setTimeout(all, 6000); setInterval(all, 15 * 6e4);
