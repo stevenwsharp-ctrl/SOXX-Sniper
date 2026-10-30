@@ -49,8 +49,42 @@
         if (S.w && S.w.n) Web.emit("whales.worst", "SOXL", Math.max(-1, Math.min(1, S.w.net / 2e6)), "SOXL worst 20 wallets net"); } } catch (e) { }
     web();
   }
+  /* Past data into the web: SOXX Sniper's stored SOXL sessions (up to 2 years). For each day at 3:00 pm ET, rebuild
+     signals that the live page also sends (move from the open, the morning gap, yesterday, the 5-day trend, VIX term
+     structure) and score them with the move from 3:00 pm to the end of after-hours (8:00 pm). That is the window of the
+     closing rebalance and the after-hours reaction. Web.ingest skips days it already learned. */
+  const cl1 = v => Math.max(-1, Math.min(1, v));
+  const vixTs = d => { try { const V = JSON.parse(localStorage.getItem("rd_d_^VIX") || "null"), V3 = JSON.parse(localStorage.getItem("rd_d_^VIX3M") || "null"); if (!V || !V3) return NaN;
+    const a = V.bars.find(b => b.d === d), b = V3.bars.find(b => b.d === d); return a && b ? a.c / b.c : NaN; } catch (e) { return NaN; } };
+  let histFed = 0;
+  function feedHistory() {
+    if (!window.Web || Date.now() - histFed < 6 * 36e5) return;
+    let st = null; try { st = typeof sessStats === "function" && typeof SESS !== "undefined" && SESS.length >= 60 ? sessStats() : null; } catch (e) { }
+    if (!st || !st.D || st.D.length < 60) return; histFed = Date.now();
+    const D = st.D, items = [];
+    for (let i = 5; i < D.length; i++) { const d = D[i], p = D[i - 1];
+      if (![d.r15, d.l60, d.nAh].every(isFinite)) continue;
+      const x = { "soxl.r15": cl1(d.r15 / 0.05), "soxl.prevday": isFinite(p.cc) ? cl1(p.cc / 0.08) : 0, "soxl.trend5": cl1(D.slice(i - 5, i).reduce((a, q) => a + (isFinite(q.cc) ? q.cc : 0), 0) / 0.15) };
+      if (isFinite(d.gap)) x["soxl.gap"] = cl1(d.gap / 0.05);
+      const ts = vixTs(d.d); if (isFinite(ts)) x["macro.vixts"] = cl1(-(ts - 0.92) * 5);
+      Object.keys(x).forEach(k => { if (!x[k]) delete x[k]; });
+      items.push({ t: etEpochMin(d.d, 900) * 60000, a: "SOXL", x, r: (1 + d.l60) * (1 + d.nAh) - 1 });
+    }
+    Web.ingest("soxl-sessions", items, "SOXL sessions (2y)");
+  }
+  // the same signals, live, during the regular session
+  function emitLive() {
+    if (!window.Web) return; const e = etInfo(Date.now()); if (e.wd === 0 || e.wd === 6 || e.min < 570 || e.min >= 960) return;
+    const q = Q && Q[FUND]; if (!(q && q.c > 0 && q.o > 0 && q.pc > 0)) return;
+    Web.emit("soxl.r15", "SOXL", cl1((q.c / q.o - 1) / 0.05), "SOXL · move from the open");
+    Web.emit("soxl.gap", "SOXL", cl1((q.o / q.pc - 1) / 0.05), "SOXL · morning gap");
+    try { const L = JSON.parse(localStorage.getItem("rd_d_SOXL") || "null"); if (L && L.bars.length > 7) { const b = L.bars.filter(x => x.d < e.d), n = b.length;
+      Web.emit("soxl.prevday", "SOXL", cl1((b[n - 1].c / b[n - 2].c - 1) / 0.08), "SOXL · yesterday's move"); Web.emit("soxl.trend5", "SOXL", cl1((b[n - 1].c / b[n - 6].c - 1) / 0.15), "SOXL · 5-day trend"); } } catch (x) { }
+    const ts = vixTs(e.d) || vixTs((JSON.parse(localStorage.getItem("rd_d_^VIX") || "{\"bars\":[]}").bars.slice(-1)[0] || {}).d); if (isFinite(ts)) Web.emit("macro.vixts", "SOXL", cl1(-(ts - 0.92) * 5), "Macro · calm (VIX below VIX3M)");
+  }
   function web() {
     if (!window.Web) return;
+    try { feedHistory(); emitLive(); } catch (e) { }
     Web.addPrice && !web.p && (web.p = 1, Web.addPrice(a => { try { return Q && Q[a] && Q[a].c || null; } catch (e) { return null; } }));
     document.getElementById("inWebF").innerHTML = ["SOXL", "SEMIS"].map(a => Web.forecastHtml(a)).filter(Boolean).map((h, i) => `<div>${i ? "Semis (SOXL + SOXX + SOXS, both sites): " : "SOXL: "}${h}</div>`).join("");
     if (!document.getElementById("inWeb").open) return;
