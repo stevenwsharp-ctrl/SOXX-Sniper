@@ -298,6 +298,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
     const f = x => x.sz ? { px: x.pv / x.sz, usd: x.pv, n: x.n, wallets: x.w.size, tp: x.tp, sl: x.sl, d: isFinite(P) ? x.pv / x.sz / P - 1 : NaN } : null;
     return { long: f(r.long), short: f(r.short) };
   }
+  window.wwMoves = () => MV.slice();
   window.wwList = () => LIST.map(x => ({ a: x[0], g: x[1], pnl: x[2], coh: x[5] }));
   window.wwHlLimited = () => Date.now() - limited < 60000;
   window.wwCloseAvg = closeAvg;

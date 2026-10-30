@@ -11,6 +11,7 @@
   const anchor = document.getElementById("whaleCard"); if (!anchor) return;
   const card = document.createElement("section"); card.className = "card"; card.id = "intelCard"; card.style.marginBottom = "12px";
   card.innerHTML = `<details open id="inBk"><summary class="label" style="cursor:pointer">Semis basket · smart vs fools on the SOXX holdings (Hyperliquid perps)</summary><div id="inBkBody"></div></details>
+    <details open id="inWhy" style="margin-top:12px"><summary class="label" style="cursor:pointer">Why they trade · the belief behind each whale move, and which beliefs win or lose</summary><div id="inWhyBody"></div></details>
     <details open id="inSf" style="margin-top:12px"><summary class="label" style="cursor:pointer">Spot flow · the biggest spot traders on Hyperliquid, live (5m · 15m · 1h · 4h · 24h)</summary><div id="inSfBody"></div></details>
     <details open id="inSp" style="margin-top:12px"><summary class="label" style="cursor:pointer">Spot · what the best and worst SOXL traders buy, sell and hold</summary><div id="inSpNote" class="bk-f" style="font-size:12px;margin:4px 0"></div><div id="inSpBody"></div></details>
     <details open id="inRb" style="margin-top:12px"><summary class="label" style="cursor:pointer">Nightly rebalance · market makers · after-hours</summary><div id="inRbBody"></div></details>
@@ -93,7 +94,7 @@
   }
 
   /* ---------- spot ---------- */
-  const FILLS = {}, BAL = {}; let SPM = null, spmT = 0, HOLD = 0, spT = 0;
+  const FILLS = {}, BAL = {}; window.inFills = () => FILLS; let SPM = null, spmT = 0, HOLD = 0, spT = 0;
   const start = () => Date.now() - 7 * 864e5;
   window.wwRawFills = (a, f, init) => { if (!Array.isArray(f)) return; const s = start(), cur = FILLS[a];
     FILLS[a] = { t: Date.now(), f: (init || !cur ? f : cur.f.concat(f)).filter(x => x.time >= s) }; };
@@ -158,7 +159,27 @@
         : `<div style="color:var(--mute);font-size:12px">No spot trades or holdings of $1K+ loaded yet.</div>`}`;
   }
 
+  /* ---------- why: the belief behind each top / worst SOXL trade, and whether it worked ---------- */
+  let WC = null, wcT = 0;
+  async function why() {
+    if (!window.Why) return; const el = document.getElementById("inWhyBody"); if (!el || !document.getElementById("inWhy").open) return;
+    if (!WC || Date.now() - wcT > 10 * 6e4) { try { const c = await post({ type: "candleSnapshot", req: { coin: "xyz:SOXL", interval: "15m", startTime: Date.now() - 50 * 864e5, endTime: Date.now() } });
+      if (Array.isArray(c) && c.length) { WC = c.map(x => ({ t: x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c })); wcT = Date.now(); } } catch (e) { } }
+    if (!WC) { el.innerHTML = `<div class="bk-f" style="font-size:12px">Loading SOXL perp price history…</div>`; return; }
+    const L = window.wwList ? wwList() : [], rank = {}; ["B", "W"].forEach(g => L.filter(w => w.g === g).forEach((w, i) => rank[w.a] = (g === "B" ? "Top #" : "Worst #") + (i + 1)));
+    const M = [];
+    (window.wwMoves ? wwMoves() : []).forEach(m => M.push({ t: m.t0, a: m.a, g: "best", who: rank[m.a] || "top trader", entry: m.grp !== "shrink", dir: m.side === "long" ? 1 : -1, px: m.px, usd: m.usd }));
+    const F = window.inFills ? inFills() : {};
+    L.filter(w => w.g === "W").forEach(w => { const f = (F[w.a] && F[w.a].f || []).filter(x => x.coin === "xyz:SOXL").sort((a, b) => a.time - b.time); let cur = null;
+      f.forEach(x => { const d = x.dir || "", entry = /Open|>/.test(d), dir = /> Long|Open Long|Close Short/.test(d) ? (entry ? 1 : -1) : (entry ? -1 : 1), sideDir = dir;   // entry: the new side; exit: the side they leave
+        const v = +x.sz * +x.px; if (cur && cur.entry === entry && cur.dir === sideDir && x.time - cur.t1 < 30 * 6e4) { cur.usd += v; cur.t1 = x.time; cur.sz += +x.sz; cur.px = cur.usd / cur.sz; }
+        else { cur = { t: x.time, t1: x.time, a: w.a, g: "worst", who: rank[w.a], entry, dir: sideDir, px: +x.px, usd: v, sz: +x.sz }; M.push(cur); } }); });
+    const evs = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^rd_e_/.test(k)) continue; (JSON.parse(localStorage.getItem(k)).L || []).forEach(e => { try { evs.push(etEpochMin(e.d, e.h === "bmo" ? 480 : 960) * 60000); } catch (x) { } }); } } catch (e) { }
+    const rows = Why.analyze(M.filter(m => m.usd >= 5000), WC, { events: evs });
+    el.innerHTML = Why.html(rows, WC, { sym: "SOXL", events: evs, recent: 12 }) + `<div class="bk-f" style="font-size:11.5px;margin-top:4px">${M.length} tracked moves ($5K+): top traders from their fills (newest 2,000 each), worst wallets from their fills as they load. Prices: the SOXL perp on Hyperliquid, 15-minute bars, 50 days.</div>`;
+  }
   basket(); rebal(); spot();
+  setTimeout(why, 9000); setInterval(why, 5 * 6e4);
   if (window.SpotFlow) { const tagOf = a => { const L = window.wwList ? wwList() : []; const w = L.find(x => x.a.toLowerCase() === String(a).toLowerCase()); return w ? { name: w.g === "B" ? "top SOXL trader" : "worst SOXL wallet", kind: w.g === "B" ? "best" : "worst" } : null; };
     SpotFlow.mount(document.getElementById("inSfBody"), { tag: tagOf }); }
   setInterval(basket, 120000); setInterval(rebal, 60000);
