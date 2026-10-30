@@ -1,6 +1,6 @@
 /* SOXX Sniper · Pro chart
    Built on TradingView Lightweight Charts 4.2 (Apache-2.0, https://github.com/tradingview/lightweight-charts).
-   Features: any symbol, 1m–1W timeframes, candles / Heikin Ashi / bars / line / area, log and % scales,
+   Features: any symbol, 1m–1M timeframes (1, 2, 3, 5, 10, 15, 30 min, 1, 2, 4 h, day, week, month), candles / Heikin Ashi / bars / line / area, log and % scales,
    VWAP ±σ, EMA 9/21/50, SMA 200, Bollinger, volume, visible-range volume profile, RSI and MACD panes,
    key levels, auto Fibonacci, SOXL liquidity levels and Sniper timeframe targets, session shading,
    news and event markers, drawing tools (trend line, ray, horizontal line with alert, vertical line,
@@ -45,8 +45,9 @@
 
   // ---------- state ----------
   const TF = {
-    "1m": { r: "5d", i: "1m", s: 60 }, "5m": { r: "1mo", i: "5m", s: 300 }, "15m": { r: "1mo", i: "15m", s: 900 },
-    "1h": { r: "1y", i: "60m", s: 3600 }, "4h": { r: "2y", i: "60m", s: 14400, agg: 4 }, "D": { r: "2y", i: "1d", s: 86400 }, "W": { r: "2y", i: "1wk", s: 604800 }
+    "1m": { r: "5d", i: "1m", s: 60 }, "2m": { r: "5d", i: "2m", s: 120 }, "3m": { r: "5d", i: "1m", s: 180, aggM: 3 }, "5m": { r: "1mo", i: "5m", s: 300 }, "10m": { r: "1mo", i: "5m", s: 600, aggM: 10 },
+    "15m": { r: "1mo", i: "15m", s: 900 }, "30m": { r: "1mo", i: "30m", s: 1800 }, "1h": { r: "1y", i: "60m", s: 3600 }, "2h": { r: "1y", i: "60m", s: 7200, aggM: 120 },
+    "4h": { r: "2y", i: "60m", s: 14400, agg: 4 }, "D": { r: "2y", i: "1d", s: 86400 }, "W": { r: "2y", i: "1wk", s: 604800 }, "M": { r: "2y", i: "1wk", s: 2592000, aggMon: 1 }
   };
   const IND_DEF = [
     ["Price", [["vol", "Volume"], ["vwap", "VWAP"], ["vwapb", "VWAP ±1σ / ±2σ bands"], ["ema9", "EMA 9"], ["ema21", "EMA 21"], ["ema50", "EMA 50"], ["sma200", "SMA 200"], ["bb", "Bollinger 20, 2"]]],
@@ -163,7 +164,9 @@
   // ---------- data ----------
   function normBars(j, tf) {
     let b = (j && j.bars || []).filter(x => x[4] > 0).map(x => ({ t: x[0], o: x[1] ?? x[4], h: x[2] ?? x[4], l: x[3] ?? x[4], c: x[4], v: x[5] || 0 }));
-    if (TF[tf].agg) { const o = []; let g = null; for (const x of b) { const e = etInfo(x.t), k = e.d + "|" + Math.floor(Math.max(0, e.min - 240) / 240); if (!g || g.k !== k) { g = { k, t: x.t, o: x.o, h: x.h, l: x.l, c: x.c, v: x.v }; o.push(g); } else { g.h = Math.max(g.h, x.h); g.l = Math.min(g.l, x.l); g.c = x.c; g.v += x.v; } } b = o; }
+    // aggM = N-minute bars from smaller ones (ET clock), aggMon = calendar months, agg = 4h blocks from 4:00 am ET
+    const keyOf = TF[tf].aggMon ? e => e.d.slice(0, 7) : TF[tf].aggM ? e => e.d + "|" + Math.floor(e.min / TF[tf].aggM) : e => e.d + "|" + Math.floor(Math.max(0, e.min - 240) / 240);
+    if (TF[tf].agg || TF[tf].aggM || TF[tf].aggMon) { const o = []; let g = null; for (const x of b) { const e = etInfo(x.t), k = keyOf(e); if (!g || g.k !== k) { g = { k, t: x.t, o: x.o, h: x.h, l: x.l, c: x.c, v: x.v }; o.push(g); } else { g.h = Math.max(g.h, x.h); g.l = Math.min(g.l, x.l); g.c = x.c; g.v += x.v; } } b = o; }
     const seen = new Set(), out = [];
     for (const x of b) { x.time = shift(x.t); if (seen.has(x.time)) continue; seen.add(x.time); out.push(x); }
     return out.sort((a, z) => a.time - z.time);
@@ -199,7 +202,7 @@
     if (rp || !B.length) return; const q = Q[O.sym]; const P = q && q.c; if (!(P > 0)) return;
     const now = Date.now(), L = B[B.length - 1], s = TF[O.tf].s;
     let same;
-    if (s >= 86400) same = O.tf === "W" ? true : etInfo(L.t).d === etInfo(now).d;
+    if (s >= 86400) same = O.tf === "W" ? true : O.tf === "M" ? etInfo(L.t).d.slice(0, 7) === etInfo(now).d.slice(0, 7) : etInfo(L.t).d === etInfo(now).d;
     else same = Math.floor((now - L.t) / 1000) < s;
     if (same) { if (L.c === P) return; L.c = P; L.h = Math.max(L.h, P); L.l = Math.min(L.l, P); }
     else { if (s < 86400) { const t = L.t + Math.floor((now - L.t) / (s * 1000)) * s * 1000; B.push({ t, time: shift(t), o: P, h: P, l: P, c: P, v: 0 }); } else return; }
