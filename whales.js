@@ -211,9 +211,11 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
         if (!c || Date.now() - c.t > 3 * 86400000) {
           if (inits >= 6) continue;          // first load: newest 2000 fills, at most 6 wallets per minute (rate limit)
           inits++; const f = await hl({ type: "userFills", user: w.a, aggregateByTime: true });
+          try { window.wwRawFills && window.wwRawFills(w.a, f || [], true); } catch (e) { }   // all coins, for the spot study (intel.js)
           ingest(w.a, (f || []).filter(x => x.coin === COIN)); if (!CUR[w.a]) CUR[w.a] = { t: Date.now() - 3 * 86400000 + 60000, tids: [] };
         } else {
           const f = await hl({ type: "userFillsByTime", user: w.a, startTime: c.t, aggregateByTime: true });
+          try { window.wwRawFills && window.wwRawFills(w.a, f || [], false); } catch (e) { }
           ingest(w.a, f || []);
           if (f && f.length >= 2000) CUR[w.a] = { t: Math.max(c.t, f[f.length - 1].time), tids: [] }; // more to read next minute
         }
@@ -268,6 +270,8 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
     const f = x => x.sz ? { px: x.pv / x.sz, usd: x.pv, n: x.n, wallets: x.w.size, tp: x.tp, sl: x.sl, d: isFinite(P) ? x.pv / x.sz / P - 1 : NaN } : null;
     return { long: f(r.long), short: f(r.short) };
   }
+  window.wwList = () => LIST.map(x => ({ a: x[0], g: x[1], pnl: x[2], coh: x[5] }));
+  window.wwHlLimited = () => Date.now() - limited < 60000;
   window.wwCloseAvg = closeAvg;
   window.wwPain = pain;
   window.wwOrders = ordAgg;

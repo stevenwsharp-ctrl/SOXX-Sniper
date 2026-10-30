@@ -1701,6 +1701,8 @@ const REL=[["ahRet","pmRet","After-hours → next pre-market"],["gap","oc","Over
 /* hypotheses: [id, x, y, title, who/mechanism, window of y, expected sign (0 = either)] */
 const HYP=[
  ["letf","r15","l60","Leveraged-ETF rebalancing into the close","SOXL/SOXS and other 2–3× semis funds must buy after up days and sell after down days, mostly in the last hour. Their swap dealers trade the chip stocks.","l60",1],
+ ["letfAh","r15","nAh","Rebalancing → that evening's after-hours","LETF swap dealers buy (or sell) the chip stocks into the close. Market makers who took the other side of the closing auction re-hedge or unwind in thin after-hours trading. r > 0 = the push continues after 4 pm; r < 0 = it reverses.","nAh",0],
+ ["letfGap","cc","nGap","Rebalanced day → next morning's gap","After a big up day the funds bought at the close (after a down day they sold). If that forced flow overshot fair value, dealers and overnight traders take it back and the next day gaps the other way.","next",0],
  ["letf30","r1530","l30","Rebalancing in the final 30 minutes","The same funds, concentrated near 3:45–4:00 pm when the closing orders go in.","l30",1],
  ["mmGap","gap","f30","Market makers fade the opening gap","Dealers who sold into a gap-up (or bought a gap-down) overnight unwind at the open, pulling price back toward the prior close.","f30",-1],
  ["gapCont","gap","oc","Gap continuation vs. fade for the day","If informed overnight buyers caused the gap, the day continues; if thin liquidity caused it, the day fades.","oc",0],
@@ -1716,7 +1718,7 @@ const HYP=[
  ["l30f30","l30","nF30","Last 30 min → next day's first 30 min","Closing auction imbalance against the next opening.","next",0],
  ["vol","absCC","nAbsCC","Volatility clustering","Dealer hedging and risk-targeting funds make big days follow big days.","next",1]
 ];
-const FLD={r15:"the move from the open to 3 pm",r1530:"the move from the open to 3:30 pm",l60:"the last hour",l30:"the last 30 minutes",gap:"the opening gap",f30:"the first 30 minutes",oc:"the session (open to close)",
+const FLD={nAh:"that evening's after-hours",r15:"the move from the open to 3 pm",r1530:"the move from the open to 3:30 pm",l60:"the last hour",l30:"the last 30 minutes",gap:"the opening gap",f30:"the first 30 minutes",oc:"the session (open to close)",
   f60:"the first hour",rLunch:"lunch (11:30–1:30)",pmRet:"the pre-market",ahRet:"last evening's after-hours",smiDay:"late-day buying vs early buying (SMI)",nCC:"the next day",
   clv:"a close near the day's high",nGap:"the next day's gap",cc:"the day",nF30:"the next day's first 30 minutes",absCC:"a big move",nAbsCC:"a big move the next day",rest30:"the rest of the day"};
 function ruleStory(r){
@@ -1757,7 +1759,13 @@ function sessStats(){
   const ext={pmShare:mean(D.map(d=>d.pmV/(d.pmV+d.ahV+d.rV))),ahShare:mean(D.map(d=>d.ahV/(d.pmV+d.ahV+d.rV))),ovVar:isNum(vg)&&isNum(vo)?vg*vg/(vg*vg+vo*vo):NaN,sdGap:vg,sdOc:vo,
     bigAh:D.filter(d=>Math.abs(d.ahRet)>0.02).length};
   const rules=HYP.map(h=>({id:h[0],x:h[1],y:h[2],title:h[3],who:h[4],win:h[5],exp:h[6],...testRule(D,h[1],h[2])}));
-  ST={D,gapT,rel,tod,orb,cum,co,ci,cs,smi20,px20,div,dow,ext,rules,n:D.length,first:D.length?D[0].d:"",last:D.length?D[D.length-1].d:""};stKey=key;return ST;
+  // Rebalance size (the day's move = how much SOXL/SOXS must buy or sell at the close) vs what happens after 4 pm and next morning
+  const RB=[[-Infinity,-0.06,"Down > 6%"],[-0.06,-0.03,"Down 3–6%"],[-0.03,-0.01,"Down 1–3%"],[-0.01,0.01,"Flat ±1%"],[0.01,0.03,"Up 1–3%"],[0.03,0.06,"Up 3–6%"],[0.06,Infinity,"Up > 6%"]];
+  const rebal=RB.map(([a,b,lab])=>{const g=D.filter(d=>isNum(d.cc)&&d.cc>=a&&d.cc<b);const ah=g.filter(d=>isNum(d.nAh)),gp=g.filter(d=>isNum(d.nGap));
+    return{lab,a,b,n:g.length,usd:((a===-Infinity?b*1.5:b===Infinity?a*1.5:(a+b)/2)/3)*(LETF_AUM.SOXL*6+LETF_AUM.SOXS*12),l60:mean(g.map(d=>d.l60)),nAh:mean(ah.map(d=>d.nAh)),nGap:mean(gp.map(d=>d.nGap)),
+      ahRev:ah.length?ah.filter(d=>Math.sign(d.nAh)===-Math.sign(d.cc)&&Math.abs(d.nAh)>0.001).length/ah.length:NaN,gapRev:gp.length?gp.filter(d=>Math.sign(d.nGap)===-Math.sign(d.cc)&&Math.abs(d.nGap)>0.001).length/gp.length:NaN,
+      nCC:mean(g.map(d=>d.nCC))}});
+  ST={D,gapT,rel,tod,orb,cum,co,ci,cs,smi20,px20,div,dow,ext,rules,rebal,n:D.length,first:D.length?D[0].d:"",last:D.length?D[D.length-1].d:""};stKey=key;return ST;
 }
 function ols2(D,k1,k2,ky){
   const rows=D.filter(d=>isNum(d[k1])&&isNum(d[k2])&&isNum(d[ky]));const n=rows.length;if(n<40)return null;
@@ -1810,7 +1818,7 @@ function todaySess(){
   T.model=M;return T;
 }
 const LETF_AUM={SOXL:12.5e9,SOXS:1.2e9};   // approximate assets under management; update from direxion.com when they change
-const WIN_END={f30:600,oc:960,rest30:960,rLunch:810,l60:960,l30:960,pmRet:570};
+const WIN_END={nAh:1200,f30:600,oc:960,rest30:960,rLunch:810,l60:960,l30:960,pmRet:570};
 function todayX(T){
   const P=Q[FUND].c,o=T.o,d=etInfo(Date.now()).d,cc=P>0&&T.c0>0?P/T.c0-1:NaN,soFar=isNum(o)&&P>0?P/o-1:NaN;
   const c1530=priceAtET(d,929),hi=Q[FUND].h,lo=Q[FUND].l;
@@ -1824,7 +1832,7 @@ function applyRules(st,T){
   (st.rules||[]).forEach(r=>{
     if(r.verdict!=="Reliable"&&r.verdict!=="Likely")return;
     const x=X[r.x];if(!isNum(x))return;
-    const next=r.win==="next",end=WIN_END[r.win],active=next||(T.phase==="pre"?true:T.phase==="regular"?min<end:false);
+    const next=r.win==="next",end=WIN_END[r.win],active=next||(r.win==="nAh"&&T.phase==="post"&&min<end)||(T.phase==="pre"?r.win!=="nAh":T.phase==="regular"?min<end:false);
     const pred=r.a+r.b*x,z=isNum(r.sdy)&&r.sdy>0?pred/r.sdy:NaN,wt=r.verdict==="Reliable"?1:0.5;
     if(r.id==="vol"){out.push({r,x,pred,z,active,next,info:true});return}
     if(active&&isNum(z)){const v=Math.tanh(z/0.3)*wt;if(next){s2+=v;w2+=wt}else{s1+=v;w1+=wt}}
@@ -4223,7 +4231,9 @@ render();renderAnalysis();drawChart();
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="prochart.js?v=10"></script>
 <script>try{if(curSym&&window.pcDock)svPcDock(curSym)}catch(e){}</script>
-<script src="whales.js?v=5"></script>
+<script src="whales.js?v=6"></script>
+<script src="basket.js?v=1"></script>
+<script src="intel.js?v=1"></script>
 <script src="trio.js?v=3"></script>
 <script src="gtlog.js?v=1"></script>
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;
