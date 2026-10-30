@@ -747,7 +747,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <div class="label">Contact</div>
       <h2>Questions, feedback or paid access?</h2>
       <p class="sub" style="font-size:13px">Write directly. Every message is read.</p>
-      <div class="ctmail"><a href="mailto:sniperdesk@proton.me?subject=SOXX%20Sniper" id="ctMail">sniperdesk@proton.me</a><button id="ctCopy">Copy email</button></div>
+      <div class="ctmail"><a href="mailto:sniperdesk.tribunal635@passmail.net?subject=SOXX%20Sniper" id="ctMail">sniperdesk.tribunal635@passmail.net</a><button id="ctCopy">Copy email</button></div>
       <form id="ctForm" class="ctform">
         <label>Topic<select id="ctTopic"><option>Feedback</option><option>Subscription / paid access</option><option>Bug report</option><option>Feature request</option><option>Partnership or press</option><option>Other</option></select></label>
         <label>Your name<input id="ctName" maxlength="80" autocomplete="name"></label>
@@ -767,7 +767,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </div>
 
   <footer>
-    <div class="ftc">Contact: <a href="#/contact">sniperdesk@proton.me</a> · <a href="#/contact">Contact page</a></div>
+    <div class="ftc">Contact: <a href="#/contact">sniperdesk.tribunal635@passmail.net</a> · <a href="#/contact">Contact page</a></div>
     Weights use share counts from the iShares SOXX holdings file (Oct 19, 2026). SOXX tracks the same index as SOXL. Weight = shares × previous close. Update the HOLDINGS list after each quarterly rebalance.<br>
     Data: Finnhub (free tier). Thresholds and probabilities are statistical estimates from past price action. They are not predictions or investment advice.
   </footer>
@@ -3957,9 +3957,9 @@ function route(){
 }
 $("themeBtn").onclick=()=>setTheme(document.documentElement.dataset.theme==="light"?"dark":"light");setTheme(document.documentElement.dataset.theme||"dark");
 $("ctBack").onclick=()=>{location.hash=""};
-$("ctCopy").onclick=e=>copyText("sniperdesk@proton.me",e.target);
+$("ctCopy").onclick=e=>copyText("sniperdesk.tribunal635@passmail.net",e.target);
 $("ctForm").onsubmit=e=>{e.preventDefault();const t=$("ctTopic").value,n=$("ctName").value.trim(),m=$("ctMsg").value.trim();if(!m)return;
-  location.href="mailto:sniperdesk@proton.me?subject="+encodeURIComponent("SOXX Sniper · "+t)+"&body="+encodeURIComponent(m+(n?"\n\n— "+n:""))};
+  location.href="mailto:sniperdesk.tribunal635@passmail.net?subject="+encodeURIComponent("SOXX Sniper · "+t)+"&body="+encodeURIComponent(m+(n?"\n\n— "+n:""))};
 function openStock(s){
   const first=curSym!==s;curSym=s;
   $("mainView").style.display="none";$("stockView").style.display="block";
@@ -4229,6 +4229,6 @@ render();renderAnalysis();drawChart();
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;
 el.onchange=()=>{const x=el.value;try{localStorage.setItem("site_width",x)}catch(e){}document.documentElement.style.setProperty("--pagew",x==="fit"?"100%":x+"px");window.dispatchEvent(new Event("resize"))}})();</script>
 <script src="sell.js?v=2"></script>
-<script src="terms.js?v=1"></script>
+<script src="terms.js?v=2"></script>
 </body>
 </html>

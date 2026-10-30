@@ -1,7 +1,7 @@
 /* Terms of use, disclaimer and privacy page (#/terms), shared by SOXX Sniper and LETF Sniper. */
 (function () {
   "use strict";
-  const NAME = /LETF/i.test(document.title) ? "LETF Sniper" : "SOXX Sniper", MAIL = "sniperdesk@proton.me", UPDATED = "October 30, 2026";
+  const NAME = /LETF/i.test(document.title) ? "LETF Sniper" : "SOXX Sniper", MAIL = "sniperdesk.tribunal635@passmail.net", UPDATED = "October 30, 2026";
   const wrap = document.querySelector(".wrap"); if (!wrap) return;
   const v = document.createElement("div"); v.id = "termsView"; v.style.display = "none";
   v.innerHTML = `<div class="sv-top"><button id="tmBack">← Back</button></div>
