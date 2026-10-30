@@ -2385,7 +2385,8 @@ setTimeout(fetchMacroFeed,4000);setInterval(fetchMacroFeed,5*60000);   // actual
 var MNEWS={t:0,items:[],err:""};
 async function fetchMacroNews(){const p=fredProxy();if(!p||demo)return;
   try{const q=["Federal Reserve","Powell","inflation","Treasury yields","jobs report","GDP","PCE","tariffs","chip export","rate cut","recession","bond market"].join("|");
-    const j=await(await fetch(`${p}/news?t=SPY,QQQ,TLT,DIA&q=${encodeURIComponent(q)}`)).json();
+    let j=await(await fetch(`${p}/news?macro=1&t=SPY`)).json();
+    if(!(j.status==="ok"&&j.items&&j.items.length&&j.items[0].via!=="yahoo"))j=await(await fetch(`${p}/news?t=SPY,QQQ,TLT,DIA&q=${encodeURIComponent(q)}`)).json();   // older Worker: general search
     if(j.status==="ok"){MNEWS={t:Date.now(),items:j.items.slice(0,40),err:""};renderMacro2()}else MNEWS.err=j.error||"no answer"}catch(e){MNEWS.err="news did not answer"}}
 setTimeout(fetchMacroNews,6000);setInterval(fetchMacroNews,4*60000);
 // surprise vs consensus and what it means for stocks: hotter inflation = bad; weaker labor = bad for growth; stronger growth = good

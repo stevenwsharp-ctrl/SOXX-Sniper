@@ -322,6 +322,27 @@ function rssItems(xml, src) {
   }
   return out;
 }
+// Macro headlines: Fed, inflation, jobs, growth, yields, dollar, tariffs and chip export rules, from Google News
+// (two focused searches, last 24h) and CNBC's economy and markets feeds. Only headlines about the macro picture are kept.
+const MACRO_RE = /\bfed\b|federal reserve|powell|fomc|rate (cut|hike)|interest rate|inflation|\bcpi\b|\bpce\b|\bppi\b|jobs report|payroll|jobless|unemployment|\bgdp\b|recession|economy|economic|treasury|yield|bond|dollar|tariff|trade war|export (control|curb|rule|ban)|chip (export|curb|rule|ban|act)|china|stimulus|deficit|debt ceiling|shutdown|consumer (spending|sentiment|confidence)|retail sales|ism|pmi|wage|housing|oil price|opec/i;
+async function getMacroNews() {
+  const k = "macro", hit = newsMemo.get(k); if (hit && Date.now() - hit.at < 120000) return hit.body;
+  const g = q => fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, { headers: UA }).then(r => r.ok ? r.text() : "").catch(() => "");
+  const c = id => fetch(`https://www.cnbc.com/id/${id}/device/rss/rss.html`, { headers: UA }).then(r => r.ok ? r.text() : "").catch(() => "");
+  const [a, b, e, m] = await Promise.all([
+    g('(Fed OR "Federal Reserve" OR Powell OR FOMC OR "rate cut" OR inflation OR PCE OR CPI OR "jobs report" OR GDP OR "Treasury yields") when:1d'),
+    g('(tariffs OR "export controls" OR "chip exports" OR "trade war" OR "bond market" OR "dollar" OR recession OR "government shutdown") economy when:1d'),
+    c("20910258"), c("10000664")]);
+  const seen = new Set(), items = [];
+  for (const it of [...rssItems(a, "google"), ...rssItems(b, "google"), ...rssItems(e, "CNBC"), ...rssItems(m, "CNBC")]) {
+    if (!MACRO_RE.test(it.title) || Date.now() - it.at > 36 * 36e5) continue;
+    const key = it.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 70); if (seen.has(key)) continue; seen.add(key); items.push(it);
+  }
+  items.sort((p, q) => q.at - p.at);
+  const body = { status: items.length ? "ok" : "error", error: items.length ? undefined : "news sources did not answer", at: Date.now(), items: items.slice(0, 40) };
+  if (items.length) newsMemo.set(k, { at: Date.now(), body });
+  return body;
+}
 async function getNews(tickers, terms) {
   const k = tickers.join(",") + "|" + terms.join("|"), hit = newsMemo.get(k);
   if (hit && Date.now() - hit.at < 60000) return hit.body;
@@ -500,6 +521,7 @@ export default {
     }
     if (url.pathname === "/news") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      if (url.searchParams.get("macro") === "1") return json(await getMacroNews());
       const tickers = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 12);
       const terms = (url.searchParams.get("q") || "").split("|").map(s => s.trim()).filter(s => /^[A-Za-z0-9 &.\-]{1,40}$/.test(s)).slice(0, 14);
       if (!tickers.length) return json({ status: "error", error: "bad ticker" }, 400);
