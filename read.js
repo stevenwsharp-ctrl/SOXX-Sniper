@@ -89,6 +89,9 @@
 
   async function render() {
     const I = await inputs(); if (!I.length) return;
+    // learned trust per input (from its own graded record): weight = base weight × trust
+    const MU = (() => { try { return JSON.parse(localStorage.getItem("soxx_read_mult") || "{}"); } catch (e) { return {}; } })();
+    I.forEach(x => { x.base = x.w; x.m = MU[x.k] ? MU[x.k].m : 1; x.w = x.base * x.m; });
     const W = I.reduce((a, x) => a + x.w, 0), score = I.reduce((a, x) => a + x.v * x.w, 0) / W;
     const up = I.filter(x => x.v > 0.05).length, dn = I.filter(x => x.v < -0.05).length;
     const agree = Math.max(up, dn) / Math.max(1, up + dn), conf = Math.abs(score) * (0.5 + agree) ;
@@ -114,11 +117,51 @@
       plan = `<li><b>Plan (${d > 0 ? "SOXL long" : "short SOXL / SOXS long"}):</b> from ${fmtPx(P)}, stop ${fmtPx(stop)} (${fmtPct(stop / P - 1, 1)}), target 1 ${fmtPx(t1)} (${fmtPct(t1 / P - 1, 1)}), target 2 ${fmtPx(t2)} (${fmtPct(t2 / P - 1, 1)})${liq && t2 === liq.p ? " = the " + (d > 0 ? "shorts'" : "longs'") + " liquidation cluster" : ""}. Reward ÷ risk ${rr.toFixed(1)} to target 1. Based on a normal SOXL day of ±${(sd * 100).toFixed(1)}%.${d < 0 ? " SOXS moves about −3× SOXX, so the same targets are roughly the mirror image." : ""}</li>`; }
     // the read's own record: logged every 30 minutes, graded after 4 and 24 hours
     let REC = null; try { const now = Date.now(), Lg = JSON.parse(localStorage.getItem("soxx_read_log") || "[]");
-      if (P > 0 && (!Lg.length || now - Lg[Lg.length - 1].t > 30 * 6e4)) Lg.push({ t: now, s: Math.round(score * 100) / 100, p: P });
-      Lg.forEach(x => { for (const [k, h] of [["r4", 4], ["r24", 24]]) if (x[k] == null && now - x.t >= h * 36e5 && now - x.t < (h + 2) * 36e5 && P > 0) x[k] = P / x.p - 1; });
+      if (P > 0 && (!Lg.length || now - Lg[Lg.length - 1].t > 30 * 6e4)) Lg.push({ t: now, s: Math.round(score * 100) / 100, p: P, in: Object.fromEntries(I.map(x => [x.k, Math.round(x.v * 100) / 100])) });
+      Lg.forEach(x => { for (const [k, h] of [["r4", 4], ["r24", 24]]) if (x[k] == null && now - x.t >= h * 36e5 && now - x.t < (h + 2) * 36e5 && P > 0) {
+        x[k] = P / x.p - 1;
+        // learn from it: each input that leaned the right way gains trust, each that leaned the wrong way loses it
+        // (multiplicative weights: trust × e^(0.12 × lean × direction), kept between 0.25 and 3)
+        if (k === "r4" && x.in && Math.abs(x[k]) >= 0.003) { const dir = Math.sign(x[k]);
+          for (const [nm, v] of Object.entries(x.in)) { const o = MU[nm] = MU[nm] || { m: 1, n: 0, ok: 0 }; o.m = Math.max(0.25, Math.min(3, o.m * Math.exp(0.12 * v * dir))); o.n++; if (Math.sign(v) === dir && Math.abs(v) > 0.05) o.ok++; }
+          localStorage.setItem("soxx_read_mult", JSON.stringify(MU)); } } });
       const keep = Lg.filter(x => now - x.t < 60 * 864e5); localStorage.setItem("soxx_read_log", JSON.stringify(keep.slice(-3000)));
       const g = k => { const v = keep.filter(x => x[k] != null && Math.abs(x.s) >= 0.12); return v.length ? { n: v.length, hit: v.filter(x => Math.sign(x[k]) === Math.sign(x.s)).length / v.length } : null; };
-      REC = { r4: g("r4"), r24: g("r24"), n: keep.length }; } catch (e) { }
+      // post-mortems: the newest graded calls, what misled and what was right
+      const pm = keep.filter(x => x.r4 != null && x.in && Math.abs(x.s) >= 0.12).slice(-6).reverse().map(x => { const dir = Math.sign(x.r4), E = Object.entries(x.in).filter(([, v]) => Math.abs(v) > 0.15);
+        return { t: x.t, ok: Math.sign(x.s) === dir, s: x.s, r: x.r4, mis: E.filter(([, v]) => Math.sign(v) !== dir).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 2).map(e => e[0]), good: E.filter(([, v]) => Math.sign(v) === dir).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 2).map(e => e[0]) }; });
+      REC = { r4: g("r4"), r24: g("r24"), n: keep.length, pm }; } catch (e) { }
+    // ---- every path, not one guess: five scenarios with odds, triggers, who gets hurt, and the trade for each ----
+    function scen() {
+      if (!(P > 0) || !isFinite(sd)) return "";
+      let pUp = 0.5 + score * 0.35; try { const F = window.Web && Web.forecast("SOXL"); if (F && F.ready) pUp = 0.5 * pUp + 0.5 * F.ph[4]; } catch (e) { }
+      pUp = Math.max(0.1, Math.min(0.9, pUp));
+      const big = M ? Math.max(0.05, Math.min(0.6, M.p)) : 0.15, chop = Math.max(0.1, Math.min(0.5, 0.15 + 0.35 * (1 - agree)));
+      const rest = Math.max(0, 1 - big - chop), pn = (() => { try { return wwPain(); } catch (e) { return null; } })(), S = (() => { try { return wwSummary(); } catch (e) { return null; } })();
+      const lvU = pn && pn.short ? pn.short.p : P * (1 + sd), lvD = pn && pn.long ? pn.long.p : P * (1 - sd);
+      const worstSide = S && S.ok && Math.abs(S.w.net) > 1e5 ? (S.w.net > 0 ? "long" : "short") : null;
+      const rows = [
+        { n: "Squeeze / big move up", p: big * pUp, c: "up", trig: `breaks ${fmtPx(Math.min(lvU, P * (1 + 0.4 * sd)))} with rising volume; after-hours perp +3%+`, tgt: fmtPx(Math.max(lvU, P * (1 + sd))), hurt: `shorts${pn && pn.short ? ` (${U(pn.short.usd)} liquidates near ${fmtPx(pn.short.p)})` : ""}${worstSide === "short" ? " and the worst wallets" : ""}`, play: "SOXL; SOXS holders cut fast" },
+        { n: "Grind up", p: rest * pUp, c: "up", trig: "higher lows, holds VWAP, takers buy", tgt: fmtPx(P * (1 + 0.5 * sd)), hurt: "late shorts", play: "SOXL small, add on dips to VWAP" },
+        { n: "Chop / range", p: chop, c: "", trig: "inputs keep disagreeing; price inside the day range", tgt: `${fmtPx(P * (1 - 0.3 * sd))}–${fmtPx(P * (1 + 0.3 * sd))}`, hurt: "both sides pay spread and decay (3x funds lose in chop)", play: "stand aside; leveraged ETFs decay" },
+        { n: "Grind down", p: rest * (1 - pUp), c: "down", trig: "lower highs, loses VWAP, takers sell", tgt: fmtPx(P * (1 - 0.5 * sd)), hurt: "dip buyers", play: "SOXS small, add on bounces" },
+        { n: "Flush / big move down", p: big * (1 - pUp), c: "down", trig: `loses ${fmtPx(Math.max(lvD, P * (1 - 0.4 * sd)))}; after-hours perp −3% or worse`, tgt: fmtPx(Math.min(lvD, P * (1 - sd))), hurt: `longs${pn && pn.long ? ` (${U(pn.long.usd)} liquidates near ${fmtPx(pn.long.p)})` : ""}${worstSide === "long" ? " and the worst wallets" : ""}`, play: "SOXS; SOXL holders cut fast" }];
+      const best = rows.slice().sort((a, b) => b.p - a.p)[0];
+      // contrarian check: if the crowd that usually loses turns out right this time
+      const contra = worstSide ? `<div class="sub" style="margin-top:4px"><b>Contrarian check:</b> the worst wallets are net <b>${worstSide}</b>. If they are right this time, the path is "${worstSide === "long" ? "Squeeze / big move up" : "Flush / big move down"}"; the first sign is price through ${fmtPx(worstSide === "long" ? Math.min(lvU, P * (1 + 0.4 * sd)) : Math.max(lvD, P * (1 - 0.4 * sd)))}. Respect it if it happens: cut, do not argue.</div>` : "";
+      return `<div class="label" style="margin-top:10px">Every path · odds, trigger, target, who gets hurt, the trade</div><div style="overflow-x:auto"><table><tr><th class="l">Scenario</th><th>Odds</th><th class="l">First sign</th><th>Target</th><th class="l">Who gets hurt</th><th class="l">Trade</th></tr>
+        ${rows.map(r => `<tr${r === best ? ' style="background:rgba(77,163,255,.08)"' : ""}><td class="l"><b class="${r.c}">${r.n}</b></td><td>${Math.round(r.p * 100)}%</td><td class="l">${r.trig}</td><td>${r.tgt}</td><td class="l">${r.hurt}</td><td class="l">${r.play}</td></tr>`).join("")}</table></div>
+        <div class="sub" style="margin-top:4px">Odds: the read and the signal web set up vs down; the big-move model sets how much is a big move; disagreement between inputs sets chop. Most likely path highlighted. Plan for the others: each has a first sign, so you can see which one is happening.</div>${contra}`;
+    }
+    // ---- learning from mistakes and confirmations ----
+    function lessons() {
+      const T = Object.entries(MU).filter(([, o]) => o.n >= 4).map(([k, o]) => ({ k, ...o, r: o.ok / o.n })).sort((a, b) => b.m - a.m);
+      const pm = REC && REC.pm || [];
+      if (!T.length && !pm.length) return `<div class="sub" style="margin-top:8px">Learning: every 30 minutes the read saves its inputs; 4 hours later each input is graded. Inputs that were right gain weight, inputs that misled lose weight, and the misses are explained here.</div>`;
+      return `<div class="label" style="margin-top:10px">What the read learned · from its mistakes and confirmations</div>
+        ${T.length ? `<div class="sub" style="line-height:1.6">Trusted more: ${T.slice(0, 3).map(t => `<b class="up">${esc(t.k)}</b> ×${t.m.toFixed(2)} (right ${Math.round(t.r * 100)}% of ${t.n})`).join(" · ")}<br>Trusted less: ${T.slice(-3).reverse().map(t => `<b class="down">${esc(t.k)}</b> ×${t.m.toFixed(2)} (right ${Math.round(t.r * 100)}% of ${t.n})`).join(" · ")}</div>` : ""}
+        ${pm.length ? `<ul>${pm.map(x => `<li>${new Date(x.t).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}: called ${x.s > 0 ? "up" : "down"}, SOXL went ${fmtPct(x.r, 1)} in 4h, <b class="${x.ok ? "up" : "down"}">${x.ok ? "right" : "wrong"}</b>.${x.ok ? (x.good.length ? ` Confirmed by: ${x.good.map(esc).join(", ")}.` : "") : ` Misled by: ${x.mis.map(esc).join(", ") || "–"}${x.good.length ? `; the inputs that saw it: ${x.good.map(esc).join(", ")}` : ""}.`}</li>`).join("")}</ul>` : ""}`;
+    }
     const exp = M ? `${Math.round(M.p * 100)}% odds of a 7%+ overnight gap (usual ${Math.round(M.base * 100)}%)` : "";
     const act = call === "NO CLEAR SIDE" ? "Stand aside or trade small: the inputs disagree." : call === "UP" ? "Favors SOXL (long). Size by the big-move odds; a fade of the worst wallets' side is the cleanest edge." : "Favors SOXS / short SOXL. Size by the big-move odds; watch the after-hours perp for confirmation.";
     const strong = I.slice().sort((a, b) => Math.abs(b.v * b.w) - Math.abs(a.v * a.w)), pro = strong.filter(x => Math.sign(x.v) === Math.sign(score) && Math.abs(x.v) > 0.05).slice(0, 3), con = strong.filter(x => Math.sign(x.v) === -Math.sign(score) && Math.abs(x.v) > 0.05).slice(0, 2);
@@ -135,10 +178,11 @@
         <div>Levels<b style="font-size:12px">${L.slice(0, 2).join(" · ") || "--"}</b>${L.slice(2).join(" · ")}</div></div>
       <ul><li><b>What to do:</b> ${act}${exp ? ` ${exp}.` : ""}</li>${plan}
         ${pro.length ? `<li><b>Why:</b> ${pro.map(x => `${esc(x.k)} (${esc(x.txt)})`).join("; ")}.</li>` : ""}
-        ${con.length ? `<li><b>Against it / what proves it wrong:</b> ${con.map(x => `${esc(x.k)} (${esc(x.txt)})`).join("; ")}. If these grow, the read flips.</li>` : ""}</ul>`;
+        ${con.length ? `<li><b>Against it / what proves it wrong:</b> ${con.map(x => `${esc(x.k)} (${esc(x.txt)})`).join("; ")}. If these grow, the read flips.</li>` : ""}</ul>
+      ${scen()}${lessons()}`;
     const grp = [...new Set(I.map(x => x.grp))];
-    document.getElementById("rdTbl").innerHTML = `<div style="overflow-x:auto"><table><tr><th class="l">Input</th><th>Lean</th><th>Weight</th><th class="l">Reading</th></tr>${grp.map(g => `<tr><td class="l" colspan="4" style="color:var(--dim);font-weight:600">${g}</td></tr>` + I.filter(x => x.grp === g).map(x => `<tr><td class="l">${esc(x.k)}</td><td class="${cl(x.v)}">${x.v > 0.05 ? "▲" : x.v < -0.05 ? "▼" : "–"} ${x.v.toFixed(2)}</td><td>${x.w}</td><td class="l">${esc(x.txt)}</td></tr>`).join("")).join("")}</table></div>
-      <div class="sub" style="margin-top:4px">Lean −1 … +1 (+ = up, SOXL). Weights are fixed today; the signal web learns which inputs predict, and its forecast is one of the inputs. Market makers and the worst wallets count against their own side, because their positions show the other side of the flow.</div>`;
+    document.getElementById("rdTbl").innerHTML = `<div style="overflow-x:auto"><table><tr><th class="l">Input</th><th>Lean</th><th>Weight</th><th>Trust</th><th class="l">Reading</th></tr>${grp.map(g => `<tr><td class="l" colspan="5" style="color:var(--dim);font-weight:600">${g}</td></tr>` + I.filter(x => x.grp === g).map(x => `<tr><td class="l">${esc(x.k)}</td><td class="${cl(x.v)}">${x.v > 0.05 ? "▲" : x.v < -0.05 ? "▼" : "–"} ${x.v.toFixed(2)}</td><td>${x.base}</td><td class="${x.m > 1.05 ? "up" : x.m < 0.95 ? "down" : ""}">×${x.m.toFixed(2)}</td><td class="l">${esc(x.txt)}</td></tr>`).join("")).join("")}</table></div>
+      <div class="sub" style="margin-top:4px">Lean −1 … +1 (+ = up, SOXL). Weight = base weight × trust; trust is learned from each input's own graded record (right → more trust, misled → less, between ×0.25 and ×3). Market makers and the worst wallets count against their own side, because their positions show the other side of the flow.</div>`;
     document.getElementById("rdAt").textContent = "updated " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
     // every input is also its own node in the signal web, so the web learns how much each one is worth
     try { if (window.Web) { Web.emit("read.score", "SOXL", score, "SOXX · Sniper read (all inputs)");
