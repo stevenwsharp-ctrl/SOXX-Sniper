@@ -95,7 +95,7 @@
 
   /* ---------- spot ---------- */
   const FILLS = {}, BAL = {}; window.inFills = () => FILLS; let SPM = null, spmT = 0, HOLD = 0, spT = 0;
-  const start = () => Date.now() - 7 * 864e5;
+  const start = () => Date.now() - 30 * 864e5;   // keep 30 days of fills (spot study uses 7, the why study all)
   window.wwRawFills = (a, f, init) => { if (!Array.isArray(f)) return; const s = start(), cur = FILLS[a];
     FILLS[a] = { t: Date.now(), f: (init || !cur ? f : cur.f.concat(f)).filter(x => x.time >= s) }; };
   async function meta() {
@@ -132,7 +132,7 @@
     const row = t => T[t] = T[t] || { tok: t, g24: 0, g7: 0, b24: 0, b7: 0, gB: new Set(), gS: new Set(), bB: new Set(), bS: new Set(), gH: 0, bH: 0, gHn: 0, bHn: 0 };
     for (const [a, F] of Object.entries(FILLS)) { const g = grp[a]; if (!g) continue; nF++;
       F.f.forEach(x => { const c = String(x.coin); if (!(c.startsWith("@") || c.includes("/"))) return; const t = baseOf(c); if (!t) return;
-        const r = row(t), v = +x.sz * +x.px * (x.side === "B" ? 1 : -1), age = now - x.time; r[g + "7"] += v; (v > 0 ? r[g + "B"] : r[g + "S"]).add(a); if (age <= 864e5) r[g + "24"] += v; }); }
+        const r = row(t), v = +x.sz * +x.px * (x.side === "B" ? 1 : -1), age = now - x.time; if (age > 7 * 864e5) return; r[g + "7"] += v; (v > 0 ? r[g + "B"] : r[g + "S"]).add(a); if (age <= 864e5) r[g + "24"] += v; }); }
     let nB = 0;
     for (const [a, B] of Object.entries(BAL)) { const g = grp[a]; if (!g) continue; nB++;
       B.b.forEach(b => { if (/^USD/.test(b.coin)) return; const p = pairOf(b.coin); if (!p || !p.px) return; const v = +b.total * p.px; if (v < 100) return; const r = row(b.coin); r[g + "H"] += v; r[g + "Hn"]++; }); }
@@ -168,12 +168,13 @@
     if (!WC) { el.innerHTML = `<div class="bk-f" style="font-size:12px">Loading SOXL perp price history…</div>`; return; }
     const L = window.wwList ? wwList() : [], rank = {}; ["B", "W"].forEach(g => L.filter(w => w.g === g).forEach((w, i) => rank[w.a] = (g === "B" ? "Top #" : "Worst #") + (i + 1)));
     const M = [];
-    (window.wwMoves ? wwMoves() : []).forEach(m => M.push({ t: m.t0, a: m.a, g: "best", who: rank[m.a] || "top trader", entry: m.grp !== "shrink", dir: m.side === "long" ? 1 : -1, px: m.px, usd: m.usd }));
     const F = window.inFills ? inFills() : {};
-    L.filter(w => w.g === "W").forEach(w => { const f = (F[w.a] && F[w.a].f || []).filter(x => x.coin === "xyz:SOXL").sort((a, b) => a.time - b.time); let cur = null;
+    // top wallets without loaded fills yet: use the whale tracker's move list
+    (window.wwMoves ? wwMoves() : []).filter(m => !F[m.a]).forEach(m => M.push({ t: m.t0, a: m.a, g: "best", who: rank[m.a] || "top trader", entry: m.grp !== "shrink", dir: m.side === "long" ? 1 : -1, px: m.px, usd: m.usd }));
+    L.forEach(w => { const f = (F[w.a] && F[w.a].f || []).filter(x => x.coin === "xyz:SOXL").sort((a, b) => a.time - b.time); let cur = null;
       f.forEach(x => { const d = x.dir || "", entry = /Open|>/.test(d), dir = /> Long|Open Long|Close Short/.test(d) ? (entry ? 1 : -1) : (entry ? -1 : 1), sideDir = dir;   // entry: the new side; exit: the side they leave
         const v = +x.sz * +x.px; if (cur && cur.entry === entry && cur.dir === sideDir && x.time - cur.t1 < 30 * 6e4) { cur.usd += v; cur.t1 = x.time; cur.sz += +x.sz; cur.px = cur.usd / cur.sz; }
-        else { cur = { t: x.time, t1: x.time, a: w.a, g: "worst", who: rank[w.a], entry, dir: sideDir, px: +x.px, usd: v, sz: +x.sz }; M.push(cur); } }); });
+        else { cur = { t: x.time, t1: x.time, a: w.a, g: w.g === "B" ? "best" : "worst", who: rank[w.a], entry, dir: sideDir, px: +x.px, usd: v, sz: +x.sz }; M.push(cur); } }); });
     const evs = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^rd_e_/.test(k)) continue; (JSON.parse(localStorage.getItem(k)).L || []).forEach(e => { try { evs.push(etEpochMin(e.d, e.h === "bmo" ? 480 : 960) * 60000); } catch (x) { } }); } } catch (e) { }
     const rows = Why.analyze(M.filter(m => m.usd >= 5000), WC, { events: evs });
     el.innerHTML = Why.html(rows, WC, { sym: "SOXL", events: evs, recent: 12 }) + `<div class="bk-f" style="font-size:11.5px;margin-top:4px">${M.length} tracked moves ($5K+): top traders from their fills (newest 2,000 each), worst wallets from their fills as they load. Prices: the SOXL perp on Hyperliquid, 15-minute bars, 50 days.</div>`;
