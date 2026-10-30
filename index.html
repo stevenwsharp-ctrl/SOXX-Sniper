@@ -1315,6 +1315,9 @@ function decide(){
     [sessPart,0.12],[smartPart,0.08],[AR.today,0.14]];
   let s=0,w=0;parts.forEach(([v,k])=>{if(isFinite(v)){s+=v*k;w+=k}});
   const bias=w>=0.3?s/w:NaN;
+  // Signal web (web.js): every part of this read is a node; the web learns from both sites which parts really predict SOXL
+  try{if(window.Web&&!demo){const NM=[["callers","StockTwits callers (EV)"],["game","Game theory"],["align1h","Markets aligned (1h / day)"],["align30","Markets aligned (30m)"],["beta","Beta order"],["fng","Fear & greed"],["net1h","Net position (1h)"],["rates","Rates (10Y move)"],["credit","Credit (junk vs Treasuries)"],["news","News sentiment"],["consumer","Consumer"],["oil","Oil"],["macro","Macro calendar"],["bonds","Bonds model"],["micro","Microstructure"],["sess","Session model"],["smart","Smart-money hours"],["rules","Tested session rules"]];
+    parts.forEach(([v],i)=>{if(isFinite(v)&&NM[i])Web.emit("soxx."+NM[i][0],FUND,v,"SOXX · "+NM[i][1])});if(isFinite(bias))Web.emit("soxx.bias","SOXL",bias,"SOXX · overall read")}}catch(e){}
   let regime="Collecting data";const a3x=a3;
   if(isFinite(a1)){
     const a3=isFinite(a3x)?a3x:a1;
@@ -4233,7 +4236,8 @@ render();renderAnalysis();drawChart();
 <script>try{if(curSym&&window.pcDock)svPcDock(curSym)}catch(e){}</script>
 <script src="whales.js?v=7"></script>
 <script src="basket.js?v=1"></script>
-<script src="intel.js?v=2"></script>
+<script src="web.js?v=1"></script>
+<script src="intel.js?v=3"></script>
 <script src="trio.js?v=3"></script>
 <script src="gtlog.js?v=1"></script>
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;

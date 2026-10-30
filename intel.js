@@ -12,7 +12,8 @@
   const card = document.createElement("section"); card.className = "card"; card.id = "intelCard"; card.style.marginBottom = "12px";
   card.innerHTML = `<details open id="inBk"><summary class="label" style="cursor:pointer">Semis basket · smart vs fools on the SOXX holdings (Hyperliquid perps)</summary><div id="inBkBody"></div></details>
     <details open id="inSp" style="margin-top:12px"><summary class="label" style="cursor:pointer">Spot · what the best and worst SOXL traders buy, sell and hold</summary><div id="inSpNote" class="bk-f" style="font-size:12px;margin:4px 0"></div><div id="inSpBody"></div></details>
-    <details open id="inRb" style="margin-top:12px"><summary class="label" style="cursor:pointer">Nightly rebalance · market makers · after-hours</summary><div id="inRbBody"></div></details>`;
+    <details open id="inRb" style="margin-top:12px"><summary class="label" style="cursor:pointer">Nightly rebalance · market makers · after-hours</summary><div id="inRbBody"></div></details>
+    <details open id="inWeb" style="margin-top:12px"><summary class="label" style="cursor:pointer">Signal web · what both sites learn together</summary><div id="inWebF" style="margin:4px 0 8px"></div><div id="inWebBody"></div></details>`;
   anchor.after(card);
   const css = document.createElement("style");
   css.textContent = `#intelCard summary{list-style:none}#intelCard summary::before{content:"▾ ";color:var(--mute)}#intelCard details:not([open]) summary::before{content:"▸ "}
@@ -23,7 +24,10 @@
   /* ---------- basket ---------- */
   async function basket() {
     const D = await Basket.load(); const live = s => { try { return Q && Q[s] && Q[s].c || null; } catch (e) { return null; } };
-    document.getElementById("inBkBody").innerHTML = Basket.html(D ? Basket.compute(D, { px: live }) : null);
+    const R = D ? Basket.compute(D, { px: live }) : null;
+    document.getElementById("inBkBody").innerHTML = Basket.html(R);
+    if (window.Web && R && R.basket.gap != null) { Web.emit("basket.gap", "SEMIS", Math.max(-1, Math.min(1, R.basket.gap * 2)), "Semis basket: smart vs fools gap");
+      if (R.basket.d4h != null) Web.emit("basket.trend4h", "SEMIS", Math.max(-1, Math.min(1, R.basket.d4h / 20)), "Semis basket: gap change 4h"); }
   }
 
   /* ---------- lab share + rebalance ---------- */
@@ -40,6 +44,17 @@
     let rb = null;
     try { const lf = letfFlow(todaySess()); if (lf && isFinite(lf.idx)) rb = Basket.rebalance(lf.idx, typeof LETF_AUM !== "undefined" ? LETF_AUM : null); } catch (e) { }
     document.getElementById("inRbBody").innerHTML = Basket.knowledge(rb, shareLab() || Basket.lab());
+    try { if (window.Web && rb && isFinite(rb.usd)) Web.emit("soxx.rebal", "SOXL", Math.max(-1, Math.min(1, rb.usd / 3e9)), "SOXX · LETF rebalance flow");
+      const S = window.wwSummary && wwSummary(); if (window.Web && S && S.ok) { if (S.b && S.b.n) Web.emit("whales.best", "SOXL", Math.max(-1, Math.min(1, S.b.net / 2e6)), "SOXL top 20 whales net");
+        if (S.w && S.w.n) Web.emit("whales.worst", "SOXL", Math.max(-1, Math.min(1, S.w.net / 2e6)), "SOXL worst 20 wallets net"); } } catch (e) { }
+    web();
+  }
+  function web() {
+    if (!window.Web) return;
+    Web.addPrice && !web.p && (web.p = 1, Web.addPrice(a => { try { return Q && Q[a] && Q[a].c || null; } catch (e) { return null; } }));
+    document.getElementById("inWebF").innerHTML = ["SOXL", "SEMIS"].map(a => Web.forecastHtml(a)).filter(Boolean).map((h, i) => `<div>${i ? "Semis (SOXL + SOXX + SOXS, both sites): " : "SOXL: "}${h}</div>`).join("");
+    if (!document.getElementById("inWeb").open) return;
+    Web.render(document.getElementById("inWebBody"), { h: 340 });
   }
 
   /* ---------- spot ---------- */
