@@ -285,3 +285,10 @@ Yahoo Finance and Nasdaq.com do not officially support these data addresses, so 
 - **X (Twitter):** no free read access, so the site cannot show X posts. It opens X searches instead.
 - **Game theory** results are statistical tests on past SOXL days. A small sample (n under 15) is marked "Too few days".
 - **Recording:** the memory bank learns only while the page is open. Raw price bars older than 400 days are deleted to control storage; the learned knowledge stays permanently.
+
+## Intel card (below the whale card)
+
+- **Semis basket**: smart vs fools positioning (Hyperdash cohorts) on each SOXX holding that has a Hyperliquid perp (17 of 30, about 70% of the weight), weighted like the index, with 1h / 4h / 24h gap changes. Data: Cohort Sniper's data branch. `basket.js` is the same file in both repos.
+- **Spot**: spot buys, sells and holdings of the 20 best and 20 worst SOXL traders (Hyperliquid spot is crypto only; it shows their risk appetite).
+- **Nightly rebalance and market makers**: today's SOXL/SOXS rebalance estimate and a 2-year table of what happens after big rebalance days (last hour, that evening's after-hours, next gap, next day, and how often each reverses). Two new tested rules: "Rebalancing → that evening's after-hours" and "Rebalanced day → next morning's gap". The results are also shared with Cohort Sniper in the same browser.
+- **Order changes**: the whale tracker now catches a top or worst trader moving an order's price, changing its size, or cancelling and replacing it (Moves & order changes tab, plus an alert).

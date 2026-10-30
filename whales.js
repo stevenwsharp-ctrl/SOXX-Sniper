@@ -232,11 +232,39 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       if (Date.now() - limited < 60000) break;
       try {
         const o = await hl({ type: "frontendOpenOrders", user: w.a, dex: DEX });
-        ORD[w.a] = { at: Date.now(), list: (o || []).filter(x => x.coin === COIN).map(x => ({ side: x.side === "B" ? 1 : -1, px: +(x.isTrigger ? x.triggerPx : x.limitPx) || +x.limitPx, sz: +x.sz, ro: !!x.reduceOnly || !!x.isPositionTpsl, trig: !!x.isTrigger, type: x.orderType || "", cond: x.triggerCondition || "", t: x.timestamp })) };
+        const prev = ORD[w.a];
+        ORD[w.a] = { at: Date.now(), list: (o || []).filter(x => x.coin === COIN).map(x => ({ oid: x.oid, side: x.side === "B" ? 1 : -1, px: +(x.isTrigger ? x.triggerPx : x.limitPx) || +x.limitPx, sz: +x.sz, osz: +x.origSz || +x.sz, ro: !!x.reduceOnly || !!x.isPositionTpsl, trig: !!x.isTrigger, type: x.orderType || "", cond: x.triggerCondition || "", t: x.timestamp })) };
+        if (prev) orderChanges(w, prev.list, ORD[w.a].list);
       } catch (e) { if (limited) break; }
       await sleep(60);
     }
   }
+  // ---------- order changes: a tracked wallet moves an order's price, changes its size, or cancels and replaces it ----------
+  function orderChanges(w, A, Bn) {
+    const P = mark > 0 ? mark : (Q[FUND] && Q[FUND].c) || NaN, min = STAR[w.a] ? 5000 : 15000, out = [];
+    const nm = o => `${o.side > 0 ? "buy" : "sell"} ${o.trig ? (o.type || "trigger").toLowerCase() : "limit"}${o.ro ? " (reduce-only)" : ""}`;
+    const val = o => o.sz * (o.px || P), byA = new Map(A.filter(o => o.oid != null).map(o => [o.oid, o])), byB = new Map(Bn.filter(o => o.oid != null).map(o => [o.oid, o]));
+    // same order id: price moved or size changed (a size drop with the same original size is a partial fill, not a change)
+    for (const [id, o1] of byB) { const o0 = byA.get(id); if (!o0) continue;
+      const dp = o0.px && o1.px ? o1.px / o0.px - 1 : 0, sizeChg = o1.osz !== o0.osz;
+      if (Math.abs(dp) >= 0.0005 && Math.max(val(o0), val(o1)) >= min) out.push({ k: "move", txt: `moved a ${usd(val(o1))} ${nm(o1)} ${fmtPx(o0.px)} → ${fmtPx(o1.px)} (${dp > 0 ? "+" : ""}${(dp * 100).toFixed(2)}%)` });
+      else if (sizeChg && Math.max(val(o0), val(o1)) >= min) out.push({ k: "size", txt: `${o1.osz > o0.osz ? "raised" : "cut"} a ${nm(o1)} @ ${fmtPx(o1.px)} from ${usd(val(o0))} to ${usd(val(o1))}` }); }
+    // cancel + replace: an order gone and a new one of the same kind in the same poll
+    const gone = A.filter(o => !byB.has(o.oid)), born = Bn.filter(o => !byA.has(o.oid)), used = new Set();
+    gone.forEach(o0 => { const j = born.findIndex((o1, i) => !used.has(i) && o1.side === o0.side && o1.trig === o0.trig && o1.ro === o0.ro); 
+      if (j >= 0) { used.add(j); const o1 = born[j]; if (Math.max(val(o0), val(o1)) < min) return; const dp = o0.px && o1.px ? o1.px / o0.px - 1 : 0;
+        out.push({ k: "replace", txt: `replaced a ${nm(o0)}: ${usd(val(o0))} @ ${fmtPx(o0.px)} → ${usd(val(o1))} @ ${fmtPx(o1.px)}${Math.abs(dp) >= 0.0005 ? ` (${dp > 0 ? "+" : ""}${(dp * 100).toFixed(2)}%)` : ""}` }); }
+      else if (val(o0) >= min * 2) out.push({ k: "pull", txt: `pulled a ${usd(val(o0))} ${nm(o0)} @ ${fmtPx(o0.px)} (cancelled or filled)` }); });
+    born.forEach((o1, i) => { if (!used.has(i) && val(o1) >= min * 2) out.push({ k: "place", txt: `placed a ${usd(val(o1))} ${nm(o1)} @ ${fmtPx(o1.px)}${isFinite(P) ? ` (${((o1.px / P - 1) * 100).toFixed(2)}% from mark)` : ""}` }); });
+    const now = Date.now();
+    out.slice(0, 4).forEach(e => {
+      EV.unshift({ t: now, a: w.a, g: w.g, k: "ord", txt: "orders · " + e.txt, px: P }); EV = EV.slice(0, 60);
+      if (e.k === "pull") return;   // a pull can be a fill: shown in Moves, no alert
+      try { alert1(`wwo:${w.a}:${e.k}:${now}`, 60000, `${STAR[w.a] ? "★ Starred · " : ""}📝 ${w.g === "B" ? "Top" : "Worst"} #${w.rank} SOXL trader ${e.txt} · $SOXL perp ${fmtPx(P)}${w.g === "W" ? " (a losing wallet)" : ""}`, FUND, false); } catch (x) { }
+    });
+    if (out.length) { try { save("soxx_ww_ev", EV); } catch (x) { } }
+  }
+
   // what an order does to the wallet's position
   function ordRole(w, o) {
     const pz = w.pos ? w.pos.szi : 0;
@@ -422,7 +450,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       tile("Big long liquidation below", s.nearL ? fmtPx(s.nearL.p) : "--", s.nearL ? `${usd(s.nearL.usd)} · ${fmtPct(s.nearL.p / P - 1, 1)}` : "none ≥ $250K", "down") +
       tile("Big short liquidation above", s.nearS ? fmtPx(s.nearS.p) : "--", s.nearS ? `${usd(s.nearS.usd)} · ${fmtPct(s.nearS.p / P - 1, 1)}` : "none ≥ $250K", "up") +
       tile("Last top-trader move", m0 ? `Top #${W[m0.a].rank}` : "--", m0 ? `${plain(verb(m0))} ${usd(m0.usd)} · ${agoT(m0.t1)}` : "waiting for a trade");
-    $("wwTabs").innerHTML = [["B", `Top ${NB}`], ["W", `Worst ${NW}`], ["E", `Moves (${MV.filter(m => m.usd >= MIN_MOVE).length + EV.length})`], ["O", `Open orders (${Object.values(ORD).reduce((a, o) => a + o.list.length, 0)})`], ["P", "Trader profiles"]].map(([k, l]) => `<button data-wwtab="${k}" class="${tab === k ? "on" : ""}">${l}</button>`).join("");
+    $("wwTabs").innerHTML = [["B", `Top ${NB}`], ["W", `Worst ${NW}`], ["E", `Moves & order changes (${MV.filter(m => m.usd >= MIN_MOVE).length + EV.length})`], ["O", `Open orders (${Object.values(ORD).reduce((a, o) => a + o.list.length, 0)})`], ["P", "Trader profiles"]].map(([k, l]) => `<button data-wwtab="${k}" class="${tab === k ? "on" : ""}">${l}</button>`).join("");
     if (tab === "P") {
       const L = Object.values(W).sort((a, z) => (a.g === z.g ? a.rank - z.rank : a.g === "B" ? -1 : 1));
       $("wwBody").innerHTML = `<div class="wwpf">${L.map(profHtml).join("")}</div><div class="wwnote">Profiles come from each wallet's SOXL trades on Hyperliquid (round trips from flat to flat, fees included). "Dip buyer" / "momentum" compare each entry with SOXL's move in the 4 hours before it. Small samples are marked; treat them with care.</div>`;
