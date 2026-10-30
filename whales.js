@@ -110,6 +110,10 @@
 .wwpc ul{margin:4px 0 0;padding-left:16px}.wwpc li{margin:1px 0}
 .wwpc .w{color:var(--up)}.wwpc .x{color:var(--down)}.wwpc .t{color:var(--dim)}
 td.wwdet{white-space:normal!important;text-align:left!important;background:var(--panel2)}
+#whaleCard .chipb{font-size:11px;padding:4px 9px;border-radius:99px}
+.wwstar{cursor:pointer;color:var(--mute);font-size:15px}.wwstar.on{color:var(--amber)}
+#whaleCard tr.wwst td{background:color-mix(in srgb,var(--amber) 7%,transparent)}
+.wwm.st{border-color:var(--amber)}
 .wwage.bad{color:var(--down)}.wwage.ok{color:var(--dim)}
 `;
   const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
@@ -122,7 +126,12 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
   let EV = load("soxx_ww_ev", []);              // worst-wallet events
   let MV = load("soxx_ww_mv", []);              // top-trader moves (from fills)
   let CUR = load("soxx_ww_cur", {});
-  const ORD = {};                                // per wallet: open SOXL orders {at, list}            // per wallet: time of the newest fill we have
+  const ORD = {};
+  let RZ = load("soxx_ww_rz", {});              // top wallets: realized SOXL P&L since the study (fills after Oct 28, 2026)
+  let STAR = load("soxx_ww_star", {});          // starred wallets
+  let RK = load("soxx_ww_rk", { d: "", prev: {} }); // live ranks at the start of the day (to show the move)
+  let rkBy = lsGet("soxx_ww_rkby") || "live", onlyStar = false;
+  const STUDY_T = Date.parse("2026-10-29T00:00:00Z");                                // per wallet: open SOXL orders {at, list}            // per wallet: time of the newest fill we have
   let tryAt = 0, mark = NaN, lastAt = 0, fillAt = 0, err = "", tab = "B", busy = 0, limited = 0;
   const short = a => a.slice(0, 6) + "…" + a.slice(-4);
   const usd = x => { const a = Math.abs(x); return (x < 0 ? "−" : "") + "$" + (a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? Math.round(a / 1e3) + "K" : Math.round(a)); };
@@ -139,7 +148,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
     } finally { clearTimeout(to); }
   }
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const save = () => { try { lsSet("soxx_ww_anchor", JSON.stringify(anchor)); lsSet("soxx_ww_ev", JSON.stringify(EV.slice(0, 40))); lsSet("soxx_ww_mv", JSON.stringify(MV.slice(0, 300))); lsSet("soxx_ww_cur", JSON.stringify(CUR)); } catch (e) { } };
+  const save = () => { try { lsSet("soxx_ww_anchor", JSON.stringify(anchor)); lsSet("soxx_ww_ev", JSON.stringify(EV.slice(0, 40))); lsSet("soxx_ww_mv", JSON.stringify(MV.slice(0, 300))); lsSet("soxx_ww_cur", JSON.stringify(CUR)); lsSet("soxx_ww_rz", JSON.stringify(RZ)); lsSet("soxx_ww_star", JSON.stringify(STAR)); lsSet("soxx_ww_rk", JSON.stringify(RK)); } catch (e) { } };
 
   // ---------- top-trader fills → moves ----------
   function kindOf(f) {
@@ -157,6 +166,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       const t = +f.time; if (CUR[a] && t <= CUR[a].t && CUR[a].tids && CUR[a].tids.includes(f.tid)) continue;
       const kd = kindOf(f); if (!kd) continue;
       const px = +f.px, q = +f.sz * (f.side === "B" ? 1 : -1), s1 = +f.startPosition + q;
+      if (t >= STUDY_T) RZ[a] = (RZ[a] || 0) + (+f.closedPnl || 0) - (+f.fee || 0);
       // join the last move of this wallet when it is the same action and side, and close in time
       const grp = kd.k === "open" || kd.k === "add" ? "grow" : kd.k === "cut" || kd.k === "close" ? "shrink" : "flip";
       const m = MV.find(x => x.a === a);
@@ -180,6 +190,8 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
   const moveAlerted = {};
   function moveAlerts(P) {
     for (const m of MV.slice(0, 40)) {
+      if (STAR[m.a] && m.usd >= 5000 && Date.now() - m.t1 <= 2 * 3600000) { const w = W[m.a], key = `wws:${m.a}:${m.t0}:${Math.floor(m.usd / 25000)}`;
+        if (w && !moveAlerted[key]) { moveAlerted[key] = 1; try { alert1(key, 864e5, `★ Starred ${w.g === "B" ? "top" : "worst"} #${w.rank} ${plain(moveTxt(m, P))} · ${agoT(m.t1)}`, FUND, true); } catch (e) { } } }
       if (m.usd < MIN_EV || Date.now() - m.t1 > 2 * 3600000) continue;
       const w = W[m.a]; if (!w) continue;
       const step = Math.floor((m.usd - MIN_EV) / 100000), key = `wwm:${m.a}:${m.t0}:${step}`;
@@ -303,13 +315,13 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       if (s0 === 0 && s1 !== 0 && Math.abs(s1) * P >= MIN_EV) { kind = "open"; txt = `opened a ${usd(Math.abs(s1) * P)} ${side(s1)} @ ${fmtPx(p.ep)}`; }
       else if (s0 !== 0 && s1 === 0 && Math.abs(s0) * P >= MIN_EV) { kind = "close"; txt = `closed a ${usd(Math.abs(s0) * P)} ${side(s0)}`; }
       else if (s0 !== 0 && s1 !== 0 && Math.sign(s0) !== Math.sign(s1)) { kind = "flip"; txt = `flipped ${side(s0)} → ${side(s1)} (${usd(Math.abs(s1) * P)})`; }
-      else if (s0 !== 0 && Math.abs(s1) > Math.abs(s0) && d$ >= MIN_EV) { kind = "add"; txt = `added ${usd(d$)} to the ${side(s1)} (now ${usd(Math.abs(s1) * P)})`; }
-      else if (s0 !== 0 && s1 !== 0 && Math.abs(s1) < Math.abs(s0) && d$ >= MIN_EV) { kind = "cut"; txt = `cut ${usd(d$)} of the ${side(s1)} (now ${usd(Math.abs(s1) * P)})`; }
+      else if (s0 !== 0 && Math.abs(s1) > Math.abs(s0) && d$ >= (STAR[w.a] ? 10000 : MIN_EV)) { kind = "add"; txt = `added ${usd(d$)} to the ${side(s1)} (now ${usd(Math.abs(s1) * P)})`; }
+      else if (s0 !== 0 && s1 !== 0 && Math.abs(s1) < Math.abs(s0) && d$ >= (STAR[w.a] ? 10000 : MIN_EV)) { kind = "cut"; txt = `cut ${usd(d$)} of the ${side(s1)} (now ${usd(Math.abs(s1) * P)})`; }
       else if (s0 === 0 && s1 === 0) continue;
       if (txt) {
         anchor[w.a] = s1;
         EV.unshift({ t: now, a: w.a, g: w.g, k: kind, txt, px: P }); EV = EV.slice(0, 40);
-        try { alert1(`ww:${w.a}:${kind}:${Math.round(s1)}`, 600000, `🐋 Worst #${w.rank} SOXL trader (${usd(w.pnl)} on SOXL) ${txt} · $SOXL perp ${fmtPx(P)} (a losing wallet: often a fade signal)`, FUND, false); } catch (e) { }
+        try { alert1(`ww:${w.a}:${kind}:${Math.round(s1)}`, 600000, `${STAR[w.a] ? "★ Starred · " : ""}🐋 Worst #${w.rank} SOXL trader (${usd(w.pnl)} on SOXL) ${txt} · $SOXL perp ${fmtPx(P)} (a losing wallet: often a fade signal)`, FUND, false); } catch (e) { }
       }
     }
   }
@@ -353,6 +365,24 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
   }
   window.wwProfile = a => PROF[a] || null;
 
+  // ---------- live ranking and stars ----------
+  const RKBY = [["live", "Live score"], ["study", "Study profit"], ["upnl", "Open P&L now"], ["size", "Position size"], ["win", "Win rate"]];
+  function liveScore(w) { const u = w.pos && w.pos.szi ? (w.pos.u || 0) : 0; return w.pnl + (RZ[w.a] || 0) + u; }
+  function keyOf(w, by) { const P = mark > 0 ? mark : NaN, p = w.pos || {};
+    return by === "study" ? w.pnl : by === "upnl" ? (p.szi ? p.u || 0 : 0) : by === "size" ? (p.szi ? Math.abs(p.szi) * (P || p.ep || 0) : 0) : by === "win" ? w.wr : liveScore(w); }
+  function ranked(g, by) {
+    const L = Object.values(W).filter(w => w.g === g); const k = w => keyOf(w, by);
+    // best: highest first; worst: the biggest loser first (lowest score), except for size and win rate
+    const desc = g === "B" || by === "size" || by === "win";
+    L.sort((a, z) => desc ? k(z) - k(a) : k(a) - k(z)); return L;
+  }
+  function liveRanks() { const out = {}; ["B", "W"].forEach(g => ranked(g, "live").forEach((w, i) => out[w.a] = i + 1)); return out; }
+  function dayKey() { return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }); }
+  function snapRanks() { if (!lastAt) return; const d = dayKey(); if (RK.d !== d) { RK = { d, prev: RK.cur && Object.keys(RK.cur).length ? RK.cur : liveRanks(), cur: liveRanks() }; } else RK.cur = liveRanks(); }
+  const moveHtml = (a, now) => { const pv = RK.prev && RK.prev[a]; if (!pv) return '<span class="sub">new</span>'; const d = pv - now;
+    return d > 0 ? `<span class="up" title="Was #${pv} at the start of the day">▲${d}</span> <span class="sub">#${pv}</span>` : d < 0 ? `<span class="down" title="Was #${pv} at the start of the day">▼${-d}</span> <span class="sub">#${pv}</span>` : `<span class="sub" title="Same as at the start of the day">= #${pv}</span>`; };
+  window.wwStarred = () => Object.keys(STAR).filter(a => STAR[a]);
+
   // ---------- render ----------
   const pill = s => s > 0 ? `<span class="wwp l">long</span>` : s < 0 ? `<span class="wwp s">short</span>` : `<span class="wwp f">flat</span>`;
   function ageHtml() {
@@ -364,10 +394,12 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
     const el = $("wwTop"); if (!el) return;
     const s = summary(), M = topMoves(3), wait = Object.values(W).filter(w => w.g === "B" && !CUR[w.a]).length;
     el.innerHTML = `<div class="hd"><div class="label">🐋 Last 3 moves · top 20 SOXL traders</div><span class="sub">${ageHtml()}</span></div>` +
-      (M.length ? M.map(m => { const w = W[m.a]; return `<div class="wwm ${Date.now() - m.t1 < 10 * 60000 ? "new" : ""}"><span class="rk" title="${esc(w.coh)} · ${w.tr} SOXL trades · ${w.wr}% win">Top #${w.rank}</span>
+      (M.length ? M.map(m => { const w = W[m.a]; return `<div class="wwm ${Date.now() - m.t1 < 10 * 60000 ? "new" : ""} ${STAR[m.a] ? "st" : ""}"><span class="rk" title="${esc(w.coh)} · ${w.tr} SOXL trades · ${w.wr}% win">${STAR[m.a] ? "★ " : ""}Top #${w.rank}</span>
         <div class="tx">${moveTxt(m, s.P)}<div class="sub">${tags(m.a, 2)} <a href="https://hyperdash.com/address/${m.a}" target="_blank" rel="noopener">${short(m.a)}</a> · ${usd(w.pnl)} SOXL profit · ${clock(m.t1)} ET</div></div><span class="ag">${agoT(m.t1)}</span></div>`; }).join("")
         : `<div class="sub">${wait ? `Reading the trade history of the top wallets (${NB - wait} of ${NB} done)…` : "No SOXL trades of $10K or more by the top 20 in the last 3 days."}</div>`) +
       (s.ok ? `<div class="sub">Top 20 now: <b class="${s.b.net > 0 ? "up" : s.b.net < 0 ? "down" : ""}">${s.b.net > 0 ? "net long" : s.b.net < 0 ? "net short" : "flat"} ${usd(Math.abs(s.b.net))}</b> · Worst ${NW}: <b class="${s.w.net > 0 ? "up" : s.w.net < 0 ? "down" : ""}">${s.w.net > 0 ? "net long" : s.w.net < 0 ? "net short" : "flat"} ${usd(Math.abs(s.w.net))}</b></div>` : "") +
+      (() => { const S = Object.values(W).filter(w => STAR[w.a]); if (!S.length) return ""; const P = mark;
+        return `<div class="sub">★ Starred: ${S.map(w => { const p = w.pos || {}; return `<b class="${w.g === "B" ? "up" : "down"}">${w.g === "B" ? "Top" : "Worst"} #${w.rank}</b> ${p.szi ? `${p.szi > 0 ? "long" : "short"} ${usd(Math.abs(p.szi) * (P || p.ep))} <span class="${p.u >= 0 ? "up" : "down"}">${usd(p.u || 0)}</span>` : "flat"}`; }).join(" · ")}</div>`; })() +
       (() => { const c = closeAvg("B"), t = (x, side) => x ? `${side === "short" ? "Shorts cover" : "Longs sell"} at <b>${fmtPx(x.px)}</b> avg <span class="sub">(${fmtPct(x.d, 1)}, size-weighted, ${usd(x.usd)} in ${x.n} order${x.n > 1 ? "s" : ""} from ${x.wallets} wallet${x.wallets > 1 ? "s" : ""}${x.tp && x.sl ? ` · ${usd(x.tp)} take-profit, ${usd(x.sl)} stop` : x.sl ? " · stops" : " · take-profit"})</span>` : "";
         const a = [t(c.short, "short"), t(c.long, "long")].filter(Boolean); return a.length ? `<div class="sub">Top 20 close orders: ${a.join(" · ")}</div>` : ""; })() +
       (() => { const b = ordAgg("B"), w = ordAgg("W"); return b.n + w.n ? `<div class="sub">Resting orders · Top: buy ${usd(b.buy)} / sell ${usd(b.sell)} (${usd(b.add)} to add, ${usd(b.close)} to close) · Worst: buy ${usd(w.buy)} / sell ${usd(w.sell)} · <a href="#whaleCard" data-wwgo="O">see orders</a></div>` : ""; })();
@@ -407,14 +439,23 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       $("wwBody").innerHTML = L.length ? `<div class="wwev">${L.map(e => `<span class="t">${clock(e.t)}</span><span><b class="${e.g === "B" ? "up" : "down"}">${e.g === "B" ? "Top" : "Worst"} #${W[e.a] ? W[e.a].rank : "?"}</b> <a href="https://hyperdash.com/address/${e.a}" target="_blank" rel="noopener">${short(e.a)}</a> ${e.h}</span>`).join("")}</div>` : `<div class="sub">No moves yet.</div>`;
       return;
     }
-    const L = Object.values(W).filter(w => w.g === tab).sort((a, z) => a.rank - z.rank);
-    $("wwBody").innerHTML = `<div class="tw"><table class="tbl"><tr><th>#</th><th class="l">Wallet</th><th>SOXL profit</th><th>Trades</th><th>Win</th><th class="l">Style</th><th class="l">Now</th><th>Size</th><th>Entry</th><th>Lev</th><th>Liq</th><th>To liq</th><th>uPnL</th><th class="l">Orders</th><th class="l">Last move</th></tr>` +
+    snapRanks();
+    let L = ranked(tab, rkBy); if (onlyStar) L = L.filter(w => STAR[w.a]);
+    const lr = liveRanks();
+    $("wwBody").innerHTML = `<div class="row" style="gap:6px;margin:0 0 8px;flex-wrap:wrap"><span class="sub">Rank by</span>${RKBY.map(([k, l]) => `<button class="chipb ${rkBy === k ? "on" : ""}" data-wwrk="${k}">${l}</button>`).join("")}<span class="tasep"></span><button class="chipb ${onlyStar ? "on" : ""}" data-wwstaronly="1">★ Starred only (${L.filter ? Object.values(W).filter(w => w.g === tab && STAR[w.a]).length : 0})</button>
+      <span class="sub">Live score = study profit + realized since the study + open P&L. Arrows: change vs the start of the day (ET).</span></div>` +
+      (L.length ? "" : `<div class="sub">No starred wallets in this list. Select ☆ in a row to star a wallet.</div>`) +
+      `<div class="tw"><table class="tbl"><tr><th></th><th>#</th><th class="l">Move</th><th>Study</th><th>Live score</th><th class="l">Wallet</th><th>SOXL profit</th><th>Trades</th><th>Win</th><th class="l">Style</th><th class="l">Now</th><th>Size</th><th>Entry</th><th>Lev</th><th>Liq</th><th>To liq</th><th>uPnL</th><th class="l">Orders</th><th class="l">Last move</th></tr>` +
       L.map(w => { const p = w.pos || {}, v = p.szi ? Math.abs(p.szi) * P : 0, dl = p.lq && P ? p.lq / P - 1 : NaN;
         const m = w.g === "B" ? MV.find(x => x.a === w.a) : null, e = w.g === "W" ? EV.find(x => x.a === w.a && Date.now() - x.t < 24 * 3600000) : null;
         const last = m ? `${plain(verb(m))} ${usd(m.usd)} <span class="sub">${agoT(m.t1)}</span>` : e ? `${esc(e.txt)} <span class="sub">${agoT(e.t)}</span>` : '<span class="sub">--</span>';
-        return `<tr class="wwr" data-wwrow="${w.a}" title="Select to see this trader's profile"><td>${w.rank}</td><td class="l"><a href="https://hyperdash.com/address/${w.a}" target="_blank" rel="noopener" title="${w.a} · ${esc(w.coh)}">${short(w.a)}</a></td><td class="${w.pnl > 0 ? "up" : "down"}">${usd(w.pnl)}</td><td>${w.tr.toLocaleString()}</td><td>${w.wr}%</td><td class="l">${tags(w.a, 2)}</td><td class="l">${w.pos ? pill(p.szi) : '<span class="sub">…</span>'}</td><td>${v ? usd(v) : "--"}</td><td>${p.szi ? fmtPx(p.ep) : "--"}</td><td>${p.lev ? p.lev + "×" : "--"}</td><td>${p.lq ? fmtPx(p.lq) : "--"}</td><td class="${isFinite(dl) && Math.abs(dl) < 0.05 ? "wwhot" : ""}">${isFinite(dl) ? fmtPct(dl, 1) : "--"}</td><td class="${p.u > 0 ? "up" : p.u < 0 ? "down" : ""}">${p.szi ? usd(p.u) : "--"}</td><td class="l wwch">${(() => { const L = (ORD[w.a] || {}).list || []; if (!L.length) return ORD[w.a] ? '<span class="sub">none</span>' : '<span class="sub">…</span>'; const b = L.filter(x => x.side > 0).reduce((a, x) => a + x.sz * (x.px || P), 0), sl = L.filter(x => x.side < 0).reduce((a, x) => a + x.sz * (x.px || P), 0); const C = L.filter(o => /close/.test(ordRole(w, o))), cs = C.reduce((t, o) => t + o.sz, 0); return `${L.length} · <span class="up">buy ${usd(b)}</span> / <span class="down">sell ${usd(sl)}</span>${cs ? ` · close avg <b>${fmtPx(C.reduce((t, o) => t + o.sz * o.px, 0) / cs)}</b>` : ""}`; })()}</td><td class="l wwch">${last}</td></tr>` + (openRow === w.a ? `<tr><td colspan="15" class="wwdet">${profHtml(w)}</td></tr>` : ""); }).join("") + `</table></div>`;
+        const rkNow = L.indexOf(w) + 1, live = lr[w.a];
+        return `<tr class="wwr ${STAR[w.a] ? "wwst" : ""}" data-wwrow="${w.a}" title="Select to see this trader's profile"><td><span class="wwstar ${STAR[w.a] ? "on" : ""}" data-wwstar="${w.a}" title="${STAR[w.a] ? "Starred: you get an alert for every move" : "Star: get an alert for every move of this wallet"}">${STAR[w.a] ? "★" : "☆"}</span></td><td><b>${onlyStar ? live : rkNow}</b></td><td class="l">${moveHtml(w.a, live)}</td><td class="sub">${w.g === "B" ? "Top" : "Worst"} #${w.rank}</td><td class="${liveScore(w) > 0 ? "up" : "down"}">${usd(liveScore(w))}</td><td class="l"><a href="https://hyperdash.com/address/${w.a}" target="_blank" rel="noopener" title="${w.a} · ${esc(w.coh)}">${short(w.a)}</a></td><td class="${w.pnl > 0 ? "up" : "down"}">${usd(w.pnl)}</td><td>${w.tr.toLocaleString()}</td><td>${w.wr}%</td><td class="l">${tags(w.a, 2)}</td><td class="l">${w.pos ? pill(p.szi) : '<span class="sub">…</span>'}</td><td>${v ? usd(v) : "--"}</td><td>${p.szi ? fmtPx(p.ep) : "--"}</td><td>${p.lev ? p.lev + "×" : "--"}</td><td>${p.lq ? fmtPx(p.lq) : "--"}</td><td class="${isFinite(dl) && Math.abs(dl) < 0.05 ? "wwhot" : ""}">${isFinite(dl) ? fmtPct(dl, 1) : "--"}</td><td class="${p.u > 0 ? "up" : p.u < 0 ? "down" : ""}">${p.szi ? usd(p.u) : "--"}</td><td class="l wwch">${(() => { const L = (ORD[w.a] || {}).list || []; if (!L.length) return ORD[w.a] ? '<span class="sub">none</span>' : '<span class="sub">…</span>'; const b = L.filter(x => x.side > 0).reduce((a, x) => a + x.sz * (x.px || P), 0), sl = L.filter(x => x.side < 0).reduce((a, x) => a + x.sz * (x.px || P), 0); const C = L.filter(o => /close/.test(ordRole(w, o))), cs = C.reduce((t, o) => t + o.sz, 0); return `${L.length} · <span class="up">buy ${usd(b)}</span> / <span class="down">sell ${usd(sl)}</span>${cs ? ` · close avg <b>${fmtPx(C.reduce((t, o) => t + o.sz * o.px, 0) / cs)}</b>` : ""}`; })()}</td><td class="l wwch">${last}</td></tr>` + (openRow === w.a ? `<tr><td colspan="19" class="wwdet">${profHtml(w)}</td></tr>` : ""); }).join("") + `</table></div>`;
   }
   card.addEventListener("click", e => { const b = e.target.closest("[data-wwtab]"); if (b) { tab = b.dataset.wwtab; render(); return; }
+    const sb = e.target.closest("[data-wwstar]"); if (sb) { e.stopPropagation(); const a = sb.dataset.wwstar; STAR[a] = !STAR[a]; if (!STAR[a]) delete STAR[a]; save(); render(); return; }
+    const rb = e.target.closest("[data-wwrk]"); if (rb) { rkBy = rb.dataset.wwrk; lsSet("soxx_ww_rkby", rkBy); render(); return; }
+    if (e.target.closest("[data-wwstaronly]")) { onlyStar = !onlyStar; render(); return; }
     const r = e.target.closest("[data-wwrow]"); if (r && !e.target.closest("a")) { openRow = openRow === r.dataset.wwrow ? null : r.dataset.wwrow; render(); } });
   document.addEventListener("click", e => { const g = e.target.closest("[data-wwgo]"); if (g) { e.preventDefault(); tab = g.dataset.wwgo; render(); card.scrollIntoView({ behavior: "smooth", block: "start" }); } });
 
