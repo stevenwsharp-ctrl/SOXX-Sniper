@@ -293,3 +293,13 @@ Yahoo Finance and Nasdaq.com do not officially support these data addresses, so 
 - **Nightly rebalance and market makers**: today's SOXL/SOXS rebalance estimate and a 2-year table of what happens after big rebalance days (last hour, that evening's after-hours, next gap, next day, and how often each reverses). Two new tested rules: "Rebalancing → that evening's after-hours" and "Rebalanced day → next morning's gap". The results are also shared with Cohort Sniper in the same browser.
 - **Order changes**: the whale tracker now catches a top or worst trader moving an order's price, changing its size, or cancelling and replacing it (Moves & order changes tab, plus an alert).
 - **Signal web** (`web.js`, the same file in Cohort Sniper): every part of the decision read (alignment, beta order, fear & greed, rates, credit, news, session model, tested rules, game theory, callers, ...), the whales, the rebalance flow and the semis basket are nodes. Snapshots every 30 minutes are scored 4 hours later; the web learns which nodes really predict SOXL and the semis, with Cohort Sniper's signals in the same web.
+
+## Big-move radar (above the intel card)
+
+Built after the Oct 29 night, when Intel's warning after the close took the chip group down overnight.
+- **Earnings tonight / this week**: each SOXX holding that reports, its weight, and how far the stock, SOXX and SOXL gapped after its past reports (Finnhub dates + Yahoo daily bars). "SOXX per 1% of stock" measures contagion, not only weight.
+- **Big overnight move model**: logistic regression fitted in the browser on 2 years of SOXL nights (target: a 5%+ gap from close to next open). Inputs: VIX ÷ VIX3M, VIX, MOVE, SOXL realized-volatility percentile, 5-day move, big holding reports tonight. Shows today's odds vs the base rate and an out-of-sample check.
+- **Direction lean**: signal web, cohort smart vs fools on the holdings and on the reporter's perp, top and worst SOXL whales.
+- **After-hours shock watch**: the SOXL perp on Hyperliquid trades 24/7; after 4 pm ET it is compared with the close, with alerts at 3%, 6% and 10% and the implied SOXS move.
+- **Macro live**: VIX, VIX3M, MOVE, SKEW, 10Y, 3M bill, dollar, copper, gold, oil, SOX, Nasdaq-100 with z-scores, the 10Y−2Y curve and high-yield spread, and a stress index.
+- A daily alert fires when the big-move odds are at least twice normal and the lean is clear.
