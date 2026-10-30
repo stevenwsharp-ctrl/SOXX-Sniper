@@ -17,6 +17,7 @@
 //        GET https://<your-worker>.workers.dev/news?t=NVDA&q=Nvidia    (fresh headlines: Google News + Yahoo Finance, newest first)
 //        GET https://<your-worker>.workers.dev/news?t=SOXL,NVDA,AMD&q=SOXL|Nvidia|AMD   (one feed for many stocks)
 //        GET https://<your-worker>.workers.dev/maxpain?t=SOXL           (options max pain, call wall and put wall for the next 4 expiries)
+//        GET https://<your-worker>.workers.dev/ghref?r=owner/repo&b=data  (newest commit of a public branch; Cohort Sniper uses it to load new data fast)
 //        GET https://<your-worker>.workers.dev/letf/list               (LETF Sniper: every US leveraged / inverse ETF, parsed; refreshed every 12 h)
 //        GET https://<your-worker>.workers.dev/letf/quotes             (LETF Sniper: live quotes for all funds and their underlyings, about every 10 s)
 
@@ -436,6 +437,22 @@ async function getMaxPain(t) {
   return body;
 }
 
+// ---- newest commit of a public GitHub branch, from git refs (no GitHub API quota). Used by Cohort Sniper to see new data fast.
+const refMemo = new Map();
+async function ghRef(repo, branch) {
+  const k = repo + "|" + branch, hit = refMemo.get(k);
+  if (hit && Date.now() - hit.at < 8000) return hit.body;
+  let body = { status: "error", error: "GitHub did not answer" };
+  try {
+    const r = await fetch(`https://github.com/${repo}.git/info/refs?service=git-upload-pack`, { headers: { "User-Agent": "git/2.40.0" } });
+    if (r.ok) { const t = await r.text(), m = t.match(new RegExp("([0-9a-f]{40}) refs/heads/" + branch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?:\\s|\\x00|$)"));
+      body = m ? { status: "ok", sha: m[1], at: Date.now() } : { status: "error", error: "branch not found" }; }
+    else body = { status: "error", error: "GitHub answered " + r.status };
+  } catch (e) { body = { status: "error", error: String(e) }; }
+  if (body.status === "ok") refMemo.set(k, { at: Date.now(), body }); else if (hit) return hit.body;
+  return body;
+}
+
 export default {
   async fetch(req, env) {
     const cors = corsHeaders(req, env);
@@ -472,6 +489,12 @@ export default {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=600" } });
       if (!/^[A-Z][A-Z.\-]{0,7}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
       return json(await getMaxPain(t));
+    }
+    if (url.pathname === "/ghref") {
+      const repo = url.searchParams.get("r") || "", br = url.searchParams.get("b") || "data";
+      const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      if (!/^[\w.-]{1,39}\/[\w.-]{1,100}$/.test(repo) || !/^[\w.\/-]{1,60}$/.test(br)) return json({ status: "error", error: "bad repo" }, 400);
+      return json(await ghRef(repo, br));
     }
     if (url.pathname === "/news") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
