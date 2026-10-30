@@ -84,6 +84,11 @@
       <button data-tool="hline" title="Horizontal line: one click">— Level</button>
       <button data-tool="alert" title="Alert line: one click; alerts when the price crosses it">🔔 Alert</button>
       <button data-tool="vline" title="Vertical line: one click">│ Time</button>
+      <button data-tool="xline" title="Extended line: click two points, it runs across the whole chart">⟋ Line</button>
+      <button data-tool="chan" title="Parallel channel: click two points on one side; the other side snaps to the farthest price between them">▱ Channel</button>
+      <button data-tool="arrow" title="Arrow: click the start, then the tip">➚ Arrow</button>
+      <button data-tool="long" title="Long position: click the entry, then the target. The stop starts at half the distance (2:1)">▲ Long</button>
+      <button data-tool="short" title="Short position: click the entry, then the target. The stop starts at half the distance (2:1)">▼ Short</button>
       <button data-tool="rect" title="Rectangle zone: click two corners">▭ Zone</button>
       <button data-tool="fibd" title="Fibonacci retracement: click the swing start, then the end">ƒ Fib</button>
       <button data-tool="measure" title="Measure: click two points">⇕ Measure</button>
@@ -318,11 +323,16 @@
     if (tool) {
       if (ONE[tool]) { drawings().push({ type: tool, p1: pt, p2: pt, hit: null }); finish(); return; }
       if (!pend) { pend = { type: tool, p1: pt, p2: pt }; ovDirty = true; return; }
-      pend.p2 = pt; if (tool !== "measure") drawings().push(pend); else lastMeasure = pend; pend = null; finish(); return;
+      pend.p2 = pt; if (tool === "chan") chanFit(pend); if (tool !== "measure") drawings().push(pend); else lastMeasure = pend; pend = null; finish(); return;
     }
     sel = hitTest(param.point.x, param.point.y); priceLines(); ovDirty = true; stat(sel >= 0 ? "Drawing selected · press Delete to remove" : "");
   });
   let lastMeasure = null;
+  // channel: offset (in price at the line) that reaches the farthest high or low between the two points, on the other side
+  function chanFit(d) { const b = data(), a = idxAt(Math.min(d.p1.t, d.p2.t)), z = idxAt(Math.max(d.p1.t, d.p2.t)); if (a < 0 || z <= a) { d.off = (d.p2.p - d.p1.p) * 0.5 || d.p1.p * 0.01; return; }
+    const lineAt = t => d.p1.p + (d.p2.p - d.p1.p) * (t - d.p1.t) / ((d.p2.t - d.p1.t) || 1); let up = 0, dn = 0;
+    for (let i = a; i <= z; i++) { const L = lineAt(b[i].t); up = Math.max(up, b[i].h - L); dn = Math.max(dn, L - b[i].l); }
+    d.off = up >= dn ? up : -dn; }
   function finish() { save(); priceLines(); ovDirty = true; if (tool === "measure") return; setTool(null); }
   chart.subscribeCrosshairMove(param => {
     hover = param.point ? ptFrom(param) : null; if (pend && hover) { pend.p2 = hover; ovDirty = true; }
@@ -339,17 +349,37 @@
       if (d.type === "hline" || d.type === "alert") dist = Math.abs(py - y1);
       else if (d.type === "vline") dist = Math.abs(px - x1);
       else if (x1 == null || x2 == null || y1 == null || y2 == null) return;
-      else if (d.type === "trend") dist = segDist(px, py, x1, y1, x2, y2);
+      else if (d.type === "trend" || d.type === "arrow") dist = segDist(px, py, x1, y1, x2, y2);
+      else if (d.type === "xline" && x2 !== x1) { const k = 4000; dist = segDist(px, py, x1 - (x2 - x1) * k, y1 - (y2 - y1) * k, x2 + (x2 - x1) * k, y2 + (y2 - y1) * k); }
+      else if (d.type === "chan") { const o1 = Y(d.p1.p + (d.off || 0)), o2 = Y(d.p2.p + (d.off || 0)); dist = Math.min(segDist(px, py, x1, y1, x2, y2), o1 != null && o2 != null ? segDist(px, py, x1, o1, x2, o2) : Infinity); }
+      else if (d.type === "long" || d.type === "short") { const st = Y(posStop(d)), inX = px >= Math.min(x1, x2) && px <= Math.max(x1, x2), ys = [y1, y2, st].filter(v => v != null); dist = inX && py >= Math.min(...ys) && py <= Math.max(...ys) ? 3 : Infinity; }
       else if (d.type === "ray") { const k = 4000; const ex = x2 + (x2 - x1) * k, ey = y2 + (y2 - y1) * k; dist = segDist(px, py, x1, y1, ex, ey); }
+      else if (d.type === "xline") { if (x2 === x1) return; const k = 4000; g.beginPath(); g.moveTo(x1 - (x2 - x1) * k, y1 - (y2 - y1) * k); g.lineTo(x2 + (x2 - x1) * k, y2 + (y2 - y1) * k); g.stroke(); [[x1, y1], [x2, y2]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); }); }
+      else if (d.type === "arrow") { g.lineWidth = isSel ? 3 : 2.2; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); const an = Math.atan2(y2 - y1, x2 - x1), L = 12; g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - L * Math.cos(an - 0.45), y2 - L * Math.sin(an - 0.45)); g.lineTo(x2 - L * Math.cos(an + 0.45), y2 - L * Math.sin(an + 0.45)); g.closePath(); g.fill(); }
+      else if (d.type === "chan") { const off = d === pend ? 0 : (d.off || 0), o1 = Y(d.p1.p + off), o2 = Y(d.p2.p + off); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+        if (o1 != null && o2 != null && off) { g.beginPath(); g.moveTo(x1, o1); g.lineTo(x2, o2); g.stroke(); g.fillStyle = alpha(T.acc, 0.1); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineTo(x2, o2); g.lineTo(x1, o1); g.closePath(); g.fill();
+          const m1 = Y(d.p1.p + off / 2), m2 = Y(d.p2.p + off / 2); if (m1 != null && m2 != null) { g.setLineDash([4, 4]); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(x1, m1); g.lineTo(x2, m2); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; } } }
+      else if (d.type === "long" || d.type === "short") {
+        const stop = posStop(d), ys = Y(stop), xl = Math.min(x1, x2), xr = Math.max(x1, x2, x1 + 60), wd = xr - xl; if (ys == null) return;
+        const good = (d.type === "long") === (d.p2.p > d.p1.p);
+        g.fillStyle = alpha(T.up, 0.16); g.fillRect(xl, Math.min(y1, y2), wd, Math.abs(y2 - y1)); g.fillStyle = alpha(T.down, 0.16); g.fillRect(xl, Math.min(y1, ys), wd, Math.abs(ys - y1));
+        g.strokeStyle = isSel ? T.amber : T.dim; g.lineWidth = 1; g.beginPath(); g.moveTo(xl, y1); g.lineTo(xr, y1); g.stroke();
+        const rew = Math.abs(d.p2.p - d.p1.p), risk = Math.abs(d.p1.p - stop), rr = risk ? rew / risk : NaN; g.font = "11px 'JetBrains Mono',monospace";
+        const lab = (y, t, c) => { const tw = g.measureText(t).width; g.fillStyle = c; g.fillRect(xl + 2, y - 8, tw + 8, 16); g.fillStyle = "#fff"; g.fillText(t, xl + 6, y + 4); };
+        lab(y2 + (y2 < y1 ? 10 : -10), `Target ${fp(d.p2.p)} (${((d.p2.p / d.p1.p - 1) * 100).toFixed(2)}%)`, T.up);
+        lab(ys + (ys > y1 ? -10 : 10), `Stop ${fp(stop)} (${((stop / d.p1.p - 1) * 100).toFixed(2)}%)`, T.down);
+        lab(y1, `${d.type === "long" ? "Long" : "Short"} ${fp(d.p1.p)} · R:R ${isFinite(rr) ? rr.toFixed(2) : "--"}${good ? "" : " · target on the wrong side"}`, isSel ? T.amber : T.acc);
+      }
       else if (d.type === "rect") { const inX = px >= Math.min(x1, x2) && px <= Math.max(x1, x2), inY = py >= Math.min(y1, y2) && py <= Math.max(y1, y2); dist = inX && inY ? 3 : Infinity; }
       else if (d.type === "fibd") { if (px >= Math.min(x1, x2) - 4) FIBS.forEach(r => { const y = Y(d.p2.p + (d.p1.p - d.p2.p) * r); if (y != null) dist = Math.min(dist, Math.abs(py - y)); }); }
       if (dist < bd) { bd = dist; best = i; }
     });
     return best;
   }
+  const posStop = d => d.stop != null ? d.stop : d.p1.p - (d.p2.p - d.p1.p) / 2;
   const FIBS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
   function del() { if (sel < 0) return; drawings().splice(sel, 1); sel = -1; save(); priceLines(); ovDirty = true; stat(""); }
-  function setTool(t) { tool = t || null; pend = null; document.querySelectorAll("#pcTools [data-tool]").forEach(b => b.classList.toggle("on", (b.dataset.tool || null) === tool)); stat(tool ? ({ trend: "Click the start, then the end", ray: "Click two points", hline: "Click a price", alert: "Click a price: you get an alert when SOXL crosses it", vline: "Click a time", rect: "Click two corners", fibd: "Click the swing start, then the swing end", measure: "Click two points to measure" }[tool] || "") + " · Esc to cancel" : ""); }
+  function setTool(t) { tool = t || null; pend = null; document.querySelectorAll("#pcTools [data-tool]").forEach(b => b.classList.toggle("on", (b.dataset.tool || null) === tool)); stat(tool ? ({ trend: "Click the start, then the end", ray: "Click two points", hline: "Click a price", alert: "Click a price: you get an alert when SOXL crosses it", vline: "Click a time", rect: "Click two corners", fibd: "Click the swing start, then the swing end", measure: "Click two points to measure", xline: "Click two points", chan: "Click two points on one side of the channel", arrow: "Click the start, then the tip", long: "Click the entry, then the target", short: "Click the entry, then the target" }[tool] || "") + " · Esc to cancel" : ""); }
   // alerts on alert lines
   let lastP = NaN;
   function checkAlerts(P) {
@@ -508,6 +538,24 @@
 
   // stock pages: open the pro chart full screen for that stock
   window.pcOpen = function (sym) { const s = (sym || "").toUpperCase(); if (lsGet("soxx_pc_classic")) classic(false); if (okSym(s) && s !== O.sym) { O.sym = s; save(); syncUi(); B = []; update(); load(true); } if (!$p("pcWrap").classList.contains("pcfs")) fsToggle(); };
+
+  // stock pages: put the same pro chart inside the stock page (all tools, indicators and drawings), and back
+  let dockPrev = null;
+  window.pcDock = function (el, sym) {
+    const w = $p("pcWrap"), s = (sym || "").toUpperCase(); if (!el || !w || !okSym(s)) return false;
+    if (lsGet("soxx_pc_classic")) classic(false);
+    if (w.classList.contains("pcfs")) fsToggle();
+    if (w.parentNode !== el) el.appendChild(w);
+    if (dockPrev == null) dockPrev = O.sym;
+    if (s !== O.sym) { O.sym = s; syncUi(); B = []; update(); load(true); } else { ovDirty = true; }
+    return true;
+  };
+  window.pcUndock = function () {
+    const w = $p("pcWrap"); if (!w) return; if (w.classList.contains("pcfs")) fsToggle();
+    if (w.parentNode !== mount) mount.appendChild(w);
+    if (dockPrev != null && dockPrev !== O.sym) { O.sym = dockPrev; syncUi(); B = []; update(); load(true); }
+    dockPrev = null; save(); ovDirty = true;
+  };
 
   // ---------- start ----------
   syncUi(); card.classList.add("pc-on");

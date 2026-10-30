@@ -54,9 +54,9 @@ The live chart uses TradingView's open-source Lightweight Charts engine (Apache 
 - **Indicators:** volume, session VWAP with ±1σ/±2σ bands, EMA 9/21/50, SMA 200, Bollinger 20/2, RSI and MACD panes, volume profile of the visible range (with POC).
 - **Levels:** prior-day high, low and close; pre-market high and low; auto Fibonacci; SOXL liquidity levels; the Sniper 1h–24h targets.
 - **Context:** pre-market and after-hours shading, strong news markers (hover a bar to read the headline), earnings and macro events as vertical lines.
-- **Drawing tools:** trend line, ray, horizontal level, **alert line** (alerts when the price crosses it), vertical line, zone, Fibonacci retracement, measure. Drawings are kept per symbol in your browser. Select a drawing and press Delete to remove it.
+- **Drawing tools:** trend line, extended line, ray, parallel channel (the second side snaps to the farthest price), arrow, long and short position (entry, target, stop at 2:1, with R:R and %), horizontal level, **alert line** (alerts when the price crosses it), vertical line, zone, Fibonacci retracement, measure. Drawings are kept per symbol in your browser. Select a drawing and press Delete to remove it.
 - **Bar replay:** select Replay, click a bar, then play or step forward to practice.
-- **Snapshot** saves a PNG; **⤢** opens full screen. On a stock page, **Pro chart ⤢** opens that stock. **Classic** goes back to the old chart.
+- **Snapshot** saves a PNG; **⤢** opens full screen. Every stock page (select a stock in the grid at the bottom) now has this same pro chart, with all tools, indicators and drawings, for that stock; **⤢ Full screen** makes it full screen. **Classic** goes back to the old chart.
 
 ### Live chart and big-move radar (made for large moves)
 A candle chart for SOXL near the top of the page, and on every stock page. It updates every 15 seconds from the Worker, and every second from live trades. Everything is calculated in the browser from real-time prices:

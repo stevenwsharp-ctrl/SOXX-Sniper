@@ -341,9 +341,10 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     <section class="card sv-story" id="svStory"></section>
     <section class="card" style="margin-bottom:12px">
       <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0" id="svChartLab">Today · with pre-market and after-hours</div>
-        <div class="row"><button onclick="window.pcOpen&&pcOpen(curSym)" title="Open this stock in the pro chart (drawings, indicators, replay)">Pro chart ⤢</button><button data-svr="1d" class="on">1D</button><button data-svr="5d">5D</button></div></div>
-      <div class="row" id="svTaCtl" style="margin-bottom:8px"></div>
-      <div class="chartwrap" style="height:360px"><canvas id="svChart"></canvas><div class="tatip" id="svTip"></div></div>
+        <div class="row" id="svChartBtns"><button onclick="window.pcOpen&&pcOpen(curSym)" title="Full screen">⤢ Full screen</button><span id="svClassicBtns"><button data-svr="1d" class="on">1D</button><button data-svr="5d">5D</button></span></div></div>
+      <div id="svPcMount"></div>
+      <div id="svClassic"><div class="row" id="svTaCtl" style="margin-bottom:8px"></div>
+      <div class="chartwrap" style="height:360px"><canvas id="svChart"></canvas><div class="tatip" id="svTip"></div></div></div>
       <div class="label" style="margin-top:12px">Big-move radar</div><div class="stiles" id="svRadar"></div>
       <div class="stiles" id="svStats" style="margin-top:12px"></div>
     </section>
@@ -3929,10 +3930,11 @@ $("ctForm").onsubmit=e=>{e.preventDefault();const t=$("ctTopic").value,n=$("ctNa
 function openStock(s){
   const first=curSym!==s;curSym=s;
   $("mainView").style.display="none";$("stockView").style.display="block";
-  if(first){window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true);svLoadExtra(s);svxT=0;startSvNews();renderSvAlerts(s);if(!CRYPTO.includes(s))taLoad(s,true).then(()=>taRender(true))}
+  if(first){svPcDock(s);window.scrollTo(0,0);svRange="1d";document.querySelectorAll("[data-svr]").forEach(b=>b.classList.toggle("on",b.dataset.svr==="1d"));svLoad(s,true);svLoadExtra(s);svxT=0;startSvNews();renderSvAlerts(s);if(!CRYPTO.includes(s))taLoad(s,true).then(()=>taRender(true))}
   renderStock(true);
 }
-function closeStock(){curSym=null;clearInterval(svNewsT);$("stockView").style.display="none";$("contactView").style.display="none";$("mainView").style.display="block";document.title="SOXX Sniper";dirty=true}
+function svPcDock(s){const ok=!!(window.pcDock&&pcDock($("svPcMount"),s));$("svClassic").style.display=ok?"none":"";$("svClassicBtns").style.display=ok?"none":"";$("svChartLab").textContent=ok?"Pro chart · draw trend lines, channels, Fibonacci, long/short setups · all indicators":"Today · with pre-market and after-hours"}
+function closeStock(){if(curSym&&window.pcUndock)try{pcUndock()}catch(e){}curSym=null;clearInterval(svNewsT);$("stockView").style.display="none";$("contactView").style.display="none";$("mainView").style.display="block";document.title="SOXX Sniper";dirty=true}
 async function fhSoon(path,tag){for(let i=0;i<20&&(fhUsed()>=55||Date.now()<fhQ.backoff);i++)await sleep(600);return fhGet(path,tag)}
 async function svLoad(s,full){
   const d=svData[s]||(svData[s]={news:[],earn:null,c1d:null,c5d:null,t:0});
@@ -4063,7 +4065,7 @@ function renderStock(force){
   if(!pts.length){const hb=hist[s]||[];pts=hb.filter(b=>etInfo(b.m*60000).d===etDate()).map(b=>{const e=etInfo(b.m*60000);return{t:b.m*60000,c:b.c,d:e.d,min:e.min}})}
   if(pts.length&&q.c>0&&pts[pts.length-1].c!==q.c){const e=etInfo(now);pts.push({t:now,c:q.c,d:e.d,min:Math.max(e.min,pts[pts.length-1].min)})}
   if(CRYPTO.includes(s))pts.forEach(p=>p.min=600);
-  $("svChartLab").textContent=svRange==="5d"?"Last 5 days · 5-minute · extended hours shaded":"Today · 1-minute · extended hours shaded";
+  if($("svClassic").style.display!=="none")$("svChartLab").textContent=svRange==="5d"?"Last 5 days · 5-minute · extended hours shaded":"Today · 1-minute · extended hours shaded";
   if(svRange==="1d"&&!CRYPTO.includes(s)&&TAD[s]&&TAD[s].c1d){$("svChartLab").textContent="Today · candles · VWAP, Fibonacci, EMA, levels · extended hours shaded";taCalc(s);taDraw("sv")}
   else priceChart($("svChart"),pts,pr.pc);
   $("svTaCtl").style.display=svRange==="1d"&&!CRYPTO.includes(s)?"flex":"none";
@@ -4186,7 +4188,7 @@ if(apiKey)startLive();else{openModal();initMemory("soxx_sniper_live")}
 render();renderAnalysis();drawChart();
 </script>
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-<script src="prochart.js?v=5"></script>
+<script src="prochart.js?v=6"></script>
 <script src="whales.js?v=3"></script>
 <script src="trio.js?v=2"></script>
 <script src="gtlog.js?v=1"></script>
