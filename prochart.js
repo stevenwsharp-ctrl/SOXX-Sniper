@@ -368,22 +368,6 @@
       else if (d.type === "chan") { const o1 = Y(d.p1.p + (d.off || 0)), o2 = Y(d.p2.p + (d.off || 0)); dist = Math.min(segDist(px, py, x1, y1, x2, y2), o1 != null && o2 != null ? segDist(px, py, x1, o1, x2, o2) : Infinity); }
       else if (d.type === "long" || d.type === "short") { const st = Y(posStop(d)), inX = px >= Math.min(x1, x2) && px <= Math.max(x1, x2), ys = [y1, y2, st].filter(v => v != null); dist = inX && py >= Math.min(...ys) && py <= Math.max(...ys) ? 3 : Infinity; }
       else if (d.type === "ray") { const k = 4000; const ex = x2 + (x2 - x1) * k, ey = y2 + (y2 - y1) * k; dist = segDist(px, py, x1, y1, ex, ey); }
-      else if (d.type === "xline") { if (x2 === x1) return; const k = 4000; g.beginPath(); g.moveTo(x1 - (x2 - x1) * k, y1 - (y2 - y1) * k); g.lineTo(x2 + (x2 - x1) * k, y2 + (y2 - y1) * k); g.stroke(); [[x1, y1], [x2, y2]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); }); }
-      else if (d.type === "arrow") { g.lineWidth = isSel ? 3 : 2.2; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); const an = Math.atan2(y2 - y1, x2 - x1), L = 12; g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - L * Math.cos(an - 0.45), y2 - L * Math.sin(an - 0.45)); g.lineTo(x2 - L * Math.cos(an + 0.45), y2 - L * Math.sin(an + 0.45)); g.closePath(); g.fill(); }
-      else if (d.type === "chan") { const off = d === pend ? 0 : (d.off || 0), o1 = Y(d.p1.p + off), o2 = Y(d.p2.p + off); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
-        if (o1 != null && o2 != null && off) { g.beginPath(); g.moveTo(x1, o1); g.lineTo(x2, o2); g.stroke(); g.fillStyle = alpha(T.acc, 0.1); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineTo(x2, o2); g.lineTo(x1, o1); g.closePath(); g.fill();
-          const m1 = Y(d.p1.p + off / 2), m2 = Y(d.p2.p + off / 2); if (m1 != null && m2 != null) { g.setLineDash([4, 4]); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(x1, m1); g.lineTo(x2, m2); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; } } }
-      else if (d.type === "long" || d.type === "short") {
-        const stop = posStop(d), ys = Y(stop), xl = Math.min(x1, x2), xr = Math.max(x1, x2, x1 + 60), wd = xr - xl; if (ys == null) return;
-        const good = (d.type === "long") === (d.p2.p > d.p1.p);
-        g.fillStyle = alpha(T.up, 0.16); g.fillRect(xl, Math.min(y1, y2), wd, Math.abs(y2 - y1)); g.fillStyle = alpha(T.down, 0.16); g.fillRect(xl, Math.min(y1, ys), wd, Math.abs(ys - y1));
-        g.strokeStyle = isSel ? T.amber : T.dim; g.lineWidth = 1; g.beginPath(); g.moveTo(xl, y1); g.lineTo(xr, y1); g.stroke();
-        const rew = Math.abs(d.p2.p - d.p1.p), risk = Math.abs(d.p1.p - stop), rr = risk ? rew / risk : NaN; g.font = "11px 'JetBrains Mono',monospace";
-        const lab = (y, t, c) => { const tw = g.measureText(t).width; g.fillStyle = c; g.fillRect(xl + 2, y - 8, tw + 8, 16); g.fillStyle = "#fff"; g.fillText(t, xl + 6, y + 4); };
-        lab(y2 + (y2 < y1 ? 10 : -10), `Target ${fp(d.p2.p)} (${((d.p2.p / d.p1.p - 1) * 100).toFixed(2)}%)`, T.up);
-        lab(ys + (ys > y1 ? -10 : 10), `Stop ${fp(stop)} (${((stop / d.p1.p - 1) * 100).toFixed(2)}%)`, T.down);
-        lab(y1, `${d.type === "long" ? "Long" : "Short"} ${fp(d.p1.p)} · R:R ${isFinite(rr) ? rr.toFixed(2) : "--"}${good ? "" : " · target on the wrong side"}`, isSel ? T.amber : T.acc);
-      }
       else if (d.type === "rect") { const inX = px >= Math.min(x1, x2) && px <= Math.max(x1, x2), inY = py >= Math.min(y1, y2) && py <= Math.max(y1, y2); dist = inX && inY ? 3 : Infinity; }
       else if (d.type === "fibd") { if (px >= Math.min(x1, x2) - 4) FIBS.forEach(r => { const y = Y(d.p2.p + (d.p1.p - d.p2.p) * r); if (y != null) dist = Math.min(dist, Math.abs(py - y)); }); }
       if (dist < bd) { bd = dist; best = i; }
@@ -459,6 +443,22 @@
       if (d.type === "hline" || d.type === "alert") return; // drawn as price lines
       if (x1 == null || x2 == null || y1 == null || y2 == null) return;
       if (d.type === "trend" || d.type === "ray") { g.beginPath(); g.moveTo(x1, y1); let ex = x2, ey = y2; if (d.type === "ray" && x2 !== x1) { const k = (w - x1) / (x2 - x1); if (k > 1) { ex = x1 + (x2 - x1) * k; ey = y1 + (y2 - y1) * k; } } g.lineTo(ex, ey); g.stroke(); [[x1, y1], [x2, y2]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); }); }
+      else if (d.type === "xline") { if (x2 === x1) return; const k = 4000; g.beginPath(); g.moveTo(x1 - (x2 - x1) * k, y1 - (y2 - y1) * k); g.lineTo(x2 + (x2 - x1) * k, y2 + (y2 - y1) * k); g.stroke(); [[x1, y1], [x2, y2]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); }); }
+      else if (d.type === "arrow") { g.lineWidth = isSel ? 3 : 2.2; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); const an = Math.atan2(y2 - y1, x2 - x1), L = 12; g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - L * Math.cos(an - 0.45), y2 - L * Math.sin(an - 0.45)); g.lineTo(x2 - L * Math.cos(an + 0.45), y2 - L * Math.sin(an + 0.45)); g.closePath(); g.fill(); }
+      else if (d.type === "chan") { const off = d === pend ? 0 : (d.off || 0), o1 = Y(d.p1.p + off), o2 = Y(d.p2.p + off); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+        if (o1 != null && o2 != null && off) { g.beginPath(); g.moveTo(x1, o1); g.lineTo(x2, o2); g.stroke(); g.fillStyle = alpha(T.acc, 0.1); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineTo(x2, o2); g.lineTo(x1, o1); g.closePath(); g.fill();
+          const m1 = Y(d.p1.p + off / 2), m2 = Y(d.p2.p + off / 2); if (m1 != null && m2 != null) { g.setLineDash([4, 4]); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(x1, m1); g.lineTo(x2, m2); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; } } }
+      else if (d.type === "long" || d.type === "short") {
+        const stop = posStop(d), ys = Y(stop), xl = Math.min(x1, x2), xr = Math.max(x1, x2, x1 + 60), wd = xr - xl; if (ys == null) return;
+        const good = (d.type === "long") === (d.p2.p > d.p1.p);
+        g.fillStyle = alpha(T.up, 0.16); g.fillRect(xl, Math.min(y1, y2), wd, Math.abs(y2 - y1)); g.fillStyle = alpha(T.down, 0.16); g.fillRect(xl, Math.min(y1, ys), wd, Math.abs(ys - y1));
+        g.strokeStyle = isSel ? T.amber : T.dim; g.lineWidth = 1; g.beginPath(); g.moveTo(xl, y1); g.lineTo(xr, y1); g.stroke();
+        const rew = Math.abs(d.p2.p - d.p1.p), risk = Math.abs(d.p1.p - stop), rr = risk ? rew / risk : NaN; g.font = "11px 'JetBrains Mono',monospace";
+        const lab = (y, t, c) => { const tw = g.measureText(t).width; g.fillStyle = c; g.fillRect(xl + 2, y - 8, tw + 8, 16); g.fillStyle = "#fff"; g.fillText(t, xl + 6, y + 4); };
+        lab(y2 + (y2 < y1 ? 10 : -10), `Target ${fp(d.p2.p)} (${((d.p2.p / d.p1.p - 1) * 100).toFixed(2)}%)`, T.up);
+        lab(ys + (ys > y1 ? -10 : 10), `Stop ${fp(stop)} (${((stop / d.p1.p - 1) * 100).toFixed(2)}%)`, T.down);
+        lab(y1, `${d.type === "long" ? "Long" : "Short"} ${fp(d.p1.p)} · R:R ${isFinite(rr) ? rr.toFixed(2) : "--"}${good ? "" : " · target on the wrong side"}`, isSel ? T.amber : T.acc);
+      }
       else if (d.type === "rect") { g.fillStyle = alpha(T.acc, 0.12); g.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); g.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); }
       else if (d.type === "fibd") { const R = d.p1.p - d.p2.p; g.font = "10px 'JetBrains Mono',monospace"; FIBS.forEach(r => { const p = d.p2.p + R * r, y = Y(p); if (y == null) return; g.globalAlpha = 0.85; g.beginPath(); g.moveTo(Math.min(x1, x2), y); g.lineTo(w, y); g.stroke(); g.fillText(`${(r * 100).toFixed(1)}%  ${fp(p)}`, Math.min(x1, x2) + 4, y - 3); g.globalAlpha = 1; }); }
       else if (d.type === "measure") {
