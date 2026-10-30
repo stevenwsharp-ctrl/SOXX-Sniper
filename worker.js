@@ -16,6 +16,8 @@
 //        GET https://<your-worker>.workers.dev/social?t=SOXL&max=123   (older messages, for the caller track record)
 //        GET https://<your-worker>.workers.dev/news?t=NVDA&q=Nvidia    (fresh headlines: Google News + Yahoo Finance, newest first)
 //        GET https://<your-worker>.workers.dev/news?t=SOXL,NVDA,AMD&q=SOXL|Nvidia|AMD   (one feed for many stocks)
+//        GET https://<your-worker>.workers.dev/letf/list               (LETF Sniper: every US leveraged / inverse ETF, parsed; refreshed every 12 h)
+//        GET https://<your-worker>.workers.dev/letf/quotes             (LETF Sniper: live quotes for all funds and their underlyings, about every 10 s)
 
 const ALLOW = new Set([
   "DFF","CPIAUCSL","CPILFESL","UNRATE","A191RL1Q225SBEA","ICSA","UMCSENT","NFCI","T10YIE",
@@ -336,6 +338,63 @@ async function getNews(tickers, terms) {
   return body;
 }
 
+// ---- LETF Sniper: the universe of US leveraged and inverse ETFs (Nasdaq ETF screener) and batch quotes (StockTwits) ----
+const LETF_BRANDS = ["Direxion","ProShares","GraniteShares","Tradr","T-REX","T-Rex","Defiance","Corgi","Leverage Shares","MicroSectors","Volatility Shares","Kurv","Roundhill","Tuttle","AXS","Bitwise","Valkyrie","Cyber Hornet","Teucrium","Rareview","21Shares","ETRACS","MAX ","USCF","Max "];
+const LETF_NAMES = { "SK hynix":"SKHY","Sk Hynix":"SKHY","SK Hynix":"SKHY",Apple:"AAPL",Tesla:"TSLA",Nvidia:"NVDA",NVIDIA:"NVDA",Microsoft:"MSFT",Amazon:"AMZN",Meta:"META",Alphabet:"GOOGL",Google:"GOOGL",Netflix:"NFLX",Palantir:"PLTR",Coinbase:"COIN",MicroStrategy:"MSTR",Broadcom:"AVGO",Intel:"INTC",Micron:"MU",Robinhood:"HOOD",Uber:"UBER",Shopify:"SHOP",Oracle:"ORCL",Salesforce:"CRM",Boeing:"BA",Disney:"DIS","Eli Lilly":"LLY",Rivian:"RIVN",GameStop:"GME",Supermicro:"SMCI","Super Micro":"SMCI",Reddit:"RDDT",SoFi:"SOFI",Roblox:"RBLX",IonQ:"IONQ",Rigetti:"RGTI",Oklo:"OKLO",Alibaba:"BABA",Baidu:"BIDU",CrowdStrike:"CRWD",Affirm:"AFRM",Hims:"HIMS",Circle:"CRCL",SpaceX:"SPCX" };
+const LETF_IDX = [[/magnificent ?(7|seven)/i,"MAGS","Magnificent 7"],[/semiconductor|\bSOX\b/i,"SOXX","Semiconductors"],[/memory/i,"DRAM","Memory chips"],[/s&p ?500|\bS&P\b(?! mid| small| reg| oil| bio| hom| retail)/i,"SPY","S&P 500"],[/nasdaq[- ]?100|\bQQQ\b|innovation 100|nasdaq/i,"QQQ","Nasdaq-100"],[/russell ?2000|small[- ]?cap/i,"IWM","Small caps"],[/micro[- ]?cap/i,"IWC","Micro caps"],[/\bdow\b|dow ?30|dow jones/i,"DIA","Dow"],[/mid[- ]?cap/i,"MDY","Mid caps"],[/large[- ]?cap|total u\.?s\.? market/i,"VTI","US market"],[/mega[- ]?cap growth|u\.s\. growth/i,"MGK","Large growth"],[/junior gold/i,"GDXJ","Junior gold miners"],[/gold miners/i,"GDX","Gold miners"],[/copper/i,"CPER","Copper"],[/\bgold\b/i,"GLD","Gold"],[/silver/i,"SLV","Silver"],[/palladium/i,"PALL","Palladium"],[/platinum/i,"PPLT","Platinum"],[/\bcorn\b/i,"CORN","Corn"],[/wheat/i,"WEAT","Wheat"],[/all commodities/i,"DBC","Commodities"],[/20\+? ?(year|yr)|long[- ]term treasur|\bTLT\b/i,"TLT","20+ yr Treasury"],[/7-10 ?year|10 ?year/i,"IEF","10-yr Treasury"],[/investment grade/i,"LQD","Investment-grade bonds"],[/high yield|junk/i,"HYG","High yield"],[/bitcoin|\bBTC\b/i,"BTC.X","Bitcoin"],[/\bether\b|ethereum|\bETH\b/i,"ETH.X","Ether"],[/solana|\bSOL\b/i,"SOL.X","Solana"],[/\bXRP\b/i,"XRP.X","XRP"],[/dogecoin/i,"DOGE.X","Dogecoin"],[/\bsui\b/i,"SUI.X","Sui"],[/crypto/i,"BTC.X","Crypto"],[/crude|\boil\b/i,"USO","Oil"],[/natural gas/i,"UNG","Natural gas"],[/regional bank/i,"KRE","Regional banks"],[/financial|bank/i,"XLF","Financials"],[/biotech/i,"XBI","Biotech"],[/communication/i,"XLC","Communication"],[/technology|\btech\b/i,"XLK","Technology"],[/energy/i,"XLE","Energy"],[/homebuild/i,"ITB","Homebuilders"],[/retail/i,"XRT","Retail"],[/real estate/i,"XLRE","Real estate"],[/mortgage reit/i,"REM","Mortgage REITs"],[/\bmlp\b/i,"AMLP","MLPs"],[/\bbdc\b/i,"BIZD","BDCs"],[/closed-end/i,"CEFS","Closed-end funds"],[/china internet|chinese internet|csi china/i,"KWEB","China internet"],[/china/i,"FXI","China"],[/emerging/i,"EEM","Emerging markets"],[/japan/i,"EWJ","Japan"],[/korea/i,"EWY","Korea"],[/taiwan/i,"EWT","Taiwan"],[/india/i,"INDA","India"],[/brazil/i,"EWZ","Brazil"],[/mexico/i,"EWW","Mexico"],[/ex-u\.?s/i,"VXUS","Ex-US stocks"],[/all world|world stock/i,"ACWI","World stocks"],[/europe|eafe/i,"EFA","Developed markets"],[/fang/i,"FNGS","FANG+"],[/space/i,"UFO","Space"],[/airline|travel/i,"JETS","Airlines and travel"],[/auto industry/i,"CARZ","Autos"],[/aerospace|defense/i,"ITA","Defense"],[/health ?care|pharma/i,"XLV","Health care"],[/utilit/i,"XLU","Utilities"],[/industrial/i,"XLI","Industrials"],[/infrastructure/i,"PAVE","Infrastructure"],[/material/i,"XLB","Materials"],[/consumer discr/i,"XLY","Consumer discretionary"],[/consumer stap/i,"XLP","Consumer staples"],[/transport/i,"IYT","Transports"],[/\bvix\b|volatility/i,"VIXY","VIX futures"],[/cloud|software/i,"IGV","Software"],[/cyber/i,"HACK","Cybersecurity"],[/dollar/i,"UUP","US dollar"],[/\beuro\b/i,"FXE","Euro"],[/\byen\b/i,"FXY","Yen"],[/\bai\b|artificial intel|big data/i,"AIQ","AI"],[/quantum/i,"QTUM","Quantum"],[/uranium|nuclear/i,"URA","Uranium"],[/innovation/i,"ARKK","Innovation"]];
+const LETF_STOP = new Set(["ETF","ETN","ETNS","DAILY","LONG","SHORT","BULL","BEAR","US","U.S.","USD","MSCI","FTSE","CSI","NYSE","FANG","ULTRA","TARGET","INDEX","X","II","I","III","IV","TR","AND","OF","THE","SPDR","ADR","REX","T","CORGI","S","P","AI","E","QQQ","SOX","BTC","ETH","SOL","XRP","VIX","K","MAX"]);
+const LETF_RE1 = /(?:[Ll]ong|[Ss]hort|[Ii]nverse|[Dd]aily|[Bb]ull|[Bb]ear|[Tt]arget|\d(?:\.\d+)?\s*[xX])\s+([A-Z][A-Z.]{0,5})\b/g, LETF_RE2 = /\b([A-Z][A-Z.]{0,5})\s+(?:[Bb]ull|[Bb]ear|\d(?:\.\d+)?\s*[xX]\b)/g;
+function letfParse(sym, name) {
+  let n = String(name || "").replace(/\s+/g, " ").trim(), bi = -1;
+  for (const b of LETF_BRANDS) { const i = n.indexOf(b); if (i >= 0 && (bi < 0 || i < bi)) bi = i; }
+  if (bi > 0) n = n.slice(bi);
+  if (/buffer|income|premium|covered|duration|maturity|floating|managed futures|hedged|treasury bill|defined|risk parity|ultra-small|ultra[- ]?short (bond|term|treasury|municipal|government|investment|tax)|ultrashort (bond|treasury|tax)/i.test(n) && !/\d(\.\d+)?\s*x\b|bull|bear/i.test(n)) return null;
+  let L = 0, neg = /\b(short|bear|inverse)\b(?!-term)/i.test(n);
+  const m = n.match(/(-?\d+(?:\.\d+)?)\s*x\b/i);
+  if (m) { L = Math.abs(parseFloat(m[1])); if (m[1].startsWith("-")) neg = true; }
+  else if (/ProShares/i.test(n)) {
+    neg = false;
+    if (/ultrapro short/i.test(n)) { L = 3; neg = true; } else if (/ultrashort/i.test(n)) { L = 2; neg = true; }
+    else if (/ultrapro/i.test(n)) L = 3; else if (/\bultra\b/i.test(n)) L = 2; else if (/proshares short\b/i.test(n)) { L = 1; neg = true; }
+  } else if (/\binverse\b/i.test(n)) { L = 1; neg = true; }
+  if (!L || (!neg && L < 1.2) || L > 5) return null;
+  let u = null, kind = "index", lab = null;
+  for (const k in LETF_NAMES) if (new RegExp("\\b" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(n)) { u = LETF_NAMES[k]; break; }
+  if (!u) for (const re of [LETF_RE1, LETF_RE2]) { re.lastIndex = 0; let x; while ((x = re.exec(n))) { if (!LETF_STOP.has(x[1])) { u = x[1]; break; } } if (u) break; }
+  if (u) { kind = "stock"; lab = u; }
+  else for (const [re, p, l] of LETF_IDX) if (re.test(n)) { u = p; lab = l; kind = /\.X$/.test(p) ? "crypto" : /USO|UNG|GLD|SLV|GDX|GDXJ|URA|CPER|PALL|PPLT|CORN|WEAT|DBC/.test(p) ? "commodity" : /TLT|IEF|HYG|LQD/.test(p) ? "rates" : p === "VIXY" ? "volatility" : "index"; break; }
+  const issuer = (LETF_BRANDS.find(b => n.startsWith(b)) || n.split(" ")[0]).trim();
+  return { s: sym, n: n.replace(/\s+/g, " ").slice(0, 90), L: neg ? -L : L, u, kind, lab: lab || n.replace(/^(Direxion Daily|ProShares|GraniteShares|Leverage Shares|Defiance Daily Target|T-REX|T-Rex|Tradr|Corgi|MicroSectors)\s*/i, "").slice(0, 40), iss: issuer };
+}
+let letfU = null;
+async function letfUniverse() {
+  if (letfU && Date.now() - letfU.at < 12 * 3600000) return letfU;
+  const r = await fetch("https://api.nasdaq.com/api/screener/etf?tableonly=true&download=true", { headers: NQ, cf: { cacheTtl: 3600, cacheEverything: true } });
+  if (!r.ok) { if (letfU) return letfU; throw new Error("Nasdaq screener answered " + r.status); }
+  const j = await r.json(), rows = (j && j.data && j.data.data && j.data.data.rows) || [];
+  const funds = rows.map(x => letfParse(x.symbol, x.companyName)).filter(Boolean);
+  // a name shared by 3+ funds is a data error at the source: do not trust its underlying
+  const cnt = {}; funds.forEach(f => cnt[f.n] = (cnt[f.n] || 0) + 1);
+  funds.forEach(f => { if (cnt[f.n] >= 3 && f.kind === "stock") { f.u = null; f.kind = "unknown"; f.lab = "?"; } });
+  letfU = { at: Date.now(), asOf: j && j.data && j.data.dataAsOf, funds };
+  return letfU;
+}
+let letfQ = null;
+async function letfQuotes() {
+  if (letfQ && Date.now() - letfQ.at < 9000) return letfQ.body;
+  const U = await letfUniverse();
+  const syms = [...new Set([...U.funds.map(f => f.s), ...U.funds.map(f => f.u).filter(Boolean)])];
+  const chunks = []; for (let i = 0; i < syms.length; i += 100) chunks.push(syms.slice(i, i + 100));
+  const res = await Promise.all(chunks.slice(0, 30).map(c => fetch(`https://ql.stocktwits.com/batch?symbols=${encodeURIComponent(c.join(","))}`, { headers: { ...UA, "Origin": "https://stocktwits.com", "Referer": "https://stocktwits.com/" } }).then(r => r.ok ? r.json() : {}).catch(() => ({}))));
+  const q = {};
+  res.forEach(j => { for (const k in j) { const d = j[k]; if (!d || d.Outcome !== "Success") continue;
+    const t = Date.parse(d.ISO8601) || etParse(d.DateTime, d.UTCOffset), xt = etParse(d.ExtendedHoursDateTime, d.UTCOffset);
+    q[k] = [d.Last, d.PercentChange, d.Volume || 0, d.High, d.Low, d.Open, d.PreviousClose, t, d.ExtendedHoursPrice || null, d.ExtendedHoursPercentChange ?? null, xt || null]; } });
+  const body = { status: Object.keys(q).length ? "ok" : "error", at: Date.now(), n: Object.keys(q).length, q };
+  if (body.status === "ok") letfQ = { at: Date.now(), body };
+  return body;
+}
+
 export default {
   async fetch(req, env) {
     const cors = corsHeaders(req, env);
@@ -359,6 +418,13 @@ export default {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       if (!/^\^?[A-Z][A-Z0-9.\-]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
       return json(await yahooChart(t, range, interval));
+    }
+    if (url.pathname === "/letf/list" || url.pathname === "/letf/quotes") {
+      const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      try {
+        if (url.pathname === "/letf/list") { const U = await letfUniverse(); return json({ status: "ok", at: U.at, asOf: U.asOf, n: U.funds.length, funds: U.funds }); }
+        return json(await letfQuotes());
+      } catch (e) { return json({ status: "error", error: String(e.message || e) }, 502); }
     }
     if (url.pathname === "/news") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
