@@ -255,7 +255,7 @@
       const E = nextExp(j); if (!E.length) return tile(`${s} options max pain`, "--", "no open expiry");
       const e = E[0], e2 = E[1], d = isFinite(P) && e.maxPain ? e.maxPain / P - 1 : NaN;
       return tile(`${s} options max pain · ${esc(e.exp.replace(/, \d{4}$/, ""))}`, fmtPx(e.maxPain), `${isFinite(d) ? `${fmtPct(d, 1)} from ${fmtPx(P)} · ` : ""}${e2 ? `next ${esc(e2.exp.replace(/, \d{4}$/, ""))}: ${fmtPx(e2.maxPain)}` : ""}<br>Call wall ${fmtPx(e.callWall)} · put wall ${fmtPx(e.putWall)} · P/C ${e.pcr != null ? e.pcr.toFixed(2) : "--"}`, isFinite(d) ? (d > 0 ? "up" : "down") : ""); };
-    const pn = window.wwPain ? window.wwPain() : null, U = x => { const a = Math.abs(x); return "$" + (a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : Math.round(a / 1e3) + "K"); };
+    const pn = window.wwPain ? window.wwPain() : null, U = x => { const a = Math.abs(x); return "$" + (a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : (a / 1e3).toFixed(1) + "K"); };
     const liq = (side) => { const x = pn && pn[side]; const lab = side === "long" ? "Longs' max pain (liquidations below)" : "Shorts' max pain (liquidations above)";
       return x ? tile(lab, fmtPx(x.p), `${U(x.usd)} of ${x.n} tracked ${side}${x.n > 1 ? "s" : ""} liquidate near here · ${fmtPct(x.d, 1)} away`, side === "long" ? "down" : "up") : tile(lab, "--", pn ? `no tracked ${side} liquidation within 40%` : "waiting for Hyperliquid"); };
     el.innerHTML = `<div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Max pain · both sides</div><span class="sub">Options: open interest from Nasdaq (updates once a day). Liquidations: the tracked Hyperliquid wallets, live.</span></div>
