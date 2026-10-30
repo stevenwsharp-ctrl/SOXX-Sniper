@@ -418,6 +418,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   <section class="card" id="gameCard" style="margin-bottom:12px">
     <div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Game theory · the crowd as players</div><div class="sub" id="gtSub"></div></div>
     <div class="stiles" id="gtTiles"></div>
+    <div id="gtTrend"></div>
     <div class="gtcols">
       <div><div class="label" style="margin-top:14px">Payoff matrix · follow the crowd or fade it? (SOXL history)</div><div class="tw"><table class="tbl" id="gtMat"></table></div></div>
       <div><div class="label" style="margin-top:14px">Players · who moves now, and their likely move</div><div class="tw"><table class="tbl" id="gtPlay"></table></div></div>
@@ -2976,6 +2977,7 @@ function gtNow(rows,T,m,pr){
   if(isNum(m.fr)&&(ph==="regular"||ph==="post"))add(m.fr>0?"bigUp":"bigDn",m.fr,`Today ${fmtPct(m.fr)} so far (for tomorrow)`,true);
   return out;
 }
+function G0dS(pos,ref){return isFinite(pos["30m"].share)&&isFinite(ref)?pos["30m"].share-ref:NaN}
 function gameTheory(a){
   const {cr,pos,fg,lv,lf,T,stS,bf}=a,m=compute(),now=Date.now(),e=etInfo(now),min=demo?660:e.min,ph=T.phase;
   const P=Q[FUND].c,p15=findAt(hist[FUND]||[],nowM()-15,"c"),r15=P>0&&p15>0?P/p15-1:NaN;
@@ -2988,14 +2990,27 @@ function gameTheory(a){
   const coop=w>=1?s/w:NaN;
   const state=!isFinite(coop)?"Collecting data":coop>=0.35?"Cooperation":coop<=-0.35?"Defection":"Standoff";
   const lfLate=lf&&ph==="regular"&&min>=870&&min<960&&Math.abs(lf.usd)>=2e8?lf.usd:0;
-  const down=clamp(0.35*Math.max(0,-(coop||0))+0.2*clamp(-(r15||0)/0.02,0,1)+0.15*(lfLate<0?1:0)+0.15*(vx?clamp(vx.pct/0.1,0,1):0)+0.15*(lv&&lv.dn&&lv.dn.p30>0.6?1:0),0,1);
-  const up=clamp(0.35*Math.max(0,coop||0)+0.2*clamp((r15||0)/0.02,0,1)+0.15*(lfLate>0?1:0)+0.15*(vx?clamp(-vx.pct/0.08,0,1):0)+0.15*(lv&&lv.up&&lv.up.p30>0.6?1:0),0,1);
+  // Run / squeeze odds: chance of a fast 3% SOXL move down / up in the next 30 minutes.
+  // Base rate from the live volatility (never 0: SOXL can always move 3% in 30 min), then pressure terms move the odds.
+  const H1=(hist[FUND]||[]).slice(-61),lr=[];for(let i=1;i<H1.length;i++){const a=H1[i-1].c,b=H1[i].c;if(a>0&&b>0&&H1[i].m-H1[i-1].m<=3)lr.push(Math.log(b/a))}
+  let s1=lr.length>=10?Math.sqrt(lr.reduce((t,x)=>t+x*x,0)/lr.length):NaN;if(!isFinite(s1)||s1<=0)s1=0.0025;
+  const s30=s1*Math.sqrt(30),ncdf=z=>{const t=1/(1+0.2316419*Math.abs(z)),d=0.3989423*Math.exp(-z*z/2),p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return z>0?1-p:p};
+  const base=clamp(1.4*(1-ncdf(0.03/s30)),0.01,0.45),lg=p=>Math.log(p/(1-p)),ex=x=>1/(1+Math.exp(-x));
+  const wp=window.wwPain?wwPain():null,ws=window.wwSummary?wwSummary():null,day=m.fr;
+  const sqT=[[Math.max(0,coop||0),1.0,"buyers in control"],[clamp((r15||0)/0.02,0,1),0.8,"fast rise (15 min)"],[lfLate>0?1:0,0.5,"ETF rebalance buying"],[vx?clamp(-vx.pct/0.08,0,1):0,0.4,"VIX falling"],[lv&&lv.up&&lv.up.p30>0.6?1:0,0.4,"thin liquidity above"],
+    [isFinite(day)?clamp(-day/0.15,0,1):0,0.9,"oversold after a big drop"],[isFinite(G0dS(pos,ref))?clamp(-G0dS(pos,ref)/0.08,0,1):0,0.5,"bears added (SOXS money)"],
+    [ws&&ws.ok&&ws.b.net<0?clamp(-ws.b.net/2e6,0,1):0,0.4,"top traders net short"],[wp&&wp.short&&wp.short.d<0.06?clamp(wp.short.usd/1e6,0,1):0,0.6,"short liquidations close above"],[so&&so.tagged>=8&&so.bull<=0.35?1:0,0.4,"retail fear"]];
+  const rnT=[[Math.max(0,-(coop||0)),1.0,"sellers in control"],[clamp(-(r15||0)/0.02,0,1),0.8,"fast drop (15 min)"],[lfLate<0?1:0,0.5,"ETF rebalance selling"],[vx?clamp(vx.pct/0.1,0,1):0,0.4,"VIX rising"],[lv&&lv.dn&&lv.dn.p30>0.6?1:0,0.4,"thin liquidity below"],
+    [isFinite(day)?clamp(day/0.15,0,1):0,0.9,"overbought after a big rise"],[isFinite(G0dS(pos,ref))?clamp(G0dS(pos,ref)/0.08,0,1):0,0.3,"crowded into SOXL"],
+    [ws&&ws.ok&&ws.b.net>0?clamp(ws.b.net/2e6,0,1):0,0.4,"top traders net long"],[wp&&wp.long&&wp.long.d>-0.06?clamp(wp.long.usd/1e6,0,1):0,0.6,"long liquidations close below"],[so&&so.tagged>=8&&so.bull>=0.8?1:0,0.4,"crowded retail longs"]];
+  const odds=T=>{const z=lg(base)+T.reduce((t,[x,w])=>t+x*w,0);return clamp(ex(z),0.02,0.95)},why=T=>T.filter(([x])=>x>0.15).sort((a,b)=>b[0]*b[1]-a[0]*a[1]).slice(0,2).map(x=>x[2]);
+  const down=odds(rnT),up=odds(sqT),upWhy=why(sqT),dnWhy=why(rnT),baseP=base;
   const rows=gtMatrix(stS),cur=gtNow(rows,T,m,svPrices(FUND));
   const strong=cur.filter(c=>c.r.n>=15&&Math.abs(c.r.t)>=1.5).sort((a,b)=>Math.abs(b.r.t)-Math.abs(a.r.t))[0]||null;
   const focal=lv?lv.levels.filter(l=>/Round|Prior close|High of day|Low of day|VWAP/.test(l.label)).sort((a,b)=>a.d-b.d).slice(0,4):[];
   const FA=fundAgg();
   const part=meanF([isFinite(coop)?0.6*coop:NaN,strong?strong.dir*Math.sign(strong.r.mu)*Math.min(1,Math.abs(strong.r.t)/3):NaN]);
-  return{coop,state,C,down:Math.round(down*100),up:Math.round(up*100),r15,rows,cur,strong,focal,lfLate,so,vx,FA,part,dShare};
+  return{coop,state,C,down:Math.round(down*100),up:Math.round(up*100),upWhy,dnWhy,baseP,r15,rows,cur,strong,focal,lfLate,so,vx,FA,part,dShare};
 }
 function gtPlayers(G,D){
   const P=[],so=G.so,lf=D.lf,stS=D.stS,bf=D.bf,FA=G.FA;
@@ -3021,9 +3036,9 @@ function renderGame(D){
   const bs=G.strong;
   $("gtTiles").innerHTML=
     st("Crowd game",G.state,isFinite(G.coop)?`score ${G.coop>=0?"+":""}${G.coop.toFixed(2)} (−1 sell first … +1 hold/buy)`:"",G.state==="Cooperation"?"up":G.state==="Defection"?"down":"")+
-    st("Run risk (down)",G.down+"/100",G.down>=60?"Sellers race to exit":"Cascade odds now",G.down>=60?"down":"")+
-    st("Squeeze risk (up)",G.up+"/100",G.up>=60?"Shorts and buyers race in":"Cascade odds now",G.up>=60?"up":"")+
-    st("Best response now",bs?(bs.r.mu>0?"Follow":"Fade"):"No edge",bs?`${bs.label}: ${Math.round(bs.r.winR*100)}% win, n=${bs.r.n}`:"No current situation has a tested edge",bs?(bs.dir*Math.sign(bs.r.mu)>0?"up":"down"):"")+
+    st("Run risk (down)",G.down+"/100",`odds of a fast −3% in 30 min${G.dnWhy&&G.dnWhy.length?" · "+G.dnWhy.join(", "):` · base ${Math.round(G.baseP*100)}% from volatility`}`,G.down>=60?"down":"")+
+    st("Squeeze risk (up)",G.up+"/100",`odds of a fast +3% in 30 min${G.upWhy&&G.upWhy.length?" · "+G.upWhy.join(", "):` · base ${Math.round(G.baseP*100)}% from volatility`}`,G.up>=60?"up":"")+
+    st("Best response now",bs?(bs.r.mu>0?"Follow":"Fade"):"No edge",bs?`${bs.label}: ${Math.round(bs.r.winR*100)}% win, n=${bs.r.n}`:"Past days in today's situation did not favor follow or fade. This is about direction, not about the run/squeeze odds.",bs?(bs.dir*Math.sign(bs.r.mu)>0?"up":"down"):"")+
     st("Forced players",G.lfLate?`${G.lfLate>0?"Buy":"Sell"} ${fmtBig(Math.abs(G.lfLate))}`:D.lf?`${D.lf.usd>=0?"Buy":"Sell"} ${fmtBig(Math.abs(D.lf.usd))}`:"--","Leveraged-ETF rebalancing at the close",D.lf?(D.lf.usd>0?"up":"down"):"")+
     st("Focal points",G.focal.length?G.focal.slice(0,2).map(l=>fmtPx(l.price)).join(" · "):"--",G.focal.length?G.focal.slice(0,2).map(l=>l.label.split(" + ")[0]).join(" · "):"");
   $("gtSub").textContent=G.so&&G.so.tagged?`StockTwits ${Math.round(G.so.bull*100)}% bullish`:"";
@@ -4172,7 +4187,8 @@ render();renderAnalysis();drawChart();
 </script>
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="prochart.js?v=5"></script>
-<script src="whales.js?v=2"></script>
+<script src="whales.js?v=3"></script>
 <script src="trio.js?v=2"></script>
+<script src="gtlog.js?v=1"></script>
 </body>
 </html>

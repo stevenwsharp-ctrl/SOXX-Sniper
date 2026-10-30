@@ -173,6 +173,17 @@
     const f = x => x ? { p: x.pw / x.usd, usd: x.usd, n: x.n, d: x.pw / x.usd / P - 1 } : null;
     return { P, long: f(top("L")), short: f(top("S")) };
   }
+  // size-weighted average price of the close orders (take profit or stop), per side, for a group
+  function closeAvg(g) {
+    const P = mark > 0 ? mark : (Q[FUND] && Q[FUND].c) || NaN, r = { long: { sz: 0, pv: 0, n: 0, w: new Set(), tp: 0, sl: 0 }, short: { sz: 0, pv: 0, n: 0, w: new Set(), tp: 0, sl: 0 } };
+    Object.values(W).filter(w => w.g === g && w.pos && w.pos.szi).forEach(w => {
+      const side = w.pos.szi > 0 ? "long" : "short", L = ((ORD[w.a] || {}).list || []).filter(o => /close/.test(ordRole(w, o)));
+      L.forEach(o => { const x = r[side]; x.sz += o.sz; x.pv += o.sz * o.px; x.n++; x.w.add(w.a); const good = side === "long" ? o.px > P : o.px < P; good ? x.tp += o.sz * o.px : x.sl += o.sz * o.px; });
+    });
+    const f = x => x.sz ? { px: x.pv / x.sz, usd: x.pv, n: x.n, wallets: x.w.size, tp: x.tp, sl: x.sl, d: isFinite(P) ? x.pv / x.sz / P - 1 : NaN } : null;
+    return { long: f(r.long), short: f(r.short) };
+  }
+  window.wwCloseAvg = closeAvg;
   window.wwPain = pain;
   window.wwOrders = ordAgg;
 
@@ -269,6 +280,8 @@
         <div class="tx">${moveTxt(m, s.P)}<div class="sub"><a href="https://hyperdash.com/address/${m.a}" target="_blank" rel="noopener">${short(m.a)}</a> · ${usd(w.pnl)} SOXL profit · ${clock(m.t1)} ET</div></div><span class="ag">${agoT(m.t1)}</span></div>`; }).join("")
         : `<div class="sub">${wait ? `Reading the trade history of the top wallets (${NB - wait} of ${NB} done)…` : "No SOXL trades of $10K or more by the top 20 in the last 3 days."}</div>`) +
       (s.ok ? `<div class="sub">Top 20 now: <b class="${s.b.net > 0 ? "up" : s.b.net < 0 ? "down" : ""}">${s.b.net > 0 ? "net long" : s.b.net < 0 ? "net short" : "flat"} ${usd(Math.abs(s.b.net))}</b> · Worst ${NW}: <b class="${s.w.net > 0 ? "up" : s.w.net < 0 ? "down" : ""}">${s.w.net > 0 ? "net long" : s.w.net < 0 ? "net short" : "flat"} ${usd(Math.abs(s.w.net))}</b></div>` : "") +
+      (() => { const c = closeAvg("B"), t = (x, side) => x ? `${side === "short" ? "Shorts cover" : "Longs sell"} at <b>${fmtPx(x.px)}</b> avg <span class="sub">(${fmtPct(x.d, 1)}, size-weighted, ${usd(x.usd)} in ${x.n} order${x.n > 1 ? "s" : ""} from ${x.wallets} wallet${x.wallets > 1 ? "s" : ""}${x.tp && x.sl ? ` · ${usd(x.tp)} take-profit, ${usd(x.sl)} stop` : x.sl ? " · stops" : " · take-profit"})</span>` : "";
+        const a = [t(c.short, "short"), t(c.long, "long")].filter(Boolean); return a.length ? `<div class="sub">Top 20 close orders: ${a.join(" · ")}</div>` : ""; })() +
       (() => { const b = ordAgg("B"), w = ordAgg("W"); return b.n + w.n ? `<div class="sub">Resting orders · Top: buy ${usd(b.buy)} / sell ${usd(b.sell)} (${usd(b.add)} to add, ${usd(b.close)} to close) · Worst: buy ${usd(w.buy)} / sell ${usd(w.sell)} · <a href="#whaleCard" data-wwgo="O">see orders</a></div>` : ""; })();
   }
   function render() {
@@ -306,7 +319,7 @@
       L.map(w => { const p = w.pos || {}, v = p.szi ? Math.abs(p.szi) * P : 0, dl = p.lq && P ? p.lq / P - 1 : NaN;
         const m = w.g === "B" ? MV.find(x => x.a === w.a) : null, e = w.g === "W" ? EV.find(x => x.a === w.a && Date.now() - x.t < 24 * 3600000) : null;
         const last = m ? `${plain(verb(m))} ${usd(m.usd)} <span class="sub">${agoT(m.t1)}</span>` : e ? `${esc(e.txt)} <span class="sub">${agoT(e.t)}</span>` : '<span class="sub">--</span>';
-        return `<tr><td>${w.rank}</td><td class="l"><a href="https://hyperdash.com/address/${w.a}" target="_blank" rel="noopener" title="${w.a} · ${esc(w.coh)}">${short(w.a)}</a></td><td class="${w.pnl > 0 ? "up" : "down"}">${usd(w.pnl)}</td><td>${w.tr.toLocaleString()}</td><td>${w.wr}%</td><td class="l">${w.pos ? pill(p.szi) : '<span class="sub">…</span>'}</td><td>${v ? usd(v) : "--"}</td><td>${p.szi ? fmtPx(p.ep) : "--"}</td><td>${p.lev ? p.lev + "×" : "--"}</td><td>${p.lq ? fmtPx(p.lq) : "--"}</td><td class="${isFinite(dl) && Math.abs(dl) < 0.05 ? "wwhot" : ""}">${isFinite(dl) ? fmtPct(dl, 1) : "--"}</td><td class="${p.u > 0 ? "up" : p.u < 0 ? "down" : ""}">${p.szi ? usd(p.u) : "--"}</td><td class="l wwch">${(() => { const L = (ORD[w.a] || {}).list || []; if (!L.length) return ORD[w.a] ? '<span class="sub">none</span>' : '<span class="sub">…</span>'; const b = L.filter(x => x.side > 0).reduce((a, x) => a + x.sz * (x.px || P), 0), sl = L.filter(x => x.side < 0).reduce((a, x) => a + x.sz * (x.px || P), 0); return `${L.length} · <span class="up">buy ${usd(b)}</span> / <span class="down">sell ${usd(sl)}</span>`; })()}</td><td class="l wwch">${last}</td></tr>`; }).join("") + `</table></div>`;
+        return `<tr><td>${w.rank}</td><td class="l"><a href="https://hyperdash.com/address/${w.a}" target="_blank" rel="noopener" title="${w.a} · ${esc(w.coh)}">${short(w.a)}</a></td><td class="${w.pnl > 0 ? "up" : "down"}">${usd(w.pnl)}</td><td>${w.tr.toLocaleString()}</td><td>${w.wr}%</td><td class="l">${w.pos ? pill(p.szi) : '<span class="sub">…</span>'}</td><td>${v ? usd(v) : "--"}</td><td>${p.szi ? fmtPx(p.ep) : "--"}</td><td>${p.lev ? p.lev + "×" : "--"}</td><td>${p.lq ? fmtPx(p.lq) : "--"}</td><td class="${isFinite(dl) && Math.abs(dl) < 0.05 ? "wwhot" : ""}">${isFinite(dl) ? fmtPct(dl, 1) : "--"}</td><td class="${p.u > 0 ? "up" : p.u < 0 ? "down" : ""}">${p.szi ? usd(p.u) : "--"}</td><td class="l wwch">${(() => { const L = (ORD[w.a] || {}).list || []; if (!L.length) return ORD[w.a] ? '<span class="sub">none</span>' : '<span class="sub">…</span>'; const b = L.filter(x => x.side > 0).reduce((a, x) => a + x.sz * (x.px || P), 0), sl = L.filter(x => x.side < 0).reduce((a, x) => a + x.sz * (x.px || P), 0); const C = L.filter(o => /close/.test(ordRole(w, o))), cs = C.reduce((t, o) => t + o.sz, 0); return `${L.length} · <span class="up">buy ${usd(b)}</span> / <span class="down">sell ${usd(sl)}</span>${cs ? ` · close avg <b>${fmtPx(C.reduce((t, o) => t + o.sz * o.px, 0) / cs)}</b>` : ""}`; })()}</td><td class="l wwch">${last}</td></tr>`; }).join("") + `</table></div>`;
   }
   card.addEventListener("click", e => { const b = e.target.closest("[data-wwtab]"); if (b) { tab = b.dataset.wwtab; render(); } });
   document.addEventListener("click", e => { const g = e.target.closest("[data-wwgo]"); if (g) { e.preventDefault(); tab = g.dataset.wwgo; render(); card.scrollIntoView({ behavior: "smooth", block: "start" }); } });
