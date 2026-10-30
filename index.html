@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
+<script>try{var pw=localStorage.getItem("site_width")||"fit";document.documentElement.style.setProperty("--pagew",pw==="fit"?"100%":pw+"px")}catch(e){}</script>
 <script>try{var t=localStorage.getItem("soxx_theme")||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="dark"}</script>
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png?v=1" sizes="32x32" type="image/png">
@@ -28,7 +29,8 @@ body{background-image:radial-gradient(circle at 20% -10%,var(--glow1) 0,transpar
 :root[data-theme=light] .biasbar,:root[data-theme=light] .fgbar{background:linear-gradient(90deg,#e1354a,#cfd6e0 50%,#0b9e65)}
 :root[data-theme=light] .lg{box-shadow:0 0 0 1px var(--line)}
 #themeBtn{min-width:36px}
-.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 48px}
+.wrap{max-width:var(--pagew,1280px);margin:0 auto;padding:20px clamp(16px,1.6vw,32px) 48px}
+#widthSel{font-family:var(--mono);font-size:12px}
 header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
 .brand{display:flex;align-items:center;gap:12px}
 .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#4da3ff,#9b6bff);display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:13px;color:#fff}
@@ -310,6 +312,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
       <span class="pill hb" id="hb" title="Heartbeat: starting…"><span class="hbw"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="hbg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" style="stop-color:var(--hb);stop-opacity:.05"/><stop offset="1" style="stop-color:var(--hb);stop-opacity:1"/></linearGradient></defs><circle class="tr" cx="12" cy="12" r="9"/><circle class="arc" cx="12" cy="12" r="9" transform="matrix(1 0 0 -1 0 24)"/><circle class="head" cx="21" cy="12" r="2"/></svg><span class="hbp" id="hbP"></span></span><span id="hbT">--</span></span>
       <span class="pill" id="clock">--:--:-- ET</span>
       <button id="shareMain">Share SOXL ↗</button>
+      <select id="widthSel" title="Page width"><option value="fit">Width: fit screen</option><option value="2560">Width: 2560</option><option value="1920">Width: 1920</option><option value="1600">Width: 1600</option><option value="1280">Width: 1280 (classic)</option></select>
       <button id="themeBtn" title="Switch light / dark mode">☾</button>
       <button id="keyBtn">API key</button>
     </div>
@@ -4189,8 +4192,11 @@ render();renderAnalysis();drawChart();
 </script>
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="prochart.js?v=6"></script>
+<script>try{if(curSym&&window.pcDock)svPcDock(curSym)}catch(e){}</script>
 <script src="whales.js?v=3"></script>
 <script src="trio.js?v=2"></script>
 <script src="gtlog.js?v=1"></script>
+<script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;
+el.onchange=()=>{const x=el.value;try{localStorage.setItem("site_width",x)}catch(e){}document.documentElement.style.setProperty("--pagew",x==="fit"?"100%":x+"px");window.dispatchEvent(new Event("resize"))}})();</script>
 </body>
 </html>
