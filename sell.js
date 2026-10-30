@@ -59,7 +59,7 @@
         <div class="stier pro"><h4>Pro <span class="badge">FOUNDING</span></h4><div class="pp">${SELL.price}<span>${SELL.per} · or ${SELL.yearly}</span></div>
           <ul>${SELL.pro.map(x => `<li>${x}</li>`).join("")}</ul>${buy()}<span class="sub">Free during the beta. ${SELL.later.replace(/^\$/, "Later $")} for new members. Cancel any time.</span></div>
       </div>
-      <div class="sshare"><a class="chiplink" href="https://x.com/intent/tweet?text=${share}&url=${encodeURIComponent(SELL.url)}" target="_blank" rel="noopener">Share on X</a><a class="chiplink" href="https://stocktwits.com" target="_blank" rel="noopener" id="sStCopy">Share on StockTwits</a><a class="chiplink" href="#/contact?pro">Questions? Write to me</a></div>
+      <div class="sshare"><a class="chiplink" href="https://x.com/intent/tweet?text=${share}&url=${encodeURIComponent(SELL.url)}" target="_blank" rel="noopener">Share on X</a><a class="chiplink" href="https://stocktwits.com" target="_blank" rel="noopener" id="sStCopy">Share on StockTwits</a><a class="chiplink" href="#/contact?pro">Questions? Write to us</a></div>
       <div class="sub" style="margin-top:6px">Not investment advice. Data from public sources; it can be late or wrong.</div>`;
     const sc = document.getElementById("sStCopy"); if (sc) sc.addEventListener("click", () => { try { navigator.clipboard.writeText(decodeURIComponent(share) + " " + SELL.url); } catch (e) { } });
   }
