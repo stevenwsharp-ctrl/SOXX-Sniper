@@ -11,6 +11,7 @@
   const anchor = document.getElementById("whaleCard"); if (!anchor) return;
   const card = document.createElement("section"); card.className = "card"; card.id = "intelCard"; card.style.marginBottom = "12px";
   card.innerHTML = `<details open id="inBk"><summary class="label" style="cursor:pointer">Semis basket · smart vs fools on the SOXX holdings (Hyperliquid perps)</summary><div id="inBkBody"></div></details>
+    <details open id="inSf" style="margin-top:12px"><summary class="label" style="cursor:pointer">Spot flow · the biggest spot traders on Hyperliquid, live (5m · 15m · 1h · 4h · 24h)</summary><div id="inSfBody"></div></details>
     <details open id="inSp" style="margin-top:12px"><summary class="label" style="cursor:pointer">Spot · what the best and worst SOXL traders buy, sell and hold</summary><div id="inSpNote" class="bk-f" style="font-size:12px;margin:4px 0"></div><div id="inSpBody"></div></details>
     <details open id="inRb" style="margin-top:12px"><summary class="label" style="cursor:pointer">Nightly rebalance · market makers · after-hours</summary><div id="inRbBody"></div></details>
     <details open id="inWeb" style="margin-top:12px"><summary class="label" style="cursor:pointer">Signal web · what both sites learn together</summary><div id="inWebF" style="margin:4px 0 8px"></div><div id="inWebBody"></div></details>`;
@@ -139,12 +140,17 @@
       return g > 0 && b < 0 ? ["up", "Smart accumulate · fools sell"] : g < 0 && b > 0 ? ["down", "Smart distribute · fools buy"] : g > 0 && b > 0 ? ["", "Both buying"] : g < 0 && b < 0 ? ["", "Both selling"] : g > 0 ? ["up", "Smart buying"] : g < 0 ? ["down", "Smart selling"] : b > 0 ? ["down", "Fools buying"] : b < 0 ? ["up", "Fools selling"] : ["", "Holding"]; };
     const $v = v => v ? `<span class="${v > 0 ? "up" : "down"}">${v > 0 ? "+" : ""}${usd(v)}</span>` : `<span style="color:var(--mute)">0</span>`;
     const nb = Object.values(T).reduce((a, r) => a + r.g7, 0), nf = Object.values(T).reduce((a, r) => a + r.b7, 0);
+    // who actually trades spot, and how much cash (USDC / USDH / USDT) each group holds: cash = dry powder or risk-off
+    const act = { g: new Set(), b: new Set() }, cash = { g: 0, b: 0 }, nW = { g: 0, b: 0 }, cov = { g: [], b: [] };
+    Object.values(T).forEach(r => { ["g", "b"].forEach(g => { r[g + "B"].forEach(a => act[g].add(a)); r[g + "S"].forEach(a => act[g].add(a)); }); });
+    for (const [a, Bl] of Object.entries(BAL)) { const g = grp[a]; if (!g) continue; Bl.b.forEach(b => { if (/^USD/.test(b.coin)) cash[g] += +b.total || 0; }); }
+    for (const [a, F] of Object.entries(FILLS)) { const g = grp[a]; if (!g) continue; nW[g]++; if (F.f.length) cov[g].push(Math.min(...F.f.map(x => x.time))); }
+    const grpCard = (lab, n, g) => `<div><span class="bk-f">${lab}</span>${act[g].size ? `<b class="${n >= 0 ? "bk-L" : "bk-S"}">${n >= 0 ? "+" : ""}${usd(n)}</b>${n >= 0 ? "buying" : "selling"} · ${act[g].size} of ${nW[g]} trade spot` : `<b>no spot trades</b>${nW[g]} wallets read: they trade perps only`}${cash[g] >= 1000 ? ` · hold ${usd(cash[g])} cash` : ""}</div>`;
     const top = SPM ? Object.values(SPM).filter(p => /^USD/.test(p.quote || "") && p.vol > 0).sort((a, b) => b.vol - a.vol).slice(0, 10) : [];
     const totV = SPM ? Object.values(SPM).reduce((a, p) => a + (/^USD/.test(p.quote || "") ? p.vol : 0), 0) : 0, up = top.filter(p => p.ch > 0).length;
     document.getElementById("inSpNote").innerHTML = `Spot fills (7 days) and spot balances of the 20 best and 20 worst SOXL traders (${nF} with fills, ${nB} with balances loaded so far; the first full read takes a few minutes to stay inside Hyperliquid's rate limit). Hyperliquid has no spot chip stocks: SOXL, SOXX and the holdings trade here only as perps (see the basket above). Spot shows the same traders' risk appetite in crypto. When the best SOXL traders sell spot and raise cash while the worst ones buy, that often comes before risk-off days in high-beta chips. ${spT ? `Updated ${ago(spT)} ago.` : ""}`;
     document.getElementById("inSpBody").innerHTML = `<div class="bk-sum bk">
-      <div><span class="bk-f">Best traders · net spot 7d</span><b class="${nb >= 0 ? "bk-L" : "bk-S"}">${nb >= 0 ? "+" : ""}${usd(nb)}</b>${nb >= 0 ? "buying" : "selling"}</div>
-      <div><span class="bk-f">Worst traders · net spot 7d</span><b class="${nf >= 0 ? "bk-L" : "bk-S"}">${nf >= 0 ? "+" : ""}${usd(nf)}</b>${nf >= 0 ? "buying" : "selling"}</div>
+      ${grpCard("Best traders · net spot 7d", nb, "g")}${grpCard("Worst traders · net spot 7d", nf, "b")}
       <div><span class="bk-f">Hyperliquid spot volume 24h</span><b>${usd(totV)}</b>${up}/${top.length} top pairs up</div>
       ${top.slice(0, 4).map(p => `<div><span class="bk-f">spot ${esc(p.base)}</span><b>${pxf(p.px)}</b><span class="${p.ch >= 0 ? "bk-L" : "bk-S"}">${p.ch != null ? (p.ch >= 0 ? "+" : "") + p.ch.toFixed(2) + "%" : "–"}</span> · ${usd(p.vol)}</div>`).join("")}</div>
       ${list.length ? `<div class="sp" style="overflow-x:auto"><table><thead><tr><th>Token</th><th>Price</th><th>24h</th><th>Best net 24h</th><th>Best net 7d</th><th>Worst net 24h</th><th>Worst net 7d</th><th>Best hold</th><th>Worst hold</th><th>Signal</th></tr></thead><tbody>${list.map(r => { const p = pairOf(r.tok), s = sig(r);
@@ -153,6 +159,8 @@
   }
 
   basket(); rebal(); spot();
+  if (window.SpotFlow) { const tagOf = a => { const L = window.wwList ? wwList() : []; const w = L.find(x => x.a.toLowerCase() === String(a).toLowerCase()); return w ? { name: w.g === "B" ? "top SOXL trader" : "worst SOXL wallet", kind: w.g === "B" ? "best" : "worst" } : null; };
+    SpotFlow.mount(document.getElementById("inSfBody"), { tag: tagOf }); }
   setInterval(basket, 120000); setInterval(rebal, 60000);
   setTimeout(pull, 20000); setInterval(pull, 60000);
 })();
