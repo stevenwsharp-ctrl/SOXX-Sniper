@@ -16,6 +16,7 @@
 //        GET https://<your-worker>.workers.dev/social?t=SOXL&max=123   (older messages, for the caller track record)
 //        GET https://<your-worker>.workers.dev/news?t=NVDA&q=Nvidia    (fresh headlines: Google News + Yahoo Finance, newest first)
 //        GET https://<your-worker>.workers.dev/news?t=SOXL,NVDA,AMD&q=SOXL|Nvidia|AMD   (one feed for many stocks)
+//        GET https://<your-worker>.workers.dev/maxpain?t=SOXL           (options max pain, call wall and put wall for the next 4 expiries)
 //        GET https://<your-worker>.workers.dev/letf/list               (LETF Sniper: every US leveraged / inverse ETF, parsed; refreshed every 12 h)
 //        GET https://<your-worker>.workers.dev/letf/quotes             (LETF Sniper: live quotes for all funds and their underlyings, about every 10 s)
 
@@ -395,6 +396,46 @@ async function letfQuotes() {
   return body;
 }
 
+// ---- options max pain (Nasdaq option chain, free, no key; open interest updates once a day) ----
+const mpMemo = new Map();
+async function getMaxPain(t) {
+  const hit = mpMemo.get(t);
+  if (hit && Date.now() - hit.at < 30 * 60000) return hit.body;
+  const num = s => { const v = Number(String(s == null ? "" : s).replace(/[$,]/g, "")); return isFinite(v) ? v : 0; };
+  let rows = [], last = null;
+  for (const cls of ["etf", "stocks"]) {
+    try {
+      const r = await fetch(`https://api.nasdaq.com/api/quote/${t}/option-chain?assetclass=${cls}&limit=3000&fromdate=all&todate=undefined&excode=oprac&callput=callput&money=all&type=all`, { headers: NQ });
+      if (!r.ok) continue;
+      const j = await r.json(), d = j && j.data;
+      if (d && d.table && d.table.rows && d.table.rows.length) { rows = d.table.rows; last = d.lastTrade || null; break; }
+    } catch (e) {}
+  }
+  if (!rows.length) return hit ? { ...hit.body, stale: true } : { status: "error", error: "Nasdaq option chain did not answer" };
+  const ex = []; let cur = null;
+  for (const x of rows) {
+    if (x.expirygroup) { cur = { exp: x.expirygroup, k: [] }; ex.push(cur); continue; }
+    if (!cur || x.strike == null) continue;
+    cur.k.push({ s: num(x.strike), c: num(x.c_Openinterest), p: num(x.p_Openinterest), cv: num(x.c_Volume), pv: num(x.p_Volume) });
+  }
+  const out = ex.filter(e => e.k.length).slice(0, 4).map(e => {
+    const K = e.k.filter(k => k.s > 0).sort((a, b) => a.s - b.s);
+    let best = null, pain = [];
+    for (const at of K) {
+      let v = 0; for (const k of K) { if (at.s > k.s) v += k.c * (at.s - k.s); if (at.s < k.s) v += k.p * (k.s - at.s); }
+      pain.push([at.s, v * 100]); if (!best || v < best.v) best = { s: at.s, v };
+    }
+    const cOI = K.reduce((a, k) => a + k.c, 0), pOI = K.reduce((a, k) => a + k.p, 0);
+    const cw = K.reduce((a, k) => k.c > (a ? a.c : -1) ? k : a, null), pw = K.reduce((a, k) => k.p > (a ? a.p : -1) ? k : a, null);
+    return { exp: e.exp, maxPain: best ? best.s : null, payout: best ? best.v * 100 : null, callOI: cOI, putOI: pOI, pcr: cOI ? pOI / cOI : null,
+      callWall: cw ? cw.s : null, callWallOI: cw ? cw.c : null, putWall: pw ? pw.s : null, putWallOI: pw ? pw.p : null,
+      strikes: K.map(k => [k.s, k.c, k.p]) };
+  });
+  const body = { status: "ok", t, at: Date.now(), last, expiries: out };
+  mpMemo.set(t, { at: Date.now(), body });
+  return body;
+}
+
 export default {
   async fetch(req, env) {
     const cors = corsHeaders(req, env);
@@ -425,6 +466,12 @@ export default {
         if (url.pathname === "/letf/list") { const U = await letfUniverse(); return json({ status: "ok", at: U.at, asOf: U.asOf, n: U.funds.length, funds: U.funds }); }
         return json(await letfQuotes());
       } catch (e) { return json({ status: "error", error: String(e.message || e) }, 502); }
+    }
+    if (url.pathname === "/maxpain") {
+      const t = (url.searchParams.get("t") || "").toUpperCase();
+      const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=600" } });
+      if (!/^[A-Z][A-Z.\-]{0,7}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
+      return json(await getMaxPain(t));
     }
     if (url.pathname === "/news") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
