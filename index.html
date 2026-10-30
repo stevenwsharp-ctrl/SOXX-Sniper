@@ -2387,7 +2387,8 @@ async function fetchMacroNews(){const p=fredProxy();if(!p||demo)return;
   try{const q=["Federal Reserve","Powell","inflation","Treasury yields","jobs report","GDP","PCE","tariffs","chip export","rate cut","recession","bond market"].join("|");
     let j=await(await fetch(`${p}/news?macro=1&t=SPY`)).json();
     if(!(j.status==="ok"&&j.items&&j.items.length&&j.items[0].via!=="yahoo"))j=await(await fetch(`${p}/news?t=SPY,QQQ,TLT,DIA&q=${encodeURIComponent(q)}`)).json();   // older Worker: general search
-    if(j.status==="ok"){MNEWS={t:Date.now(),items:j.items.slice(0,40),err:""};renderMacro2()}else MNEWS.err=j.error||"no answer"}catch(e){MNEWS.err="news did not answer"}}
+    const MRE=/\bfed\b|federal reserve|powell|fomc|rate (cut|hike)|interest rate|inflation|\bcpi\b|\bpce\b|\bppi\b|jobs report|payroll|jobless|unemployment|\bgdp\b|recession|economy|economic|treasury|yield|bond|dollar|tariff|trade war|export (control|curb|rule|ban)|chip (export|curb|rule|ban|act)|china|stimulus|deficit|shutdown|consumer (spending|sentiment|confidence)|retail sales|\bism\b|\bpmi\b|wage|oil price|opec|wall street|stocks? (fall|drop|rise|rally|slide|sink|tumble|jump)|nasdaq|s&p 500|dow/i;
+    if(j.status==="ok"){MNEWS={t:Date.now(),items:j.items.filter(x=>MRE.test(x.title)&&Date.now()-x.at<36*36e5).slice(0,40),err:""};if(!MNEWS.items.length)MNEWS.err="no macro headlines in the last day (paste the new Worker for the macro feed)";renderMacro2()}else MNEWS.err=j.error||"no answer"}catch(e){MNEWS.err="news did not answer"}}
 setTimeout(fetchMacroNews,6000);setInterval(fetchMacroNews,4*60000);
 // surprise vs consensus and what it means for stocks: hotter inflation = bad; weaker labor = bad for growth; stronger growth = good
 function econSurprise(e){const n=v=>{const x=parseFloat(String(v||"").replace(/[,%$KMBT]/g,""));return isFinite(x)?x:NaN};const a=n(e.ac),c=n(e.fc);if(!isFinite(a)||!isFinite(c)||a===c)return null;
@@ -4262,8 +4263,8 @@ render();renderAnalysis();drawChart();
 <script src="why.js?v=2"></script>
 <script src="intel.js?v=9"></script>
 <script src="radar.js?v=4"></script>
-<script src="read.js?v=2"></script>
-<script src="trio.js?v=6"></script>
+<script src="read.js?v=3"></script>
+<script src="trio.js?v=7"></script>
 <script src="gtlog.js?v=1"></script>
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;
 el.onchange=()=>{const x=el.value;try{localStorage.setItem("site_width",x)}catch(e){}document.documentElement.style.setProperty("--pagew",x==="fit"?"100%":x+"px");window.dispatchEvent(new Event("resize"))}})();</script>

@@ -98,6 +98,27 @@
     // levels: next level from the page, whales' liquidation clusters, options max pain
     const L = []; try { if (D && D.fav) L.push(`next level ${fmtPx(D.fav.price)} (${Math.round(D.fav.p30 * 100)}% in 30m)`); } catch (e) { }
     try { const pn = wwPain(); if (pn && pn.long) L.push(`long liquidations ${fmtPx(pn.long.p)}`); if (pn && pn.short) L.push(`short liquidations ${fmtPx(pn.short.p)}`); } catch (e) { }
+    // horizons: tonight (after-hours / overnight) leans more on flows and the radar; 1–2 days on holders, cohorts and the web
+    const pick = gs => { const X = I.filter(x => gs.includes(x.grp)); const w = X.reduce((a, x) => a + x.w, 0); return w ? X.reduce((a, x) => a + x.v * x.w, 0) / w : 0; };
+    const sTon = 0.5 * pick(["Flows", "Spot", "Market makers"]) + 0.3 * (R.LEAN || 0) + 0.2 * (R.SH ? Math.max(-1, Math.min(1, R.SH.mv / 0.03)) : 0);
+    const sDay = pick(["Holders", "Cohorts", "Learned", "Market"]);
+    const lab = v => v > 0.12 ? `<b class="up">▲ up</b>` : v < -0.12 ? `<b class="down">▼ down</b>` : `<b>◆ unclear</b>`;
+    // trade plan from the normal daily move and the levels on the page
+    let sd = NaN; try { const Lb = JSON.parse(localStorage.getItem("rd_d_SOXL") || "null"); if (Lb && Lb.bars.length > 61) { const r = Lb.bars.slice(-61).map((b, i, a) => i ? b.c / a[i - 1].c - 1 : NaN).filter(isFinite); sd = Math.sqrt(r.reduce((a, x) => a + x * x, 0) / r.length); } } catch (e) { }
+    let plan = "";
+    if (call !== "NO CLEAR SIDE" && P > 0 && isFinite(sd)) { const d = call === "UP" ? 1 : -1, pn = (() => { try { return wwPain(); } catch (e) { return null; } })();
+      let stop = P * (1 - d * 0.5 * sd), t1 = P * (1 + d * 0.6 * sd), t2 = P * (1 + d * 1.2 * sd);
+      const liq = pn && (d > 0 ? pn.short : pn.long); if (liq && liq.p && (liq.p - P) * d > 0 && Math.abs(liq.p / P - 1) < 2 * sd) t2 = liq.p;
+      const opp = pn && (d > 0 ? pn.long : pn.short); if (opp && opp.p && (P - opp.p) * d > 0 && Math.abs(opp.p / P - 1) < 0.8 * sd) stop = opp.p * (1 - d * 0.003);
+      const rr = Math.abs(t1 - P) / Math.abs(P - stop);
+      plan = `<li><b>Plan (${d > 0 ? "SOXL long" : "short SOXL / SOXS long"}):</b> from ${fmtPx(P)}, stop ${fmtPx(stop)} (${fmtPct(stop / P - 1, 1)}), target 1 ${fmtPx(t1)} (${fmtPct(t1 / P - 1, 1)}), target 2 ${fmtPx(t2)} (${fmtPct(t2 / P - 1, 1)})${liq && t2 === liq.p ? " = the " + (d > 0 ? "shorts'" : "longs'") + " liquidation cluster" : ""}. Reward ÷ risk ${rr.toFixed(1)} to target 1. Based on a normal SOXL day of ±${(sd * 100).toFixed(1)}%.${d < 0 ? " SOXS moves about −3× SOXX, so the same targets are roughly the mirror image." : ""}</li>`; }
+    // the read's own record: logged every 30 minutes, graded after 4 and 24 hours
+    let REC = null; try { const now = Date.now(), Lg = JSON.parse(localStorage.getItem("soxx_read_log") || "[]");
+      if (P > 0 && (!Lg.length || now - Lg[Lg.length - 1].t > 30 * 6e4)) Lg.push({ t: now, s: Math.round(score * 100) / 100, p: P });
+      Lg.forEach(x => { for (const [k, h] of [["r4", 4], ["r24", 24]]) if (x[k] == null && now - x.t >= h * 36e5 && now - x.t < (h + 2) * 36e5 && P > 0) x[k] = P / x.p - 1; });
+      const keep = Lg.filter(x => now - x.t < 60 * 864e5); localStorage.setItem("soxx_read_log", JSON.stringify(keep.slice(-3000)));
+      const g = k => { const v = keep.filter(x => x[k] != null && Math.abs(x.s) >= 0.12); return v.length ? { n: v.length, hit: v.filter(x => Math.sign(x[k]) === Math.sign(x.s)).length / v.length } : null; };
+      REC = { r4: g("r4"), r24: g("r24"), n: keep.length }; } catch (e) { }
     const exp = M ? `${Math.round(M.p * 100)}% odds of a 7%+ overnight gap (usual ${Math.round(M.base * 100)}%)` : "";
     const act = call === "NO CLEAR SIDE" ? "Stand aside or trade small: the inputs disagree." : call === "UP" ? "Favors SOXL (long). Size by the big-move odds; a fade of the worst wallets' side is the cleanest edge." : "Favors SOXS / short SOXL. Size by the big-move odds; watch the after-hours perp for confirmation.";
     const strong = I.slice().sort((a, b) => Math.abs(b.v * b.w) - Math.abs(a.v * a.w)), pro = strong.filter(x => Math.sign(x.v) === Math.sign(score) && Math.abs(x.v) > 0.05).slice(0, 3), con = strong.filter(x => Math.sign(x.v) === -Math.sign(score) && Math.abs(x.v) > 0.05).slice(0, 2);
@@ -105,11 +126,14 @@
         <span class="sub">score ${score >= 0 ? "+" : ""}${score.toFixed(2)} · ${Math.max(up, dn)} of ${up + dn} inputs agree · confidence ${conf >= 0.45 ? "high" : conf >= 0.25 ? "medium" : "low"} · ${ph === "regular" ? "regular session" : ph === "post" ? "after-hours" : ph === "pre" ? "pre-market" : "market closed (perps trade 24/7)"}</span></div>
       <div class="rdbar"><u style="left:${50 + score * 50}%"></u></div>
       <div class="rdgrid">
+        <div>Tonight / overnight<b>${lab(sTon)}</b>flows, spot, market makers, radar, after-hours perp</div>
+        <div>Next 1–2 days<b>${lab(sDay)}</b>holders, cohorts, signal web, decision read</div>
+        <div>The read's record<b>${REC && REC.r4 ? Math.round(REC.r4.hit * 100) + "% right (4h)" : "starts now"}</b>${REC && REC.r4 ? `${REC.r4.n} calls${REC.r24 ? ` · 24h ${Math.round(REC.r24.hit * 100)}% of ${REC.r24.n}` : ""}` : "logged every 30 min, graded at 4h and 24h"}</div>
         <div>Size of the next move<b>${M ? Math.round(M.p * 100) + "% big-gap odds" : "--"}</b>${M ? `usual ${Math.round(M.base * 100)}%` : ""}${R.EVT && R.EVT.tonight && R.EVT.tonight.length ? ` · earnings tonight: ${R.EVT.tonight.map(e => e.s).join(", ")}` : ""}</div>
         <div>Macro stress<b class="${R.MS > 0.5 ? "down" : ""}">${isFinite(R.MS) ? R.MS.toFixed(2) : "--"}</b>${R.MS > 1 ? "high: big moves likely" : R.MS > 0.5 ? "rising" : "normal"}</div>
         <div>After-hours perp<b class="${R.SH ? cl(R.SH.mv) : ""}">${R.SH ? fmtPct(R.SH.mv, 1) : "--"}</b>${R.SH ? "SOXL perp vs the close" : "shows after 4 pm ET"}</div>
         <div>Levels<b style="font-size:12px">${L.slice(0, 2).join(" · ") || "--"}</b>${L.slice(2).join(" · ")}</div></div>
-      <ul><li><b>What to do:</b> ${act}${exp ? ` ${exp}.` : ""}</li>
+      <ul><li><b>What to do:</b> ${act}${exp ? ` ${exp}.` : ""}</li>${plan}
         ${pro.length ? `<li><b>Why:</b> ${pro.map(x => `${esc(x.k)} (${esc(x.txt)})`).join("; ")}.</li>` : ""}
         ${con.length ? `<li><b>Against it / what proves it wrong:</b> ${con.map(x => `${esc(x.k)} (${esc(x.txt)})`).join("; ")}. If these grow, the read flips.</li>` : ""}</ul>`;
     const grp = [...new Set(I.map(x => x.grp))];

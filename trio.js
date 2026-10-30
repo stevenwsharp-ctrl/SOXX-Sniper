@@ -83,8 +83,14 @@
     if (!isFinite(dh) && q && q.h > 0) { dh = q.h; dl = q.l; }
     if (phaseAt(Date.now()) === "regular") { dh = Math.max(dh, P); dl = Math.min(dl, P); }
     const c = v => !isFinite(v) ? "" : v >= 0 ? "up" : "down", f = v => isFinite(v) ? fmtPct(v, 1) : "--", pos = (v, a, b) => b > a ? Math.max(0, Math.min(100, (v - a) / (b - a) * 100)) : 50;
-    return `<div><span>5D</span><b class="${c(ch(5))}">${f(ch(5))}</b></div><div><span>1M</span><b class="${c(ch(21))}">${f(ch(21))}</b></div><div><span>3M</span><b class="${c(ch(63))}">${f(ch(63))}</b></div><div><span>1Y</span><b class="${c(P / C[0] - 1)}">${f(P / C[0] - 1)}</b></div>
-      <div class="pxbar" title="Today's range: low ${fmtPx(dl)} – high ${fmtPx(dh)}"><span>Day</span><i><u style="left:${pos(P, dl, dh)}%"></u></i><span>${isFinite(dl) ? dl.toFixed(2) + "–" + dh.toFixed(2) : "--"}</span></div>
+    // the strip follows the time frame picked above the chart: its change is highlighted and its range bar comes first
+    const K = { "1d": ["1D", day], "5d": ["5D", ch(5)], "1mo": ["1M", ch(21)], "6mo": ["6M", ch(126)], "1y": ["1Y", P / C[0] - 1] };
+    const cells = CRS.map(([k]) => { const [lab, v] = K[k]; return `<div style="${k === CR ? "border-bottom:2px solid var(--accent)" : "opacity:.85"}"><span>${lab}</span><b class="${c(v)}">${f(v)}</b></div>`; }).join("");
+    const cd = CD[s + "|" + CR], fb = CR === "1d" ? null : cd && cd.bars.length ? cd.bars : null;
+    const fh = fb ? Math.max(...fb.map(b => b[2]), P) : dh, fl = fb ? Math.min(...fb.map(b => b[3]), P) : dl, fl0 = CRS.find(x => x[0] === CR)[1];
+    return `<div style="grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px">${cells}</div>
+      <div class="pxbar" title="${fl0} range: low ${fmtPx(fl)} – high ${fmtPx(fh)}"><span>${CR === "1d" ? "Day" : fl0}</span><i><u style="left:${pos(P, fl, fh)}%"></u></i><span>${isFinite(fl) ? fl.toFixed(2) + "–" + fh.toFixed(2) : "--"}</span></div>
+      ${CR !== "1d" ? `<div class="pxbar" title="Today's range: low ${fmtPx(dl)} – high ${fmtPx(dh)}"><span>Day</span><i><u style="left:${pos(P, dl, dh)}%"></u></i><span>${isFinite(dl) ? dl.toFixed(2) + "–" + dh.toFixed(2) : "--"}</span></div>` : ""}
       <div class="pxbar" title="52-week range: ${fmtPx(lo52)} – ${fmtPx(hi52)}"><span>52W</span><i><u style="left:${pos(P, lo52, hi52)}%"></u></i><span>${fmtPct(P / hi52 - 1, 0)} from high</span></div>
       <div style="grid-column:1/-1">Normal day ±${(sd * 100).toFixed(1)}% · today <b style="display:inline" class="${Math.abs(day) >= 2 * sd ? (day < 0 ? "down" : "up") : ""}">${isFinite(day) && sd ? (day / sd).toFixed(1) + "σ" : "--"}</b>${Math.abs(day) >= 3 * sd ? " · rare move" : Math.abs(day) >= 2 * sd ? " · big move" : ""}</div>`;
   }
