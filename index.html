@@ -6,9 +6,19 @@
 <meta name="color-scheme" content="dark light">
 <script>try{var pw=localStorage.getItem("site_width")||"fit";document.documentElement.style.setProperty("--pagew",pw==="fit"?"100%":pw+"px")}catch(e){}</script>
 <script>try{var t=localStorage.getItem("soxx_theme")||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="dark"}</script>
+<meta property="og:type" content="website">
+<meta property="og:title" content="SOXX Sniper · the live $SOXL war room">
+<meta property="og:description" content="Live SOXL, SOXX and SOXS with the top Hyperliquid whales' moves every minute, max pain on both sides, run/squeeze odds, pro charts and alerts.">
+<meta property="og:url" content="https://stevenwsharp-ctrl.github.io/SOXX-Sniper/">
+<meta property="og:image" content="https://stevenwsharp-ctrl.github.io/SOXX-Sniper/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SOXX Sniper · the live $SOXL war room">
+<meta name="twitter:description" content="Live SOXL, SOXX and SOXS with the top Hyperliquid whales' moves every minute, max pain on both sides, run/squeeze odds, pro charts and alerts.">
+<meta name="twitter:image" content="https://stevenwsharp-ctrl.github.io/SOXX-Sniper/og.png">
 <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png?v=1" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1">
+<meta name="description" content="Live SOXL, SOXX and SOXS with the top Hyperliquid whales' moves every minute, max pain on both sides, run/squeeze odds, pro charts and alerts.">
 <title>SOXX Sniper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
@@ -468,7 +478,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     <div class="stiles" id="wwTiles"></div>
     <div class="row wwtabs" id="wwTabs" style="margin:12px 0 8px"></div>
     <div id="wwBody"></div>
-    <div class="wwnote">Wallets from the SOXL trader study of Oct 28, 2026 (248 wallets; ranked by full SOXL profit on Hyperdash). Positions come live from Hyperliquid every minute. You get an alert when a top wallet opens, closes, flips, adds or cuts $50K or more, or when a $500K+ position comes within 3% of liquidation.</div>
+    <div class="wwnote">Top 20 and worst 10: SOXL trader study of Oct 28, 2026 (248 wallets; ranked by full SOXL profit on Hyperdash). Worst 11–20: added Oct 30 from Hyperdash's SOXL losers and the day's active traders, ranked by their SOXL result. Select a row (or the "Trader profiles" tab) for each trader's style, what works, what does not, and how to use the wallet. Positions come live from Hyperliquid every minute. You get an alert when a top wallet opens, closes, flips, adds or cuts $50K or more, or when a $500K+ position comes within 3% of liquidation.</div>
   </section>
 
   <section class="card" id="taCard" style="margin-bottom:12px">
@@ -3809,9 +3819,9 @@ function render100(){
 setInterval(()=>{try{render100()}catch(e){}},5000);
 
 /* ---------- caller tracker: who on StockTwits calls $SOXL right (each post's own Bullish/Bearish tag vs. what SOXL did next) ---------- */
-var CL=null,CLBF={bars:[],closes:{}},clView="top";
-function clNew(){return{v:1,since:0,bfAt:0,seen:{},pend:[],users:{},crowd:{h1:0,n1:0,hD:0,nD:0},recent:[],lastBy:{}}}
-function clLoad(){if(CL)return CL;if(demo){CL=clDemo();return CL}try{CL=JSON.parse(lsGet("soxx_callers")||"null")}catch(e){CL=null}if(!CL||CL.v!==1)CL=clNew();return CL}
+var CL=null,CLBF={bars:[],closes:{}},clView="ev";
+function clNew(){return{v:2,since:0,bfAt:0,seen:{},pend:[],users:{},crowd:{h1:0,n1:0,hD:0,nD:0},recent:[],lastBy:{}}}
+function clLoad(){if(CL)return CL;if(demo){CL=clDemo();return CL}try{CL=JSON.parse(lsGet("soxx_callers")||"null")}catch(e){CL=null}if(!CL||CL.v!==2)CL=clNew();return CL}
 function clSave(){if(demo||!CL)return;try{const ids=Object.keys(CL.seen);if(ids.length>6000)ids.slice(0,ids.length-5000).forEach(k=>delete CL.seen[k]);lsSet("soxx_callers",JSON.stringify(CL))}catch(e){}}
 const clWilson=(h,n,z=1.28)=>{if(!n)return 0;const p=h/n;return(p+z*z/(2*n)-z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n)))/(1+z*z/n)};
 function clBfPrice(m){const B=CLBF.bars;let lo=0,hi=B.length-1,r=-1;while(lo<=hi){const k=(lo+hi)>>1;if(B[k].m<=m){r=k;lo=k+1}else hi=k-1}return r>=0&&m-B[r].m<=16?B[r].c:NaN}
@@ -3819,16 +3829,29 @@ function clPrice(m){const p=findAt(hist[FUND]||[],m,"c");if(p>0)return p;const b
 function clCloseDate(m){const e=etInfo(m*60000);let d=e.d;const wd=x=>new Date(x+"T12:00:00Z").getUTCDay();if(wd(d)>0&&wd(d)<6&&e.min<960)return d;do{d=addDays(d,1)}while(wd(d)===0||wd(d)===6);return d}
 function clCloseOn(d){if(CLBF.closes[d])return CLBF.closes[d];const s=(SESS||[]).find(x=>x.d===d);if(s&&s.c>0)return s.c;
   const e=etInfo(Date.now());if(d===e.d&&e.min>=960){const q=Q[FUND];return q.regClose>0?q.regClose:q.qc>0?q.qc:NaN}return NaN}
+/* read the direction of a post from its words when it has no Bullish/Bearish tag (and check SOXS context) */
+function clInfer(x){
+  const t=" "+String(x.body||"").toLowerCase().replace(/[^\w$.%\- ]+/g," ")+" ";let s=0;
+  const has=re=>re.test(t),cnt=re=>(t.match(re)||[]).length;
+  const bear=/\$?soxs\b/.test(t)&&!/\$?soxl\b/.test(t);
+  s+=cnt(/\b(calls?|long|longs|loaded|loading|bought|buying|buy|adding|added|moon|rip|ripping|breakout|bounce|bouncing|squeeze|send it|green|higher|bottom is in|reversal|bullish|undervalued|dip buy|btfd|load up)\b/g);
+  s-=cnt(/\b(puts?|short|shorts|shorting|shorted|dump|dumping|fade|fading|crash|crashing|sell|selling|sold|top is in|red|lower|bearish|overvalued|bagholder|bag|rug|tank|tanking|drill|drilling|collapse|breakdown|gap down)\b/g);
+  if(has(/\b(not|no|don t|dont|never|wouldn t|stop)\s+(buy|buying|selling|sell|short|shorting|long)\b/))s*=-0.5;
+  if(bear)s=-s; // "loaded SOXS" is bearish for SOXL
+  if(has(/\?\s*$/)&&Math.abs(s)<3)s=0; // a question is not a call
+  return Math.abs(s)>=2?Math.sign(s):0;
+}
 function clIngest(msgs,live){
   const C=clLoad();let added=0;
-  [...msgs].sort((a,b)=>a.at-b.at).forEach(x=>{if(!x.sent||C.seen[x.id])return;
-    const m=Math.floor(x.at/60000),dir=x.sent==="Bullish"?1:-1,k=x.user+"|"+dir;
+  [...msgs].sort((a,b)=>a.at-b.at).forEach(x=>{if(C.seen[x.id])return;
+    const inf=x.sent?0:clInfer(x);if(!x.sent&&!inf){C.seen[x.id]=1;return}
+    const m=Math.floor(x.at/60000),dir=x.sent?(x.sent==="Bullish"?1:-1):inf,k=x.user+"|"+dir;
     const p0=clPrice(m);if(!(p0>0)){if(Date.now()-x.at>12*86400000)C.seen[x.id]=1;return} // no price yet: try again when price data arrives
     C.seen[x.id]=1;
     if(C.lastBy[k]&&m-C.lastBy[k]<30&&m>=C.lastBy[k])return;C.lastBy[k]=m; // repeat posts in the same direction within 30 min count once
-    const c={id:x.id,u:x.user,dir,m,p0,fol:x.followers||0,cd:clCloseDate(m)};C.pend.push(c);added++;
+    const c={id:x.id,u:x.user,dir,m,p0,fol:x.followers||0,cd:clCloseDate(m),inf:inf?1:0};C.pend.push(c);added++;
     C.recent.push({u:c.u,dir,m});if(C.recent.length>400)C.recent.shift();
-    const U=C.users[c.u]||(C.users[c.u]={n:0,bull:0,h1:0,n1:0,hD:0,nD:0,e:0,fol:0,last:null});U.n++;if(dir>0)U.bull++;U.fol=c.fol;U.last={dir,m};
+    const U=C.users[c.u]||(C.users[c.u]={n:0,bull:0,h1:0,n1:0,hD:0,nD:0,e:0,e2:0,e1:0,ni:0,fol:0,last:null});U.n++;if(c.inf)U.ni++;if(dir>0)U.bull++;U.fol=c.fol;U.last={dir,m};
     if(live&&Date.now()-x.at<15*60000){const s=clStats().find(s=>s.u===c.u);if(s&&s.rank<=5)alert1("cl:"+x.id,864e5,`🎯 Top caller @${c.u} (${s.hD}/${s.nD} right at the next close) just posted ${dir>0?"Bullish":"Bearish"} on $SOXL at ${fmtPx(p0)}`,FUND,true)}
   });
   if(!C.since&&C.pend.length)C.since=Math.min(...C.pend.map(c=>c.m));
@@ -3837,22 +3860,26 @@ function clIngest(msgs,live){
 function clResolve(){
   const C=clLoad(),now=nowM(),keep=[];let ch=0;
   C.pend.forEach(c=>{const U=C.users[c.u];
-    if(c.r1==null&&now>=c.m+60){const p=clPrice(c.m+60);if(p>0||now>c.m+72*60){c.r1=p>0?p/c.p0-1:NaN;ch=1;if(isFinite(c.r1)&&Math.abs(c.r1)>=0.003){const h=Math.sign(c.r1)===c.dir?1:0;U.n1++;U.h1+=h;C.crowd.n1++;C.crowd.h1+=h}}}
-    if(c.rD==null){const cl=clCloseOn(c.cd);if(cl>0){c.rD=cl/c.p0-1;ch=1;if(Math.abs(c.rD)>=0.003){const h=Math.sign(c.rD)===c.dir?1:0;U.nD++;U.hD+=h;U.e+=c.dir*c.rD;C.crowd.nD++;C.crowd.hD+=h}}else if(now-c.m>7*1440){c.rD=NaN;ch=1}}
+    if(c.r1==null&&now>=c.m+60){const p=clPrice(c.m+60);if(p>0||now>c.m+72*60){c.r1=p>0?p/c.p0-1:NaN;ch=1;if(isFinite(c.r1)){U.e1=(U.e1||0)+c.dir*c.r1;U.m1=(U.m1||0)+1}if(isFinite(c.r1)&&Math.abs(c.r1)>=0.003){const h=Math.sign(c.r1)===c.dir?1:0;U.n1++;U.h1+=h;C.crowd.n1++;C.crowd.h1+=h}}}
+    if(c.rD==null){const cl=clCloseOn(c.cd);if(cl>0){c.rD=cl/c.p0-1;ch=1;C.crowd.abs=(C.crowd.abs||0)+Math.abs(c.rD);C.crowd.na=(C.crowd.na||0)+1;if(Math.abs(c.rD)>=0.003){const h=Math.sign(c.rD)===c.dir?1:0;U.nD++;U.hD+=h;U.e+=c.dir*c.rD;U.e2=(U.e2||0)+c.rD*c.rD;C.crowd.nD++;C.crowd.hD+=h}}else if(now-c.m>7*1440){c.rD=NaN;ch=1}}
     if(c.r1==null||c.rD==null)keep.push(c)});
   C.pend=keep;if(ch){clMemo=null;clSave()}
 }
 var clMemo=null;
 function clStats(){
   if(clMemo)return clMemo;const C=clLoad();
-  const L=Object.entries(C.users).map(([u,s])=>({u,...s,wD:clWilson(s.hD,s.nD),w1:clWilson(s.h1,s.n1),avg:s.nD?s.e/s.nD:NaN})).filter(s=>s.nD>=6);
+  // units: 1 unit = following one call with a stake that wins or loses the typical SOXL move to the next close
+  const unit=C.crowd.na>=30?C.crowd.abs/C.crowd.na:0.04;C.unit=unit;
+  const L=Object.entries(C.users).map(([u,s])=>{const avg=s.nD?s.e/s.nD:NaN,sd=s.nD>1?Math.sqrt(Math.max(1e-9,(s.e2||0)/s.nD-avg*avg)):NaN,ev=avg/unit,t=sd>0?avg/(sd/Math.sqrt(s.nD)):NaN;
+    // shrink toward 0 for small samples (about 20 calls of prior at 0)
+    const evS=ev*s.nD/(s.nD+20);return{u,...s,wD:clWilson(s.hD,s.nD),w1:clWilson(s.h1,s.n1),avg,ev,evS,tot:s.e/unit,t,ev1:s.m1?(s.e1/s.m1)/unit:NaN}}).filter(s=>s.nD>=6);
   L.sort((a,b)=>b.wD-a.wD);L.forEach((s,i)=>s.rank=i+1);return clMemo=L;
 }
 /* decision input: what the proven callers say now, and fading the crowd when the crowd has been wrong */
 function clSignal(){
   const C=clLoad(),L=clStats(),now=nowM(),by={};L.forEach(s=>by[s.u]=s);
   let sx=0,n=0;const R=C.recent.filter(r=>now-r.m<=180);
-  R.forEach(r=>{const s=by[r.u];if(s&&s.wD>=0.55){sx+=(s.wD-0.5)*r.dir;n++}});
+  R.forEach(r=>{const s=by[r.u];if(!s)return;if(s.wD>=0.55&&s.evS>0){sx+=Math.min(0.5,(s.wD-0.5)+s.evS*0.3)*r.dir;n++}else if(s.nD>=12&&s.evS<=-0.15){sx-=Math.min(0.4,-s.evS*0.3)*r.dir;n++}});
   const sharp=n?Math.tanh(sx/0.6)*Math.min(1,n/3):NaN; // damped until at least 3 proven-caller posts agree
   const cr=C.crowd,hit=cr.nD?cr.hD/cr.nD:NaN,bull=R.length>=10?R.filter(r=>r.dir>0).length/R.length:NaN;
   const fade=cr.nD>=150&&isFinite(hit)&&hit<0.47&&isFinite(bull)?-(bull-0.5)*2*clamp((0.5-hit)/0.08,0,1):NaN;
@@ -3866,8 +3893,8 @@ async function clBackfill(){
     if(j.status==="ok"){CLBF.bars=j.bars.filter(b=>b[4]>0).map(b=>({m:Math.floor(b[0]/60000),c:b[4]}));
       j.bars.forEach(b=>{const e=etInfo(b[0]);if(e.min===945&&b[4]>0)CLBF.closes[e.d]=b[4]})}
     let max=null,all=[];
-    for(let i=0;i<30;i++){const r=await(await fetch(`${p}/social?t=SOXL${max?"&max="+max:""}`)).json();if(r.status!=="ok"||!r.msgs.length)break;
-      all=all.concat(r.msgs);max=r.next;if(!max||Date.now()-r.msgs[r.msgs.length-1].at>10*86400000)break;await sleep(1500)}
+    for(let i=0;i<80;i++){const r=await(await fetch(`${p}/social?t=SOXL${max?"&max="+max:""}`)).json();if(r.status!=="ok"||!r.msgs.length)break;
+      all=all.concat(r.msgs);max=r.next;if(!max||Date.now()-r.msgs[r.msgs.length-1].at>28*86400000)break;await sleep(1500)}
     if(all.length){clIngest(all,false);C.bfAt=Date.now();clResolve();clSave()}
   }catch(e){}finally{clBusy=false;renderCallers()}
 }
@@ -3880,12 +3907,15 @@ function renderCallers(){
     st("Top callers now",S.nSharp?(S.sharp>0.15?"Bullish":S.sharp<-0.15?"Bearish":"Split"):"Quiet",S.nSharp?`${S.nSharp} calls from proven callers (3 h)`:"no recent calls from proven callers",S.sharp>0.15?"up":S.sharp<-0.15?"down":"")+
     st("Fade-the-crowd signal",isFinite(S.fade)?(S.fade>0.1?"Lean up":S.fade<-0.1?"Lean down":"Neutral"):"--",isFinite(S.fade)?"the crowd has been wrong more than right":"active when the crowd scores under 47%",S.fade>0.1?"up":S.fade<-0.1?"down":"")+
     st("Tracked",L.length+" callers",`${nCalls.toLocaleString()} calls since ${C.since?new Date(C.since*60000).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"--"}`);
-  $("clTabs").innerHTML=[["top","Most accurate"],["fade","Least accurate (fade)"],["active","Most active"]].map(([k,l])=>`<button data-clv="${k}" class="${clView===k?"on":""}">${l}</button>`).join("");
-  let R=clView==="fade"?[...L].sort((a,b)=>clWilson(b.nD-b.hD,b.nD)-clWilson(a.nD-a.hD,a.nD)):clView==="active"?[...L].sort((a,b)=>b.n-a.n):L;
+  const evB=[...L].filter(s=>s.nD>=10).sort((a,b)=>b.evS-a.evS)[0],evW=[...L].filter(s=>s.nD>=10).sort((a,b)=>a.evS-b.evS)[0];
+  $("clTiles").innerHTML+=st("Best to follow (EV)",evB&&evB.evS>0?"@"+esc(evB.u):"--",evB&&evB.evS>0?`${evB.ev>=0?"+":""}${evB.ev.toFixed(2)} units per call · ${evB.tot>=0?"+":""}${evB.tot.toFixed(1)} units over ${evB.nD} calls`:"no poster with +EV yet","up")+
+    st("Best to fade (EV)",evW&&evW.evS<0?"@"+esc(evW.u):"--",evW&&evW.evS<0?`${evW.ev.toFixed(2)} units per call when followed · fading wins ${(-evW.tot).toFixed(1)} units`:"no clear −EV poster yet","down");
+  $("clTabs").innerHTML=[["ev","Most +EV to follow"],["top","Most accurate"],["fade","Best to fade (−EV)"],["active","Most active"]].map(([k,l])=>`<button data-clv="${k}" class="${clView===k?"on":""}">${l}</button>`).join("");
+  let R=clView==="fade"?[...L].sort((a,b)=>a.evS-b.evS):clView==="active"?[...L].sort((a,b)=>b.n-a.n):clView==="ev"?[...L].sort((a,b)=>b.evS-a.evS):L;
   const now=nowM(),ago=m=>{const d=now-m;return d<60?d+"m":d<1440?Math.round(d/60)+"h":Math.round(d/1440)+"d"};
-  el.innerHTML=L.length?`<tr><th>#</th><th class="l">Poster</th><th>Calls</th><th>Bullish</th><th>Right at next close</th><th>Right at 1 h</th><th>Score</th><th>Avg move</th><th class="l">Last call</th></tr>`+
+  el.innerHTML=L.length?`<tr><th>#</th><th class="l">Poster</th><th>Calls</th><th>Bullish</th><th>Right at next close</th><th>Right at 1 h</th><th>Score</th><th>Avg move</th><th title="Expected value of following each call, in units (1 unit = the typical SOXL move to the next close, about ${fmtPct(C.unit||0.04,1)})">EV / call</th><th title="Units won or lost by following every call">Total units</th><th title="t-value: 2 or more means the result is unlikely to be luck">t</th><th class="l">Last call</th></tr>`+
     R.slice(0,15).map(s=>`<tr><td>${s.rank}</td><td class="l"><a href="https://stocktwits.com/${encodeURIComponent(s.u)}" target="_blank" rel="noopener">@${esc(s.u)}</a> <span class="sub">${fmtInt(s.fol)}</span></td><td>${s.n}</td><td>${Math.round(s.bull/s.n*100)}%</td>
-      <td class="${s.hD/s.nD>=0.6?"up":s.hD/s.nD<=0.4?"down":""}">${s.hD}/${s.nD} (${Math.round(s.hD/s.nD*100)}%)</td><td>${s.n1?`${s.h1}/${s.n1}`:"--"}</td><td><b>${Math.round(s.wD*100)}</b></td><td class="${cls(s.avg)}">${fmtPct(s.avg)}</td>
+      <td class="${s.hD/s.nD>=0.6?"up":s.hD/s.nD<=0.4?"down":""}">${s.hD}/${s.nD} (${Math.round(s.hD/s.nD*100)}%)</td><td>${s.n1?`${s.h1}/${s.n1}`:"--"}</td><td><b>${Math.round(s.wD*100)}</b></td><td class="${cls(s.avg)}">${fmtPct(s.avg)}</td><td class="${s.evS>0.05?"up":s.evS<-0.05?"down":""}"><b>${isFinite(s.ev)?(s.ev>=0?"+":"")+s.ev.toFixed(2)+" u":"--"}</b></td><td class="${cls(s.tot)}">${isFinite(s.tot)?(s.tot>=0?"+":"")+s.tot.toFixed(1)+" u":"--"}</td><td class="${Math.abs(s.t)>=2?(s.t>0?"up":"down"):"sub"}">${isFinite(s.t)?s.t.toFixed(1):"--"}</td>
       <td class="l">${s.last?`<span class="${s.last.dir>0?"up":"down"}">${s.last.dir>0?"Bullish":"Bearish"}</span> <span class="sub">${ago(s.last.m)} ago</span>`:"--"}</td></tr>`).join("")
     :`<tr><td class="l sub">${C.pend.length?`Scoring ${C.pend.length} calls… a poster appears after 6 calls are scored at the next close.`:fredProxy()||demo?"Loading StockTwits history…":"Add the Worker URL to track callers."}</td></tr>`;
 }
@@ -3894,7 +3924,7 @@ setInterval(()=>{try{clResolve();renderCallers()}catch(e){}},60000);
 function clDemo(){
   const C=clNew(),names=["SharpEdge","GapFader","NightOwlTrades","SemiSniper","BagHolderBob","MoonBoy99","ChipWhisperer","DipBuyerDan","BearClaw","TapeReader"],skill=[0.72,0.68,0.64,0.6,0.38,0.35,0.58,0.5,0.55,0.62];
   const now=nowM();C.since=now-9*1440;
-  names.forEach((u,i)=>{const n=8+Math.floor(Math.random()*30),U=C.users[u]={n,bull:Math.round(n*(i%3===0?0.3:0.8)),h1:0,n1:0,hD:0,nD:0,e:0,fol:20+i*137,last:{dir:Math.random()<0.6?1:-1,m:now-Math.floor(Math.random()*600)}};
+  names.forEach((u,i)=>{const n=8+Math.floor(Math.random()*30),U=C.users[u]={n,bull:Math.round(n*(i%3===0?0.3:0.8)),h1:0,n1:0,hD:0,nD:0,e:0,e2:0.0016*n,fol:20+i*137,last:{dir:Math.random()<0.6?1:-1,m:now-Math.floor(Math.random()*600)}};
     for(let k=0;k<n;k++){const hit=Math.random()<skill[i];U.nD++;U.hD+=hit?1:0;U.e+=(hit?1:-1)*(0.01+Math.random()*0.03);if(Math.random()<0.9){U.n1++;U.h1+=Math.random()<skill[i]-0.05?1:0}}
     C.crowd.nD+=U.nD;C.crowd.hD+=U.hD;C.crowd.n1+=U.n1;C.crowd.h1+=U.h1;C.recent.push({u,dir:U.last.dir,m:U.last.m})});
   C.crowd.nD+=300;C.crowd.hD+=136;return C;
@@ -4191,12 +4221,13 @@ if(apiKey)startLive();else{openModal();initMemory("soxx_sniper_live")}
 render();renderAnalysis();drawChart();
 </script>
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-<script src="prochart.js?v=6"></script>
+<script src="prochart.js?v=7"></script>
 <script>try{if(curSym&&window.pcDock)svPcDock(curSym)}catch(e){}</script>
-<script src="whales.js?v=3"></script>
-<script src="trio.js?v=2"></script>
+<script src="whales.js?v=4"></script>
+<script src="trio.js?v=3"></script>
 <script src="gtlog.js?v=1"></script>
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;
 el.onchange=()=>{const x=el.value;try{localStorage.setItem("site_width",x)}catch(e){}document.documentElement.style.setProperty("--pagew",x==="fit"?"100%":x+"px");window.dispatchEvent(new Event("resize"))}})();</script>
+<script src="sell.js?v=1"></script>
 </body>
 </html>

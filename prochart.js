@@ -522,7 +522,8 @@
       const c = chart.takeScreenshot(), g = c.getContext("2d"), dpr = c.width / $p("pcMain").clientWidth;
       g.drawImage(ov, 0, 0, ov.width, ov.height, 0, 0, ov.width / (window.devicePixelRatio || 1) * dpr, ov.height / (window.devicePixelRatio || 1) * dpr);
       const b = data(), x = b[b.length - 1]; g.font = `${Math.round(13 * dpr)}px 'JetBrains Mono',monospace`; g.fillStyle = T.fg;
-      g.fillText(`${O.sym} · ${O.tf} · ${x ? fp(x.c) : ""} · SOXX Sniper`, 10 * dpr, 22 * dpr);
+      g.fillText(`${O.sym} · ${O.tf} · ${x ? fp(x.c) : ""} · SOXX Sniper`, 10 * dpr, 22 * dpr); g.font = `${Math.round(12 * dpr)}px 'JetBrains Mono',monospace`; g.globalAlpha = 0.75; const wm = "stevenwsharp-ctrl.github.io/SOXX-Sniper"; g.fillText(wm, c.width - g.measureText(wm).width - 12 * dpr, c.height - 34 * dpr); g.globalAlpha = 1;
+      try { c.toBlob(bl => { try { navigator.clipboard.write([new ClipboardItem({ "image/png": bl })]); stat("Saved, and copied: paste it into your post on X"); } catch (e) { } }, "image/png"); } catch (e) { }
       c.toBlob(bl => { const a = document.createElement("a"); a.href = URL.createObjectURL(bl); a.download = `${O.sym}-${O.tf}-${etDate()}.png`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }, "image/png");
     } catch (e) { stat("Snapshot failed"); }
   };
