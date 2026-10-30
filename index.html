@@ -128,7 +128,7 @@ button.danger:hover{border-color:var(--down);color:var(--down)}
 .hld{font-size:13.5px;color:var(--dim);line-height:1.45;margin-top:3px}.hld b{color:var(--ink);font-weight:600}
 .hlside{display:flex;flex-direction:column;align-items:flex-end;gap:6px}.hlside .sub{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .hlprev{font-size:12.5px;color:var(--mute);border-top:1px dashed var(--line);padding-top:8px;line-height:1.45}.hlprev b{color:var(--dim)}
-.mcal{display:flex;flex-wrap:wrap;gap:6px}.mev{display:inline-flex;gap:6px;align-items:center;padding:4px 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:12.5px;cursor:pointer;color:var(--ink);font-family:var(--sans)}
+.mcal{display:flex;flex-wrap:wrap;gap:6px}.mnews{display:inline-flex;gap:6px;align-items:baseline;padding:3px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--ink);text-decoration:none;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mnews:hover{border-color:var(--accent)}.mev{display:inline-flex;gap:6px;align-items:center;padding:4px 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:12.5px;cursor:pointer;color:var(--ink);font-family:var(--sans)}
 .mev .mt{font-family:var(--mono);font-size:11px;color:var(--dim)}.mev .mi3{width:8px;height:8px;border-radius:50%;background:var(--down)}.mev .mi2{width:8px;height:8px;border-radius:50%;background:var(--amber)}.mev .mi1{width:8px;height:8px;border-radius:50%;background:var(--mute)}
 .mev.soon{border-color:var(--amber)}.mev.now{border-color:var(--down);box-shadow:0 0 0 2px color-mix(in srgb,var(--down) 25%,transparent)}.mev.done{opacity:.6}.mev.sel{outline:2px solid var(--accent)}
 .mev .mx{font-family:var(--mono);font-size:11px;color:var(--dim)}.mday{font-family:var(--mono);font-size:11px;color:var(--mute);align-self:center;margin:0 2px 0 6px;text-transform:uppercase;letter-spacing:.08em}
@@ -394,7 +394,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   <section class="hl" id="hlBar" aria-live="polite">
     <div class="hlrow live"><span class="hltag"><span class="livedot"></span>LIVE</span><div><div class="hlh" id="hlLive">Waiting for SOXL prices…</div><div class="hld" id="hlLiveD"></div></div><div class="hlside"><span class="sub" id="hlLiveT">--</span><button id="hlCopy" title="Copy both headlines">Copy</button></div></div>
     <div class="hlrow day"><span class="hltag" id="hlDayTag">TODAY</span><div><div class="hlh" id="hlDay">--</div><div class="hld" id="hlDayD"></div></div><div class="hlside"><span class="sub" id="hlDayT"></span></div></div>
-    <div class="hlrow macro"><span class="hltag">MACRO</span><div style="min-width:0"><div class="mcal" id="mcal"><span class="sub">Loading the calendar…</span></div><div class="hld" id="mcalWhy"></div></div><div class="hlside"><span class="sub" id="mcalSrc"></span></div></div>
+    <div class="hlrow macro"><span class="hltag">MACRO</span><div style="min-width:0"><div class="mcal" id="mcal"><span class="sub">Loading the calendar…</span></div><div class="hld" id="mcalWhy"></div><div class="mcal" id="mcalNews" style="margin-top:4px"></div></div><div class="hlside"><span class="sub" id="mcalSrc"></span></div></div>
     <div class="hlprev" id="hlPrev" hidden></div>
   </section>
   <section class="toprow" id="topRow">
@@ -2373,14 +2373,25 @@ function macroEvents(from,to){
   big.forEach(e=>L.push({d:e.d,t:e.h==="bmo"?"07:00":e.h==="amc"?"16:05":"12:00",n:`${e.s} earnings ${e.h==="bmo"?"(pre-market)":e.h==="amc"?"(after close)":""}`.trim(),k:"earn",i:["NVDA","MSFT","GOOGL","META","AMZN","AVGO","TSM"].includes(e.s)?3:2,s:e.s}));
   // merge the Worker feed (forecast / previous / actual and anything we do not list)
   (MXT.ev||[]).forEach(x=>{const m=L.find(y=>y.d===x.d&&y.t===x.t&&y.k!=="earn"&&(y.i>=2||x.i>=2)&&simWords(y.n,x.n));
-    if(m){m.fc=x.fc;m.pv=x.pv;m.ac=x.ac}else if(x.i>=3)L.push({...x,k:"ext"})});
+    if(m){m.fc=x.fc;m.pv=x.pv;m.ac=x.ac}else if(x.i>=2)L.push({...x,k:"ext"})});
   return L.filter(x=>x.d>=from&&x.d<=to).sort((a,b)=>(a.d+a.t).localeCompare(b.d+b.t)||b.i-a.i);
 }
 function simWords(a,b){const w=t=>t.toLowerCase().replace(/[^a-z ]/g," ").split(" ").filter(z=>z.length>2);const A=w(a);return w(b).some(z=>A.some(y=>y.startsWith(z.slice(0,4))||z.startsWith(y.slice(0,4))))}
 function evMs(e){const[h,m]=e.t.split(":").map(Number);return etEpochMin(e.d,h*60+m)*60000}
 async function fetchMacroFeed(){const p=fredProxy();if(!p||demo)return;
   try{const j=await(await fetch(`${p}/econ`)).json();if(j.status==="ok"){MXT={t:Date.now(),ev:j.items,err:""}}else MXT.err=j.error||"no answer"}catch(e){MXT.err="Worker /econ did not answer (update the Worker code for forecasts)"}}
-setTimeout(fetchMacroFeed,4000);setInterval(fetchMacroFeed,30*60000);
+setTimeout(fetchMacroFeed,4000);setInterval(fetchMacroFeed,5*60000);   // actuals arrive minutes after each release
+// macro headlines (Fed, inflation, jobs, growth, yields, tariffs, chip export rules), through the Worker's news search
+var MNEWS={t:0,items:[],err:""};
+async function fetchMacroNews(){const p=fredProxy();if(!p||demo)return;
+  try{const q=["Federal Reserve","Powell","inflation","Treasury yields","jobs report","GDP","PCE","tariffs","chip export","rate cut","recession","bond market"].join("|");
+    const j=await(await fetch(`${p}/news?t=SPY,QQQ,TLT,DIA&q=${encodeURIComponent(q)}`)).json();
+    if(j.status==="ok"){MNEWS={t:Date.now(),items:j.items.slice(0,40),err:""};renderMacro2()}else MNEWS.err=j.error||"no answer"}catch(e){MNEWS.err="news did not answer"}}
+setTimeout(fetchMacroNews,6000);setInterval(fetchMacroNews,4*60000);
+// surprise vs consensus and what it means for stocks: hotter inflation = bad; weaker labor = bad for growth; stronger growth = good
+function econSurprise(e){const n=v=>{const x=parseFloat(String(v||"").replace(/[,%$KMBT]/g,""));return isFinite(x)?x:NaN};const a=n(e.ac),c=n(e.fc);if(!isFinite(a)||!isFinite(c)||a===c)return null;
+  const up=a>c,nm=e.n.toLowerCase(),infl=/cpi|ppi|pce|price|inflation|wage|earnings|cost/.test(nm),claims=/claims|unemployment/.test(nm);
+  return{lab:infl?(up?"hotter than expected":"cooler than expected"):claims?(up?"weaker labor":"stronger labor"):(up?"above expected":"below expected"),cls:infl?(up?"down":"up"):claims?(up?"down":"up"):(up?"up":"down")}}
 function macroState(){
   const now=Date.now(),today=etDate(now);let tom=addDays(today,1);while([0,6].includes(new Date(tom+"T12:00:00Z").getUTCDay()))tom=addDays(tom,1);
   const L=macroEvents(today,tom).filter(e=>e.i>=2||e.d===today);
@@ -2393,13 +2404,18 @@ function renderMacro2(){
   const el=$("mcal");if(!el)return null;const M=macroState(),now=Date.now();
   const chip=e=>{const dt=Math.round((e.ms-now)/60000);const when=e.st==="soon"?`in ${dt}m`:e.st==="now"&&e.k!=="holiday"&&e.k!=="half"?"just out":e.st==="done"?"done":"";
     const vals=[e.ac!=null&&e.ac!==""?`act ${e.ac}`:"",e.fc?`exp ${e.fc}`:"",e.pv?`prev ${e.pv}`:""].filter(Boolean).join(" · ");
-    return`<button class="mev ${e.st}${mcalSel===e.d+e.n?" sel":""}" data-mev="${esc(e.d+e.n)}"><span class="mi${e.i}"></span><span class="mt">${fmtMt(e)}</span>${esc(e.n)}${when?` <span class="mx">${when}</span>`:""}${vals?` <span class="mx">${esc(vals)}</span>`:""}${isFinite(e.react)?` <span class="mx ${cls(e.react)}">SOXL ${fmtPct(e.react,1)} since</span>`:""}</button>`};
+    const su=econSurprise(e);
+    return`<button class="mev ${e.st}${mcalSel===e.d+e.n?" sel":""}" data-mev="${esc(e.d+e.n)}"><span class="mi${e.i}"></span><span class="mt">${fmtMt(e)}</span>${esc(e.n)}${when?` <span class="mx">${when}</span>`:""}${vals?` <span class="mx">${esc(vals)}</span>`:""}${su?` <span class="mx ${su.cls}">${su.lab}</span>`:""}${isFinite(e.react)?` <span class="mx ${cls(e.react)}">SOXL ${fmtPct(e.react,1)} since</span>`:""}</button>`};
   const T=M.L.filter(e=>e.d===M.today),N=M.L.filter(e=>e.d===M.tom);
   const lab=d=>new Date(d+"T12:00:00Z").toLocaleDateString("en-US",{weekday:"short",timeZone:"UTC"});
   el.innerHTML=`<span class="mday">Today</span>${T.map(chip).join("")||'<span class="sub">No major US data</span>'}<span class="mday">${lab(M.tom)}</span>${N.map(chip).join("")||'<span class="sub">No major US data</span>'}`;
   const pick=M.L.find(e=>mcalSel===e.d+e.n)||M.L.filter(e=>e.st!=="done").sort((a,b)=>b.i-a.i||a.ms-b.ms)[0];
-  $("mcalWhy").innerHTML=pick?`<b>${esc(pick.n)}</b> (${pick.d===M.today?"today":lab(pick.d)} ${fmtMt(pick)} ET): ${MWHY[pick.k]||"High-impact US release. Expect larger swings around the time."}`:"";
-  $("mcalSrc").textContent=MXT.t?"with forecasts":"";$("mcalSrc").title=MXT.err||"";
+  const lk=e=>`<a href="https://news.google.com/search?q=${encodeURIComponent('"'+e.n+'" US economy')}" target="_blank" rel="noopener">news on it ↗</a> · <a href="https://www.nasdaq.com/market-activity/economic-calendar" target="_blank" rel="noopener">calendar ↗</a>`;
+  const ps=pick&&econSurprise(pick);
+  $("mcalWhy").innerHTML=pick?`<b>${esc(pick.n)}</b> (${pick.d===M.today?"today":lab(pick.d)} ${fmtMt(pick)} ET)${pick.ac?`: actual <b>${esc(pick.ac)}</b> vs expected ${esc(pick.fc||"–")}${ps?` · <b class="${ps.cls}">${ps.lab}</b>`:""}${isFinite(pick.react)?` · SOXL <span class="${cls(pick.react)}">${fmtPct(pick.react,1)}</span> since`:""}.`:""} ${MWHY[pick.k]||"US data release. Expect larger swings around the time."} ${lk(pick)}`:"";
+  const nw=(MNEWS.items||[]).slice(0,5);
+  $("mcalNews").innerHTML=nw.length?`<span class="mday">Macro news</span>${nw.map(x=>{const a=Math.max(1,Math.round((Date.now()-(x.at||Date.now()))/60000));return`<a class="mnews" href="${esc(x.url)}" target="_blank" rel="noopener"><span class="mx">${a<60?a+"m":Math.round(a/60)+"h"}</span> ${esc(x.title)} <span class="mx">${esc(x.src||"")}</span></a>`}).join("")}`:MNEWS.err?`<span class="sub">Macro news: ${esc(MNEWS.err)}</span>`:"";
+  $("mcalSrc").textContent=MXT.t?`actuals · ${Math.max(0,Math.round((Date.now()-MXT.t)/60000))}m ago`:"";$("mcalSrc").title=MXT.err||"";
   return M;
 }
 document.addEventListener("click",e=>{const b=e.target.closest("[data-mev]");if(b){mcalSel=mcalSel===b.dataset.mev?null:b.dataset.mev;renderMacro2()}});
@@ -2709,7 +2725,8 @@ function fhTick(){
 }
 async function fetchQuote(s){
   const j=await fhGet(`quote?symbol=${encodeURIComponent(s)}`,"quote");
-  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;saveQuoteCache();if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
+  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;saveQuoteCache();{const dd=etDate();if(q.hlDay!==dd){q.h=0;q.l=0;q.hlDay=dd}}   // day high / low start fresh each day (the cache kept yesterday's)
+    if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
     if(j.c>0){q.qc=j.c;q.qt=j.t>0?j.t*1000:Date.now()}
     const ph=phaseAt(Date.now()),ext=ph==="pre"||ph==="post"||ph==="closed";
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
@@ -4245,7 +4262,7 @@ render();renderAnalysis();drawChart();
 <script src="intel.js?v=9"></script>
 <script src="radar.js?v=4"></script>
 <script src="read.js?v=1"></script>
-<script src="trio.js?v=4"></script>
+<script src="trio.js?v=5"></script>
 <script src="gtlog.js?v=1"></script>
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;
 el.onchange=()=>{const x=el.value;try{localStorage.setItem("site_width",x)}catch(e){}document.documentElement.style.setProperty("--pagew",x==="fit"?"100%":x+"px");window.dispatchEvent(new Event("resize"))}})();</script>

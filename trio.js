@@ -23,7 +23,7 @@
 .pxtf{display:flex;gap:2px;margin-top:6px}.pxtf button{font:10px var(--mono);padding:2px 6px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--dim);cursor:pointer}.pxtf button.on{border-color:var(--accent);color:var(--accent)}
 .pxst{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px 6px;margin-top:6px;font:10.5px var(--mono);color:var(--dim)}.pxst b{display:block;font-size:11.5px;font-weight:600}
 .pxbar{grid-column:1/-1;display:flex;align-items:center;gap:6px}.pxbar i{flex:1;height:5px;border-radius:3px;background:linear-gradient(90deg,var(--down),var(--line) 50%,var(--up));position:relative;opacity:.8}.pxbar i u{position:absolute;top:-3px;width:3px;height:11px;border-radius:2px;background:var(--ink);transform:translateX(-50%)}
-.pxtip{position:absolute;font:10.5px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 6px;pointer-events:none;display:none;white-space:nowrap;z-index:3}
+.pxtip{position:absolute;left:8px;right:8px;font:10.5px/1.4 var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 7px;pointer-events:none;display:none;z-index:3;box-shadow:0 4px 14px rgba(0,0,0,.3)}
 #trioCard .trhd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer}
 #trioCard .trhd .label{margin:0}
 #trioBody{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
@@ -56,8 +56,9 @@
     box.addEventListener("click", async e => { const b = e.target.closest("[data-crg]"); if (!b) return; CR = b.dataset.crg; lsSet("soxx_card_rng", CR); await loadCards(); renderCards(); });
     SY.forEach(([s]) => { const cv = $("pxs" + s), tp = $("pxtip" + s);
       cv.addEventListener("mousemove", e => { const h = CHV[s]; if (!h) return; const rc = cv.getBoundingClientRect(), x = e.clientX - rc.left, i = Math.max(0, Math.min(h.B.length - 1, Math.round(x / rc.width * (h.B.length - 1)))), b = h.B[i];
-        tp.textContent = `${new Date(b[0]).toLocaleString("en-US", { timeZone: "America/New_York", ...(h.daily ? { month: "short", day: "numeric", year: "2-digit" } : { weekday: "short", hour: "numeric", minute: "2-digit" }) })} · ${fmtPx(b[4])} · ${fmtPct(b[4] / h.base - 1, 2)} vs ${h.baseLab}`;
-        tp.style.display = "block"; tp.style.left = Math.min(rc.width - tp.offsetWidth, Math.max(0, x - tp.offsetWidth / 2)) + "px"; tp.style.top = (cv.offsetTop - 18) + "px"; });
+        const ch = b[4] / h.base - 1;
+        tp.innerHTML = `<b>${fmtPx(b[4])}</b> <span class="${ch >= 0 ? "up" : "down"}">${fmtPct(ch, 2)}</span> vs ${h.baseLab}<br><span class="sub">${new Date(b[0]).toLocaleString("en-US", { timeZone: "America/New_York", ...(h.daily ? { month: "short", day: "numeric", year: "numeric" } : { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) })} ET${b[5] ? " · vol " + (b[5] >= 1e6 ? (b[5] / 1e6).toFixed(1) + "M" : Math.round(b[5] / 1e3) + "K") : ""}</span>`;
+        tp.style.display = "block"; tp.style.top = Math.max(0, cv.offsetTop - tp.offsetHeight - 2) + "px"; });
       cv.addEventListener("mouseleave", () => tp.style.display = "none"); });
   }
   // ---------- card charts: 1D / 5D / 1M / 6M / 1Y, and the stats strip ----------
@@ -70,13 +71,17 @@
     try { const j = await (await fetch(`${p}/chart?t=${s}&range=${rng}&interval=${CIV[rng]}`)).json(); if (j.status === "ok") return CD[k] = { bars: j.bars.filter(b => b[4] != null), pc: j.meta && j.meta.prevClose, at: Date.now() }; } catch (e) { }
     return c || null;
   }
-  async function loadCards() { await Promise.all(SY.flatMap(([s]) => [getC(s, CR), getC(s, "1y")])); }
+  async function loadCards() { await Promise.all(SY.flatMap(([s]) => [getC(s, CR), getC(s, "1y"), getC(s, "1d")])); }
   function stats(s, P) {
     const y = CD[s + "|1y"]; if (!y || y.bars.length < 30 || !(P > 0)) return "";
     const B = y.bars, C = B.map(b => b[4]), n = C.length, ch = k => n > k ? P / C[n - 1 - k] - 1 : NaN;
     const r = C.slice(-61).map((c, i, a) => i ? c / a[i - 1] - 1 : NaN).filter(isFinite), sd = Math.sqrt(r.reduce((a, x) => a + x * x, 0) / Math.max(1, r.length));
     const q = Q[s], day = q && q.pc > 0 ? P / q.pc - 1 : NaN, hi52 = Math.max(...B.map(b => b[2]), P), lo52 = Math.min(...B.map(b => b[3]), P);
-    const dh = q && q.h > 0 ? Math.max(q.h, P) : NaN, dl = q && q.l > 0 ? Math.min(q.l, P) : NaN;
+    // today's regular-session high / low from today's 1-minute bars (the quote's high / low can be stale)
+    let dh = NaN, dl = NaN; { const d1 = CD[s + "|1d"]; if (d1 && d1.bars.length) { const day = etDay(d1.bars[d1.bars.length - 1][0]), R = d1.bars.filter(b => etDay(b[0]) === day && etMin(b[0]) >= 570 && etMin(b[0]) < 960);
+      if (R.length) { dh = Math.max(...R.map(b => b[2])); dl = Math.min(...R.map(b => b[3])); } } }
+    if (!isFinite(dh) && q && q.h > 0) { dh = q.h; dl = q.l; }
+    if (phaseAt(Date.now()) === "regular") { dh = Math.max(dh, P); dl = Math.min(dl, P); }
     const c = v => !isFinite(v) ? "" : v >= 0 ? "up" : "down", f = v => isFinite(v) ? fmtPct(v, 1) : "--", pos = (v, a, b) => b > a ? Math.max(0, Math.min(100, (v - a) / (b - a) * 100)) : 50;
     return `<div><span>5D</span><b class="${c(ch(5))}">${f(ch(5))}</b></div><div><span>1M</span><b class="${c(ch(21))}">${f(ch(21))}</b></div><div><span>3M</span><b class="${c(ch(63))}">${f(ch(63))}</b></div><div><span>1Y</span><b class="${c(P / C[0] - 1)}">${f(P / C[0] - 1)}</b></div>
       <div class="pxbar" title="Today's range: low ${fmtPx(dl)} – high ${fmtPx(dh)}"><span>Day</span><i><u style="left:${pos(P, dl, dh)}%"></u></i><span>${isFinite(dl) ? dl.toFixed(2) + "–" + dh.toFixed(2) : "--"}</span></div>

@@ -561,5 +561,33 @@ async function getEcon() {
       }
     } catch (e) { }
   }
-  return out.length ? { status: "ok", items: out } : { status: "error", error: "calendar feed did not answer" };
+  // Nasdaq economic calendar (free, no key): US events with actual, consensus and previous, for yesterday to 10 days ahead.
+  // Used together with Forex Factory (which often blocks Cloudflare); duplicates are dropped.
+  const nq = await nasdaqEcon();
+  for (const x of nq) if (!out.some(y => y.d === x.d && y.t === x.t && y.n.toLowerCase().slice(0, 12) === x.n.toLowerCase().slice(0, 12))) out.push(x);
+  out.sort((a, b) => (a.d + a.t).localeCompare(b.d + b.t));
+  return out.length ? { status: "ok", items: out, src: nq.length ? "nasdaq" + (out.length > nq.length ? "+ff" : "") : "ff" } : { status: "error", error: "calendar feeds did not answer" };
+}
+const econMemo = new Map();
+const ECON_HI = /nonfarm|payrolls|unemployment rate|\bcpi\b|consumer price|\bppi\b|producer price|\bpce\b|\bgdp\b(?! sales| price)|fomc|interest rate decision|fed chair|powell|retail sales|ism (manufacturing|services|non-manufacturing) pmi|jolts|average hourly earnings|employment cost/i;
+const ECON_MID = /jobless claims|consumer confidence|michigan|durable goods|housing starts|new home sales|existing home|industrial production|ism|pmi|trade balance|personal income|personal spending|gdpnow|10-year note auction|30-year bond auction|fed's |fed (member|governor|president)|beige book|adp|challenger|chicago pmi|empire state|philadelphia fed|crude oil inventories|wholesale inventories|factory orders|construction spending|treasury|note auction|bond auction/i;
+async function nasdaqEcon() {
+  const out = [], today = new Date(Date.now() - 4 * 36e5);   // close to ET
+  const days = []; for (let i = -1; i <= 10; i++) { const d = new Date(today.getTime() + i * 864e5); const wd = d.getUTCDay(); if (wd === 0 || wd === 6) continue; days.push(d.toISOString().slice(0, 10)); }
+  await Promise.all(days.map(async d => {
+    const hit = econMemo.get(d); if (hit && Date.now() - hit.at < (d <= today.toISOString().slice(0, 10) ? 5 * 6e4 : 60 * 6e4)) { out.push(...hit.items); return; }
+    try {
+      const r = await fetch(`https://api.nasdaq.com/api/calendar/economicevents?date=${d}`, { headers: NQ }); if (!r.ok) return;
+      const j = await r.json(), rows = (j && j.data && j.data.rows) || [], items = [];
+      const clean = v => String(v == null ? "" : v).replace(/&nbsp;/g, "").trim();
+      for (const x of rows) {
+        if (!/united states/i.test(x.country || "")) continue;
+        const n = clean(x.eventName), i = ECON_HI.test(n) ? 3 : ECON_MID.test(n) ? 2 : 1; if (i < 2) continue;
+        const t = /^\d{1,2}:\d{2}$/.test(clean(x.gmt)) ? clean(x.gmt).padStart(5, "0") : "08:30";   // Nasdaq lists US events in ET
+        items.push({ d, t, n, i, fc: clean(x.consensus), pv: clean(x.previous), ac: clean(x.actual), src: "nasdaq" });
+      }
+      econMemo.set(d, { at: Date.now(), items }); out.push(...items);
+    } catch (e) { }
+  }));
+  return out;
 }
