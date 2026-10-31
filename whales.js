@@ -407,15 +407,15 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
   const mult = w => GR[w.a] ? GR[w.a].mult : 1;
   function smartScore(w) { const s = liveScore(w), m = mult(w); return w.g === "B" ? (s >= 0 ? s * m : s / m) : (s <= 0 ? s * (2 - m) : s / (2 - m)); }
   async function gradeAll() {
-    if (grBusy || !window.Grade || Date.now() - grT < 10 * 60000) return; grBusy = true;
+    if (grBusy || !window.Grade || Date.now() - grT < 10 * 60000 || performance.now() < 90000) return; grBusy = true;   // not in the first 90 s: the page's startup reads come first
     try {
-      const k = await hl({ type: "candleSnapshot", req: { coin: COIN, interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } });
-      if (Array.isArray(k) && k.length) GB = k.map(b => [b.t, +b.h, +b.l, +b.c]);
+      try { const k = await hl({ type: "candleSnapshot", req: { coin: COIN, interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } });
+        if (Array.isArray(k) && k.length) GB = k.map(b => [b.t, +b.h, +b.l, +b.c]); } catch (e) { }   // keep the last bars; grade without them if none yet
       let L = null; try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/data/whalelog.json?t=" + Math.floor(Date.now() / 3e5)); if (r.ok) L = await r.json(); } catch (e) { }
       const F = window.inFills ? inFills() : {};
       for (const a of Object.keys(W)) {
         // main (crypto) account: open P&L across all holdings, every 10 minutes
-        try { const cs = await hl({ type: "clearinghouseState", user: a }); const H = HOLDS[a] = HOLDS[a] || {}; H.main = { u: (cs.assetPositions || []).reduce((s, x) => s + (+x.position.unrealizedPnl || 0), 0), acct: +((cs.marginSummary || {}).accountValue) || 0, n: (cs.assetPositions || []).length }; } catch (e) { }
+        if (Date.now() - limited > 60000) try { const cs = await hl({ type: "clearinghouseState", user: a }); const H = HOLDS[a] = HOLDS[a] || {}; H.main = { u: (cs.assetPositions || []).reduce((s, x) => s + (+x.position.unrealizedPnl || 0), 0), acct: +((cs.marginSummary || {}).accountValue) || 0, n: (cs.assetPositions || []).length }; } catch (e) { }
         const wi = L && L.wallets ? L.wallets.findIndex(x => x[0] === a) : -1;
         const M = wi >= 0 ? L.moves.filter(m => m[1] === wi).map(m => ({ t: m[0], entry: !!m[2], side: m[3], px: m[4], usd: m[5] })) : [];
         const last = M.length ? M[M.length - 1].t : 0;
@@ -426,9 +426,9 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
         GR[a].grit = Grade.grit(M, GB, TR);
         GR[a].mult = 1 + 0.5 * (0.55 * GR[a].Q + 0.45 * (GR[a].grit.n >= 5 ? GR[a].grit.G : 0));   // ×0.5 to ×1.5
         GR[a].hold = { u: up, acct: ac, n: (H.main ? H.main.n : 0) + (H.xyz ? H.xyz.n : 0) };
-        await new Promise(r => setTimeout(r, 250));
+        await new Promise(r => setTimeout(r, 400));
       }
-      grT = Date.now(); window.wwGrades = () => GR;
+      grT = GB ? Date.now() : Date.now() - 7 * 60000; window.wwGrades = () => GR;   // no bars yet: try again in ~3 min
     } catch (e) { console.warn("grade", e); }
     grBusy = false; render();
   }
