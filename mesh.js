@@ -22,11 +22,15 @@
     ["xyz:SP500", "S&P 500"], ["xyz:XYZ100", "Nasdaq 100"], ["para:10Y", "US 10Y"], ["xyz:EUR", "Euro"], ["xyz:JPY", "Yen"], ["xyz:GOLD", "Gold"], ["xyz:CL", "Oil"], ["BTC", "Bitcoin"]];
   const NM = Object.fromEntries(SET.map(([c, n]) => [c, n])), nm = c => NM[c] || c;
   let E = null, eT = 0, Y = null, yT = 0, H1 = null, h1T = 0, busy = false;
+  const SC = {};   // coin -> { t, k }: bars per market, kept between runs, so one rate-limit reply does not empty the map
   async function loadEnt() {
-    if (Date.now() - eT < 15 * 6e4) return; const S = {};
-    for (const [c] of SET) { try { const k = await post({ type: "candleSnapshot", req: { coin: c, interval: "15m", startTime: Date.now() - 10 * 864e5, endTime: Date.now() } });
-      if (Array.isArray(k) && k.length) S[c] = k.map(b => [b.t, +b.c]); } catch (e) { if (String(e.message) === "429") break; } await sleep(350); }
-    E = Ent.analyze(S, { bar: 9e5, short: 24, k: 8, maxLag: 3, minN: 60, tag: window.Tax ? Tax.tag : null }); eT = Date.now();
+    if (Date.now() - eT < 15 * 6e4) return;
+    for (const [c] of SET) { if (SC[c] && Date.now() - SC[c].t < 14 * 6e4) continue;
+      for (let tr = 0; tr < 2; tr++) { try { const k = await post({ type: "candleSnapshot", req: { coin: c, interval: "15m", startTime: Date.now() - 10 * 864e5, endTime: Date.now() } });
+        if (Array.isArray(k) && k.length) SC[c] = { t: Date.now(), k: k.map(b => [b.t, +b.c]) }; break; } catch (e) { await sleep(String(e.message) === "429" ? 8000 : 1500); } }
+      await sleep(500); }
+    const S = {}; Object.entries(SC).forEach(([c, v]) => S[c] = v.k);
+    E = Ent.analyze(S, { bar: 9e5, short: 24, k: 8, maxLag: 3, minN: 60, tag: window.Tax ? Tax.tag : null }); eT = Object.keys(S).length >= SET.length - 2 ? Date.now() : Date.now() - 12 * 6e4;   // incomplete: retry in ~3 min
   }
   async function loadSync() {
     if (Date.now() - yT < 10 * 6e4) return;
