@@ -10,6 +10,7 @@
   card.innerHTML = `<details open><summary class="label" style="cursor:pointer">Links · what moves with SOXL, and which traders move together</summary>
     <div id="meshNow" style="margin:6px 0"></div><div class="mesh2"><div><div class="label" style="margin-top:6px">Coupling map ("entanglement")</div><div id="meshEnt"></div></div>
     <div><div class="label" style="margin-top:6px">Coordination · SOXL whales</div><div id="meshSync"></div></div></div>
+    <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
     <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
   anchor.before(card);
   const st = document.createElement("style");
@@ -75,4 +76,23 @@
     try { await loadSync(); render(emit()); await loadEnt(); render(emit()); } catch (e) { console.warn("mesh", e); } busy = false;
   }
   setTimeout(run, 12000); setInterval(run, 5 * 6e4);
+  // venues (venues.js): Hyperliquid stock perps vs their stocks, crypto across exchanges, and SOXL vs 3 × SOXX today
+  const SEMI = new Set(["SOXL", "SMH", "SOXX", "NVDA", "AMD", "AVGO", "MU", "TSM", "INTC", "QCOM", "MRVL", "ARM", "ASML", "AMAT", "LRCX", "KLAC", "SKHY", "SMSN", "SNDK", "TER", "CRDO"]);
+  let VEN = null;
+  async function venTick() {
+    if (!window.Venues || document.hidden) return;
+    try { const [x, m] = await Promise.all([post({ type: "metaAndAssetCtxs", dex: "xyz" }).catch(() => null), post({ type: "metaAndAssetCtxs" }).catch(() => null)]);
+      const L = []; if (x) x[0].universe.forEach((u, i) => { const c = x[1][i]; if (c) L.push({ key: "XYZ:" + u.name.split(":").pop(), px: +c.markPx, o: +c.oraclePx, v: +c.dayNtlVlm }); });
+      Venues.perps(L); const hl = {}; if (m) m[0].universe.forEach((u, i) => { if (["BTC", "ETH", "SOL", "XRP", "DOGE"].includes(u.name)) hl[u.name] = +m[1][i].markPx; });
+      await Venues.crypto(hl);
+      const I = Venues.signals().filter(s => SEMI.has(s[1]) || ["BTC", "ETH"].includes(s[1]));
+      // SOXL vs 3 × SOXX today (during the session): a premium or discount to what the fund should do
+      let nav = null; try { const a = Q.SOXL, b = Q.SOXX; if (a && b && a.pc > 0 && b.pc > 0 && a.c > 0 && b.c > 0 && Venues.usOpen()) { const g = (a.c / a.pc - 1) - 3 * (b.c / b.pc - 1); nav = g; if (Math.abs(g) >= 0.002) I.push(["dis.etfnav", "SOXL", Math.max(-1, Math.min(1, g / 0.01)), "Venues · SOXL vs 3 × SOXX today (premium or discount)"]); } } catch (e) { }
+      try { if (window.Web) I.forEach(([id, a, v, lab]) => Web.emit(id, a === "SOXL" || SEMI.has(a) ? a : a, v, lab)); } catch (e) { }
+      VEN = { I, nav };
+      const el = document.getElementById("meshVen"); if (el) el.innerHTML = (nav != null ? `<div class="note">SOXL today ${((Q.SOXL.c / Q.SOXL.pc - 1) * 100).toFixed(2)}% vs 3 × SOXX ${(3 * (Q.SOXX.c / Q.SOXX.pc - 1) * 100).toFixed(2)}% → <b class="${nav > 0 ? "L" : nav < 0 ? "S" : ""}">${nav >= 0 ? "+" : ""}${(nav * 100).toFixed(2)}%</b> ${Math.abs(nav) < 0.002 ? "(in line)" : nav > 0 ? "(SOXL rich vs its index: a premium that market makers sell into)" : "(SOXL cheap vs its index: a discount they buy)"}</div>` : "")
+        + Venues.html({ filter: r => SEMI.has(r.sym), n: 10, px: v => "$" + (v >= 100 ? v.toFixed(2) : v.toFixed(3)) });
+    } catch (e) { console.warn("venues", e); } }
+  setTimeout(venTick, 9000); setInterval(venTick, 60000);
+  window.mesh_ven = () => VEN;
 })();
