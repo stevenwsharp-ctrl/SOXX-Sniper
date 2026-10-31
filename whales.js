@@ -130,7 +130,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
   let RZ = load("soxx_ww_rz", {});              // top wallets: realized SOXL P&L since the study (fills after Oct 28, 2026)
   let STAR = load("soxx_ww_star", {});          // starred wallets
   let RK = load("soxx_ww_rk", { d: "", prev: {} }); // live ranks at the start of the day (to show the move)
-  let rkBy = lsGet("soxx_ww_rkby") || "live", onlyStar = false;
+  let rkBy = lsGet("soxx_ww_rkby2") || "smart", onlyStar = false;
   const STUDY_T = Date.parse("2026-10-29T00:00:00Z");                                // per wallet: open SOXL orders {at, list}            // per wallet: time of the newest fill we have
   let tryAt = 0, mark = NaN, lastAt = 0, fillAt = 0, err = "", tab = "B", busy = 0, limited = 0;
   const short = a => a.slice(0, 6) + "…" + a.slice(-4);
@@ -318,6 +318,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
             const cs = await hl({ type: "clearinghouseState", user: a, dex: DEX });
             const p = (cs.assetPositions || []).map(x => x.position).find(x => x.coin === COIN);
             W[a].pos = p ? { szi: +p.szi, ep: +p.entryPx, lev: p.leverage ? +p.leverage.value : null, lq: p.liquidationPx ? +p.liquidationPx : null, u: +p.unrealizedPnl || 0 } : { szi: 0 };
+            const H = HOLDS[a] = HOLDS[a] || {}; H.xyz = { u: (cs.assetPositions || []).reduce((s, x) => s + (+x.position.unrealizedPnl || 0), 0), acct: +((cs.marginSummary || {}).accountValue) || 0, n: (cs.assetPositions || []).length };
             ok++;
           } catch (e) { }
         }));
@@ -325,7 +326,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       if (!ok) throw new Error("no answer from Hyperliquid");
       err = ""; lastAt = Date.now(); detect();
       render();
-      await pollFills(); moveAlerts(mark); await pollOrders();
+      await pollFills(); moveAlerts(mark); await pollOrders(); gradeAll();
     } catch (e) { err = e.message || "error"; }
     save(); busy = 0; render();
   }
@@ -400,17 +401,48 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
   window.wwProfile = a => PROF[a] || null;
 
   // ---------- live ranking and stars ----------
-  const RKBY = [["live", "Live score"], ["study", "Study profit"], ["upnl", "Open P&L now"], ["size", "Position size"], ["win", "Win rate"]];
+  const RKBY = [["smart", "Smart score"], ["live", "Live score"], ["grade", "Trade grade"], ["grit", "Grit"], ["study", "Study profit"], ["upnl", "Open P&L now"], ["size", "Position size"], ["win", "Win rate"]];
+  // ---------- trade grade: keeps gains, avoids round trips, holds through drawdowns, open P&L across all holdings (grade.js) ----------
+  const HOLDS = {}, GR = {}; let grT = 0, grBusy = false, GB = null;
+  const mult = w => GR[w.a] ? GR[w.a].mult : 1;
+  function smartScore(w) { const s = liveScore(w), m = mult(w); return w.g === "B" ? (s >= 0 ? s * m : s / m) : (s <= 0 ? s * (2 - m) : s / (2 - m)); }
+  async function gradeAll() {
+    if (grBusy || !window.Grade || Date.now() - grT < 10 * 60000) return; grBusy = true;
+    try {
+      const k = await hl({ type: "candleSnapshot", req: { coin: COIN, interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } });
+      if (Array.isArray(k) && k.length) GB = k.map(b => [b.t, +b.h, +b.l, +b.c]);
+      let L = null; try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/data/whalelog.json?t=" + Math.floor(Date.now() / 3e5)); if (r.ok) L = await r.json(); } catch (e) { }
+      const F = window.inFills ? inFills() : {};
+      for (const a of Object.keys(W)) {
+        // main (crypto) account: open P&L across all holdings, every 10 minutes
+        try { const cs = await hl({ type: "clearinghouseState", user: a }); const H = HOLDS[a] = HOLDS[a] || {}; H.main = { u: (cs.assetPositions || []).reduce((s, x) => s + (+x.position.unrealizedPnl || 0), 0), acct: +((cs.marginSummary || {}).accountValue) || 0, n: (cs.assetPositions || []).length }; } catch (e) { }
+        const wi = L && L.wallets ? L.wallets.findIndex(x => x[0] === a) : -1;
+        const M = wi >= 0 ? L.moves.filter(m => m[1] === wi).map(m => ({ t: m[0], entry: !!m[2], side: m[3], px: m[4], usd: m[5] })) : [];
+        const last = M.length ? M[M.length - 1].t : 0;
+        ((F[a] && F[a].f) || []).filter(x => x.coin === COIN && x.time > last).sort((x, y) => x.time - y.time).forEach(x => { const d = x.dir || "", e = /Open|>/.test(d), sd = /Long > Short/.test(d) ? -1 : /Short > Long/.test(d) ? 1 : /Long/.test(d) ? 1 : -1; M.push({ t: x.time, entry: e, side: sd, px: +x.px, usd: +x.sz * +x.px }); });
+        const H = HOLDS[a] || {}, up = (H.main ? H.main.u : 0) + (H.xyz ? H.xyz.u : 0), ac = (H.main ? H.main.acct : 0) + (H.xyz ? H.xyz.acct : 0);
+        const TR = Grade.trips(M, GB);
+        GR[a] = Grade.grade(TR, { bars: GB, px: mark, upnl: H.main || H.xyz ? up : null, acct: ac });
+        GR[a].grit = Grade.grit(M, GB, TR);
+        GR[a].mult = 1 + 0.5 * (0.55 * GR[a].Q + 0.45 * (GR[a].grit.n >= 5 ? GR[a].grit.G : 0));   // ×0.5 to ×1.5
+        GR[a].hold = { u: up, acct: ac, n: (H.main ? H.main.n : 0) + (H.xyz ? H.xyz.n : 0) };
+        await new Promise(r => setTimeout(r, 250));
+      }
+      grT = Date.now(); window.wwGrades = () => GR;
+    } catch (e) { console.warn("grade", e); }
+    grBusy = false; render();
+  }
   function liveScore(w) { const u = w.pos && w.pos.szi ? (w.pos.u || 0) : 0; return w.pnl + (RZ[w.a] || 0) + u; }
   function keyOf(w, by) { const P = mark > 0 ? mark : NaN, p = w.pos || {};
-    return by === "study" ? w.pnl : by === "upnl" ? (p.szi ? p.u || 0 : 0) : by === "size" ? (p.szi ? Math.abs(p.szi) * (P || p.ep || 0) : 0) : by === "win" ? w.wr : liveScore(w); }
+    return by === "smart" ? smartScore(w) : by === "grade" ? (GR[w.a] ? GR[w.a].Q : 0) * (w.g === "B" ? 1 : -1) : by === "grit" ? (GR[w.a] && GR[w.a].grit ? GR[w.a].grit.score : 50) * (w.g === "B" ? 1 : -1) :
+      by === "study" ? w.pnl : by === "upnl" ? (p.szi ? p.u || 0 : 0) : by === "size" ? (p.szi ? Math.abs(p.szi) * (P || p.ep || 0) : 0) : by === "win" ? w.wr : liveScore(w); }
   function ranked(g, by) {
     const L = Object.values(W).filter(w => w.g === g); const k = w => keyOf(w, by);
     // best: highest first; worst: the biggest loser first (lowest score), except for size and win rate
-    const desc = g === "B" || by === "size" || by === "win";
+    const desc = g === "B" || by === "size" || by === "win";   // grade on the worst list: the weakest habits first (key is -Q)
     L.sort((a, z) => desc ? k(z) - k(a) : k(a) - k(z)); return L;
   }
-  function liveRanks() { const out = {}; ["B", "W"].forEach(g => ranked(g, "live").forEach((w, i) => out[w.a] = i + 1)); return out; }
+  function liveRanks() { const out = {}; ["B", "W"].forEach(g => ranked(g, "smart").forEach((w, i) => out[w.a] = i + 1)); return out; }
   function dayKey() { return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }); }
   function snapRanks() { if (!lastAt) return; const d = dayKey(); if (RK.d !== d) { RK = { d, prev: RK.cur && Object.keys(RK.cur).length ? RK.cur : liveRanks(), cur: liveRanks() }; } else RK.cur = liveRanks(); }
   const moveHtml = (a, now) => { const pv = RK.prev && RK.prev[a]; if (!pv) return '<span class="sub">new</span>'; const d = pv - now;
@@ -477,18 +509,18 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
     let L = ranked(tab, rkBy); if (onlyStar) L = L.filter(w => STAR[w.a]);
     const lr = liveRanks();
     $("wwBody").innerHTML = `<div class="row" style="gap:6px;margin:0 0 8px;flex-wrap:wrap"><span class="sub">Rank by</span>${RKBY.map(([k, l]) => `<button class="chipb ${rkBy === k ? "on" : ""}" data-wwrk="${k}">${l}</button>`).join("")}<span class="tasep"></span><button class="chipb ${onlyStar ? "on" : ""}" data-wwstaronly="1">★ Starred only (${L.filter ? Object.values(W).filter(w => w.g === tab && STAR[w.a]).length : 0})</button>
-      <span class="sub">Live score = study profit + realized since the study + open P&L. Arrows: change vs the start of the day (ET).</span></div>` +
+      <span class="sub">Live score = study profit + realized since the study + open P&L. Smart score = live score × skill weight (×0.5 to ×1.5) from the trade grade and grit. Grade (A–F): keeps gains, avoids round trips, holds through drawdowns that turn positive, open profit across all holdings. Grit (0–100): steady and disciplined, patient when patience pays and quick when speed pays; impulse (revenge, chasing, quick flips, panic sales) lowers it unless it paid. Hover a grade or grit score for the details. Arrows: change vs the start of the day (ET).</span></div>` +
       (L.length ? "" : `<div class="sub">No starred wallets in this list. Select ☆ in a row to star a wallet.</div>`) +
-      `<div class="tw"><table class="tbl"><tr><th></th><th>#</th><th class="l">Move</th><th>Study</th><th>Live score</th><th class="l">Wallet</th><th>SOXL profit</th><th>Trades</th><th>Win</th><th class="l">Style</th><th class="l">Now</th><th>Size</th><th>Entry</th><th>Lev</th><th>Liq</th><th>To liq</th><th>uPnL</th><th class="l">Orders</th><th class="l">Last move</th></tr>` +
+      `<div class="tw"><table class="tbl"><tr><th></th><th>#</th><th class="l">Move</th><th>Study</th><th>Live score</th><th>Grade</th><th title="Grit 0–100: discipline vs impulse">Grit</th><th>Smart score</th><th title="Open P&L across all positions in all markets (crypto and stocks)">All holdings</th><th class="l">Wallet</th><th>SOXL profit</th><th>Trades</th><th>Win</th><th class="l">Style</th><th class="l">Now</th><th>Size</th><th>Entry</th><th>Lev</th><th>Liq</th><th>To liq</th><th>uPnL</th><th class="l">Orders</th><th class="l">Last move</th></tr>` +
       L.map(w => { const p = w.pos || {}, v = p.szi ? Math.abs(p.szi) * P : 0, dl = p.lq && P ? p.lq / P - 1 : NaN;
         const m = w.g === "B" ? MV.find(x => x.a === w.a) : null, e = w.g === "W" ? EV.find(x => x.a === w.a && Date.now() - x.t < 24 * 3600000) : null;
         const last = m ? `${plain(verb(m))} ${usd(m.usd)} <span class="sub">${agoT(m.t1)}</span>` : e ? `${esc(e.txt)} <span class="sub">${agoT(e.t)}</span>` : '<span class="sub">--</span>';
         const rkNow = L.indexOf(w) + 1, live = lr[w.a];
-        return `<tr class="wwr ${STAR[w.a] ? "wwst" : ""}" data-wwrow="${w.a}" title="Select to see this trader's profile"><td><span class="wwstar ${STAR[w.a] ? "on" : ""}" data-wwstar="${w.a}" title="${STAR[w.a] ? "Starred: you get an alert for every move" : "Star: get an alert for every move of this wallet"}">${STAR[w.a] ? "★" : "☆"}</span></td><td><b>${onlyStar ? live : rkNow}</b></td><td class="l">${moveHtml(w.a, live)}</td><td class="sub">${w.g === "B" ? "Top" : "Worst"} #${w.rank}</td><td class="${liveScore(w) > 0 ? "up" : "down"}">${usd(liveScore(w))}</td><td class="l"><a href="https://hyperdash.com/address/${w.a}" target="_blank" rel="noopener" title="${w.a} · ${esc(w.coh)}">${short(w.a)}</a></td><td class="${w.pnl > 0 ? "up" : "down"}">${usd(w.pnl)}</td><td>${w.tr.toLocaleString()}</td><td>${w.wr}%</td><td class="l">${tags(w.a, 2)}</td><td class="l">${w.pos ? pill(p.szi) : '<span class="sub">…</span>'}</td><td>${v ? usd(v) : "--"}</td><td>${p.szi ? fmtPx(p.ep) : "--"}</td><td>${p.lev ? p.lev + "×" : "--"}</td><td>${p.lq ? fmtPx(p.lq) : "--"}</td><td class="${isFinite(dl) && Math.abs(dl) < 0.05 ? "wwhot" : ""}">${isFinite(dl) ? fmtPct(dl, 1) : "--"}</td><td class="${p.u > 0 ? "up" : p.u < 0 ? "down" : ""}">${p.szi ? usd(p.u) : "--"}</td><td class="l wwch">${(() => { const L = (ORD[w.a] || {}).list || []; if (!L.length) return ORD[w.a] ? '<span class="sub">none</span>' : '<span class="sub">…</span>'; const b = L.filter(x => x.side > 0).reduce((a, x) => a + x.sz * (x.px || P), 0), sl = L.filter(x => x.side < 0).reduce((a, x) => a + x.sz * (x.px || P), 0); const C = L.filter(o => /close/.test(ordRole(w, o))), cs = C.reduce((t, o) => t + o.sz, 0); return `${L.length} · <span class="up">buy ${usd(b)}</span> / <span class="down">sell ${usd(sl)}</span>${cs ? ` · close avg <b>${fmtPx(C.reduce((t, o) => t + o.sz * o.px, 0) / cs)}</b>` : ""}`; })()}</td><td class="l wwch">${last}</td></tr>` + (openRow === w.a ? `<tr><td colspan="19" class="wwdet">${profHtml(w)}</td></tr>` : ""); }).join("") + `</table></div>`;
+        return `<tr class="wwr ${STAR[w.a] ? "wwst" : ""}" data-wwrow="${w.a}" title="Select to see this trader's profile"><td><span class="wwstar ${STAR[w.a] ? "on" : ""}" data-wwstar="${w.a}" title="${STAR[w.a] ? "Starred: you get an alert for every move" : "Star: get an alert for every move of this wallet"}">${STAR[w.a] ? "★" : "☆"}</span></td><td><b>${onlyStar ? live : rkNow}</b></td><td class="l">${moveHtml(w.a, live)}</td><td class="sub">${w.g === "B" ? "Top" : "Worst"} #${w.rank}</td><td class="${liveScore(w) > 0 ? "up" : "down"}">${usd(liveScore(w))}</td><td>${GR[w.a] ? Grade.badge(GR[w.a]) || '<span class="sub">n/a</span>' : '<span class="sub">…</span>'}</td><td>${GR[w.a] && GR[w.a].grit ? Grade.gritBadge(GR[w.a].grit) : '<span class="sub">…</span>'}</td><td class="${smartScore(w) > 0 ? "up" : "down"}">${usd(smartScore(w))}</td><td class="${GR[w.a] && GR[w.a].hold.u > 0 ? "up" : GR[w.a] && GR[w.a].hold.u < 0 ? "down" : ""}" title="${GR[w.a] ? GR[w.a].hold.n + " open positions, account " + usd(GR[w.a].hold.acct) : ""}">${GR[w.a] && GR[w.a].hold.n ? usd(GR[w.a].hold.u) : GR[w.a] ? "--" : "…"}</td><td class="l"><a href="https://hyperdash.com/address/${w.a}" target="_blank" rel="noopener" title="${w.a} · ${esc(w.coh)}">${short(w.a)}</a></td><td class="${w.pnl > 0 ? "up" : "down"}">${usd(w.pnl)}</td><td>${w.tr.toLocaleString()}</td><td>${w.wr}%</td><td class="l">${tags(w.a, 2)}</td><td class="l">${w.pos ? pill(p.szi) : '<span class="sub">…</span>'}</td><td>${v ? usd(v) : "--"}</td><td>${p.szi ? fmtPx(p.ep) : "--"}</td><td>${p.lev ? p.lev + "×" : "--"}</td><td>${p.lq ? fmtPx(p.lq) : "--"}</td><td class="${isFinite(dl) && Math.abs(dl) < 0.05 ? "wwhot" : ""}">${isFinite(dl) ? fmtPct(dl, 1) : "--"}</td><td class="${p.u > 0 ? "up" : p.u < 0 ? "down" : ""}">${p.szi ? usd(p.u) : "--"}</td><td class="l wwch">${(() => { const L = (ORD[w.a] || {}).list || []; if (!L.length) return ORD[w.a] ? '<span class="sub">none</span>' : '<span class="sub">…</span>'; const b = L.filter(x => x.side > 0).reduce((a, x) => a + x.sz * (x.px || P), 0), sl = L.filter(x => x.side < 0).reduce((a, x) => a + x.sz * (x.px || P), 0); const C = L.filter(o => /close/.test(ordRole(w, o))), cs = C.reduce((t, o) => t + o.sz, 0); return `${L.length} · <span class="up">buy ${usd(b)}</span> / <span class="down">sell ${usd(sl)}</span>${cs ? ` · close avg <b>${fmtPx(C.reduce((t, o) => t + o.sz * o.px, 0) / cs)}</b>` : ""}`; })()}</td><td class="l wwch">${last}</td></tr>` + (openRow === w.a ? `<tr><td colspan="19" class="wwdet">${profHtml(w)}</td></tr>` : ""); }).join("") + `</table></div>`;
   }
   card.addEventListener("click", e => { const b = e.target.closest("[data-wwtab]"); if (b) { tab = b.dataset.wwtab; render(); return; }
     const sb = e.target.closest("[data-wwstar]"); if (sb) { e.stopPropagation(); const a = sb.dataset.wwstar; STAR[a] = !STAR[a]; if (!STAR[a]) delete STAR[a]; save(); render(); return; }
-    const rb = e.target.closest("[data-wwrk]"); if (rb) { rkBy = rb.dataset.wwrk; lsSet("soxx_ww_rkby", rkBy); render(); return; }
+    const rb = e.target.closest("[data-wwrk]"); if (rb) { rkBy = rb.dataset.wwrk; lsSet("soxx_ww_rkby2", rkBy); render(); return; }
     if (e.target.closest("[data-wwstaronly]")) { onlyStar = !onlyStar; render(); return; }
     const r = e.target.closest("[data-wwrow]"); if (r && !e.target.closest("a")) { openRow = openRow === r.dataset.wwrow ? null : r.dataset.wwrow; render(); } });
   document.addEventListener("click", e => { const g = e.target.closest("[data-wwgo]"); if (g) { e.preventDefault(); tab = g.dataset.wwgo; render(); card.scrollIntoView({ behavior: "smooth", block: "start" }); } });
