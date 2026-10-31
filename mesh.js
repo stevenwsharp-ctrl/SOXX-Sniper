@@ -9,10 +9,11 @@
   const card = document.createElement("section"); card.className = "card"; card.id = "meshCard"; card.style.marginBottom = "12px";
   card.innerHTML = `<details open><summary class="label" style="cursor:pointer">Links · what moves with SOXL, and which traders move together</summary>
     <div id="meshNow" style="margin:6px 0"></div><div class="mesh2"><div><div class="label" style="margin-top:6px">Coupling map ("entanglement")</div><div id="meshEnt"></div></div>
-    <div><div class="label" style="margin-top:6px">Coordination · SOXL whales</div><div id="meshSync"></div></div></div></details>`;
+    <div><div class="label" style="margin-top:6px">Coordination · SOXL whales</div><div id="meshSync"></div></div></div>
+    <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
   anchor.before(card);
   const st = document.createElement("style");
-  st.textContent = `#meshCard table{width:100%;border-collapse:collapse;font:12px var(--mono)}#meshCard th,#meshCard td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right}#meshCard th{color:var(--muted,#888);font-weight:600}
+  st.textContent = `#meshCard table{width:100%;border-collapse:collapse;font:12px var(--mono)}#meshCard th,#meshCard td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right}#meshCard th{color:var(--muted,#888);font-weight:600}#meshRhy td{text-align:left;vertical-align:top}#meshRhy td:first-child{white-space:nowrap;width:120px}
     #meshCard .L{color:var(--up)}#meshCard .S{color:var(--down)}#meshCard .note{font-size:11.5px;color:var(--muted,#888);margin:4px 0}.mesh2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:900px){.mesh2{grid-template-columns:1fr}}`;
   document.head.appendChild(st);
   const HL = "https://api.hyperliquid.xyz/info", post = b => fetch(HL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
@@ -21,7 +22,7 @@
   const SET = [["xyz:SOXL", "SOXL"], ["xyz:NVDA", "NVDA"], ["xyz:AMD", "AMD"], ["xyz:AVGO", "AVGO"], ["xyz:MU", "MU"], ["xyz:TSM", "TSM"], ["xyz:INTC", "INTC"], ["xyz:SMH", "SMH"],
     ["xyz:SP500", "S&P 500"], ["xyz:XYZ100", "Nasdaq 100"], ["para:10Y", "US 10Y"], ["xyz:EUR", "Euro"], ["xyz:JPY", "Yen"], ["xyz:GOLD", "Gold"], ["xyz:CL", "Oil"], ["BTC", "Bitcoin"]];
   const NM = Object.fromEntries(SET.map(([c, n]) => [c, n])), nm = c => NM[c] || c;
-  let E = null, eT = 0, Y = null, yT = 0, H1 = null, h1T = 0, busy = false;
+  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0;
   const SC = {};   // coin -> { t, k }: bars per market, kept between runs, so one rate-limit reply does not empty the map
   async function loadEnt() {
     if (Date.now() - eT < 15 * 6e4) return;
@@ -34,7 +35,7 @@
   }
   async function loadSync() {
     if (Date.now() - yT < 10 * 6e4) return;
-    try { if (!H1 || Date.now() - h1T > 30 * 6e4) { const k = await post({ type: "candleSnapshot", req: { coin: "xyz:SOXL", interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } }); if (Array.isArray(k) && k.length) { H1 = k.map(b => [b.t, +b.c]); h1T = Date.now(); } } } catch (e) { }
+    try { if (!H1 || Date.now() - h1T > 30 * 6e4) { const k = await post({ type: "candleSnapshot", req: { coin: "xyz:SOXL", interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } }); if (Array.isArray(k) && k.length) { H1 = k.map(b => [b.t, +b.c]); HB = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c]); h1T = Date.now(); } } } catch (e) { }
     let L = null; try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/data/whalelog.json?t=" + Math.floor(Date.now() / 3e5)); if (r.ok) L = await r.json(); } catch (e) { }
     if (!L || !L.moves) return;
     const px = t => { if (!H1 || !H1.length) return null; let lo = 0, hi = H1.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (H1[m][0] <= t) lo = m; else hi = m - 1; } return t - H1[lo][0] <= 2 * 36e5 && H1[lo][0] <= t ? H1[lo][1] : null; };
@@ -54,7 +55,11 @@
     const lv = Sync.live(Y, null, 2 * 36e5);
     if (lv) { if (lv.burst) I.push(["sync.burst", lv.burst, "Coordination · wallets moved together"]); if (lv.best) I.push(["sync.best", lv.best, "Coordination · best traders moved together"]);
       if (lv.worst) I.push(["sync.worst", lv.worst, "Coordination · worst traders moved together (fade?)"]); if (lv.leader) I.push(["sync.leader", lv.leader, "Coordination · a leader wallet moved first"]); }
-    try { if (window.Web) I.forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
+    // rhythm (rhythm.js): randomness, regularity, Fibonacci, music, flow — on SOXL hourly bars, 200 days
+    try { if (window.Rhythm && HB && (!RH || Date.now() - rhT > 10 * 6e4)) { RH = Rhythm.analyze(HB, { win: 400 }); rhT = Date.now(); } } catch (e) { console.warn("rhythm", e); }
+    const RI = []; if (RH) [["trend", "Rhythm · path memory (trend or snap-back)"], ["hour", "Rhythm · this hour of the day, history"], ["cycle", "Rhythm · repeating cycle"], ["fib", "Rhythm · Fibonacci level (back-tested)"], ["home", "Rhythm · pull back home (vs chance)"], ["flow", "Rhythm · poetry in motion (smooth trend)"]].forEach(([k, lab]) => { const v = RH.sig[k]; if (v) RI.push(["rhy." + k, v, lab]); });
+    window.RHYTHM = { R: RH, I: RI };
+    try { if (window.Web) I.concat(RI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
     window.MESH = { I, why: [].concat(s ? s.why : [], lv ? lv.why : []), E, Y };
     return I;
   }
@@ -62,6 +67,7 @@
     const why = (window.MESH && MESH.why) || [], F = id => { try { const f = window.Web && Web.forecast("SOXL"); return f && f.contrib ? f.contrib.find(c => c.id === id) : null; } catch (e) { return null; } };
     document.getElementById("meshNow").innerHTML = I.length || why.length ? `<table><thead><tr><th style="text-align:left">Live link signal</th><th>Lean</th></tr></thead><tbody>${I.map(([id, v, lab]) => `<tr><td style="text-align:left">${lab}</td><td class="${v > 0 ? "L" : "S"}">${v > 0 ? "▲" : "▼"} ${Math.abs(v).toFixed(2)}</td></tr>`).join("")}</tbody></table>${why.length ? `<div class="note">${why.slice(0, 6).join(" · ")}</div>` : ""}<div class="note">The signal web learns the weight of each link (up, down or zero) from what SOXL did next. A "worst traders together" burst can be worth fading; the web finds out.</div>` : `<div class="note">No live link signal now: nothing stretched, no leader moved, no wallets moved together in the last 2 hours.</div>`;
     document.getElementById("meshEnt").innerHTML = Ent.html(E, nm) + `<div class="note">"Entanglement" here is a metaphor: in physics, measuring one entangled particle tells you the other's state. In markets, coupled assets share drivers (rates, the dollar, AI spend), so a move in one tells you about the other — but the link is statistical, and it can break. A breaking link is information too: a new story for that name.</div>` + (E && E.G ? `<div class="label" style="margin-top:8px">Stocks, bonds, currencies, commodities, crypto · together or apart</div>` + Ent.groupHtml(E, nm, ["cls", "ind"]) : "");
+    try { const R = window.RHYTHM; document.getElementById("meshRhy").innerHTML = (R && R.I.length ? `<div class="note">Live rhythm signals: ${R.I.map(([id, v, lab]) => `<span class="${v > 0 ? "L" : "S"}">${lab.replace("Rhythm · ", "")} ${v > 0 ? "▲" : "▼"}${Math.abs(v).toFixed(2)}</span>`).join(" · ")}</div>` : "") + Rhythm.html(R && R.R, { px: v => "$" + v.toFixed(2) }); } catch (e) { }
     document.getElementById("meshSync").innerHTML = Sync.html(Y, { usd: U, label: a => a.slice(0, 6) + "…" + a.slice(-4) });
   }
   async function run() {

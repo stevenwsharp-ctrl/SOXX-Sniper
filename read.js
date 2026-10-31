@@ -85,6 +85,7 @@
     try { const F = window.Web && Web.forecast("SEMIS"); if (F) add("Signal web (learned, both sites) · semis 4h", (F.p - 0.5) * 4, F.ready ? 1.5 : 0.5, `P(up) ${Math.round(F.p * 100)}%${F.ready ? "" : " (still learning)"}`, "Learned"); } catch (e) { }
     try { const e = etInfo(Date.now()); if (!e.wk && e.min >= 840 && e.min < 960) { const lf = letfFlow(todaySess()); if (lf && isFinite(lf.usd)) add("Leveraged-ETF rebalance into the close", lf.usd / 3e9, 1, `${lf.usd > 0 ? "BUY" : "SELL"} ~${U(Math.abs(lf.usd))} of chip exposure by 4 pm`, "Flows"); } } catch (e) { }
     // crowd psychology (psych.js) and bonds / rates / currencies (radar.js live macro)
+    try { (window.RHYTHM && RHYTHM.I || []).forEach(([id, v, lab]) => add(lab, v, 0.5, RHYTHM.R ? RHYTHM.R.rand.label : "", "Rhythm")); } catch (e) { }
     try { (window.MESH && MESH.I || []).forEach(([id, v, lab]) => add(lab, v, id === "ent.cohesion" ? 0.4 : 0.6, (MESH.why || []).slice(0, 2).join(" · "), "Links")); } catch (e) { }
     try { (window.PSY && PSY.I || []).forEach(x => { if (x.v) add("Psychology · " + x.nm, x.v, 0.6, x.read.replace(/<[^>]+>/g, ""), "Psychology"); }); } catch (e) { }
     try { const M = window.MACROLIVE || [], g = s => M.find(o => o.s === s), z = (s, k) => { const o = g(s); return o && isFinite(o.zd) ? Math.max(-1, Math.min(1, o.zd / 2.5)) * k : NaN; };
