@@ -20,7 +20,13 @@
   card.innerHTML = `<details open><summary class="label" style="cursor:pointer">Crowd psychology · the rational and irrational side of SOXL</summary><div id="psyNow"></div><div id="psyNews"></div></details>`;
   anchor.before(card);
   const st = document.createElement("style");
-  st.textContent = `#psyCard table{width:100%;border-collapse:collapse;font:12px var(--mono)}#psyCard th,#psyCard td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}#psyCard th{color:var(--dim);font-size:11px}#psyCard summary{list-style:none}#psyCard .nt{font-size:12px;color:var(--dim);line-height:1.5;margin:6px 0}`;
+  st.textContent = `#psyCard table{width:100%;border-collapse:collapse;font:12px var(--mono)}#psyCard th,#psyCard td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}#psyCard th{color:var(--dim);font-size:11px}#psyCard summary{list-style:none}#psyCard .nt{font-size:12px;color:var(--dim);line-height:1.5;margin:6px 0}
+    #psyCard .nwrap{overflow-x:auto}#psyCard .ntab{min-width:640px}#psyCard .ntab td{padding:7px 8px;vertical-align:top}
+    #psyCard .ntab td.tm{white-space:nowrap;color:var(--dim);width:1%}#psyCard .ntab td.num{white-space:nowrap;text-align:right;width:1%}#psyCard .ntab th.num{text-align:right}
+    #psyCard .ntab td.vd{white-space:nowrap;color:var(--dim);width:1%}
+    #psyCard a.hl,#psyCard a.hl:visited{color:var(--ink);text-decoration:none;font:500 13.5px/1.35 var(--sans);display:block}
+    #psyCard a.hl:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+    #psyCard .hs{font:11px var(--mono);color:var(--mute);margin-top:2px}`;
   document.head.appendChild(st);
   const lsG = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
   const lsS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
@@ -97,9 +103,10 @@
     const recent = NL.filter(x => x.p0).sort((a, b) => b.t - a.t).slice(0, 8);
     document.getElementById("psyNews").innerHTML = `<div class="label" style="margin-top:10px">News: rational or irrational? · how SOXL reacted to semis headlines</div>
       <div class="nt">${N.n ? `Studied ${N.n} headlines. First 30 minutes went the way of the headline's tone ${N.toneR != null ? Math.round(N.toneR * 100) + "%" : "–"} of the time (rational: the market reads the news). Then over the next 4 hours the move <b>continued ${N.contR != null ? Math.round(N.contR * 100) : "–"}%</b> / reversed ${N.contR != null ? 100 - Math.round(N.contR * 100) : "–"}%${N.bigR != null ? `; after big first reactions (2%+) it continued ${Math.round(N.bigR * 100)}% of ${N.big.n}` : ""}. Continuation = under-reaction (the news is digested slowly); reversal = over-reaction (emotion, then correction).` : "The study starts with the headlines on this page and grows every day it is open."}</div>
-      ${recent.length ? `<table><tr><th>When</th><th>Headline</th><th>Tone</th><th>First 30 min</th><th>Next 4h</th><th>Verdict</th></tr>${recent.map(x => { const r1 = x.p30 ? x.p30 / x.p0 - 1 : null, r2 = x.p240 && x.p30 ? x.p240 / x.p30 - 1 : null;
+      ${recent.length ? `<div class="nwrap"><table class="ntab"><tr><th>When</th><th>Headline</th><th class="num">Tone</th><th class="num">First 30 min</th><th class="num">Next 4h</th><th>Verdict</th></tr>${recent.map(x => { const r1 = x.p30 ? x.p30 / x.p0 - 1 : null, r2 = x.p240 && x.p30 ? x.p240 / x.p30 - 1 : null;
         const v = r1 == null ? "waiting" : Math.abs(r1) < 0.003 ? "ignored (priced in?)" : r2 == null ? (Math.sign(r1) === Math.sign(x.s) ? "reacted with the news" : "reacted against the news") : Math.sign(r2) === Math.sign(r1) ? "continued: under-reaction" : "reversed: over-reaction";
-        return `<tr><td>${new Date(x.t).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}</td><td><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.h.slice(0, 90))}</a></td><td class="${cl(x.s)}">${x.s > 0 ? "+" : ""}${x.s.toFixed(2)}</td><td class="${cl(r1 || 0)}">${r1 == null ? "–" : fmtPct(r1, 1)}</td><td class="${cl(r2 || 0)}">${r2 == null ? "–" : fmtPct(r2, 1)}</td><td>${v}</td></tr>`; }).join("")}</table>` : ""}
+        const ago = Date.now() - x.t, agoT = ago < 36e5 ? Math.max(1, Math.round(ago / 6e4)) + " min ago" : ago < 864e5 ? Math.round(ago / 36e5) + " h ago" : Math.round(ago / 864e5) + " d ago", src = x.src || x.source || "";
+        return `<tr><td class="tm">${new Date(x.t).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}</td><td><a class="hl" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.h.length > 160 ? x.h.slice(0, 157) + "…" : x.h)}</a><div class="hs">${src ? esc(src) + " · " : ""}${agoT}</div></td><td class="num ${cl(x.s)}">${x.s > 0 ? "+" : ""}${x.s.toFixed(2)}</td><td class="num ${cl(r1 || 0)}">${r1 == null ? "–" : fmtPct(r1, 1)}</td><td class="num ${cl(r2 || 0)}">${r2 == null ? "–" : fmtPct(r2, 1)}</td><td class="vd">${v}</td></tr>`; }).join("")}</table></div>` : ""}
       <div class="nt">Prices: the SOXL perp on Hyperliquid, which trades around the clock, so headlines at night and on weekends count too. "Ignored" can mean the news was already in the price (rational) or that nobody cared yet.</div>`;
   }
   setTimeout(() => run().catch(e => console.warn("psych", e)), 9000); setInterval(() => { if (!document.hidden) run().catch(e => console.warn("psych", e)); }, 60000);
