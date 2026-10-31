@@ -173,13 +173,18 @@
   }
 
   /* ---------- 5. macro live ---------- */
-  const MAC = [["^VIX", "VIX", 1], ["^VIX3M", "VIX 3-month", 1], ["^MOVE", "MOVE (bond vol)", 1], ["^SKEW", "SKEW (tail risk)", 1], ["^TNX", "10Y yield", 0.5], ["^IRX", "3M T-bill", 0], ["DX-Y.NYB", "Dollar index", 0.5], ["CPER", "Copper", -0.5], ["GLD", "Gold", 0.3], ["USO", "Oil", 0], ["^SOX", "SOX (semis)", -1], ["^NDX", "Nasdaq-100", -1]];
+  // [symbol, name, stress sign (+ = up is stress), group]
+  const MAC = [["^VIX", "VIX", 1, "Volatility"], ["^VIX3M", "VIX 3-month", 1, "Volatility"], ["^MOVE", "MOVE (bond volatility)", 1, "Volatility"], ["^SKEW", "SKEW (tail risk)", 1, "Volatility"],
+    ["^TNX", "10Y Treasury yield", 0.5, "Rates"], ["^FVX", "5Y Treasury yield", 0.3, "Rates"], ["^TYX", "30Y Treasury yield", 0.3, "Rates"], ["^IRX", "3M T-bill yield", 0, "Rates"],
+    ["TLT", "Long Treasuries (TLT)", -0.4, "Bonds"], ["HYG", "Junk bonds (HYG)", -1, "Bonds"], ["LQD", "Corporate bonds (LQD)", -0.4, "Bonds"], ["TIP", "Inflation-linked (TIP)", 0, "Bonds"],
+    ["DX-Y.NYB", "Dollar index", 0.5, "Currencies"], ["FXY", "Japanese yen (FXY)", 0.6, "Currencies"], ["FXE", "Euro (FXE)", -0.2, "Currencies"], ["CYB", "Chinese yuan (CYB)", -0.3, "Currencies"],
+    ["CPER", "Copper", -0.5, "Commodities"], ["GLD", "Gold", 0.3, "Commodities"], ["USO", "Oil", 0, "Commodities"], ["^SOX", "SOX (semis)", -1, "Stocks"], ["^NDX", "Nasdaq-100", -1, "Stocks"]];
   async function macro() {
     const out = [];
-    for (const [s, n, sgn] of MAC) { const b = await daily(s), q = await liveQ(s); if (!b.length) continue;
+    for (const [s, n, sgn, grp] of MAC) { const b = await daily(s), q = await liveQ(s); if (!b.length) continue;
       const px = q && q.px || b[b.length - 1].c, prev = q && q.prev || (b.length > 1 ? b[b.length - 2].c : NaN), y = b.slice(-252).map(x => x.c), z = (px - mean(y)) / (sdv(y) || 1);
       const r = b.slice(-253).map((x, i, a) => i ? x.c / a[i - 1].c - 1 : NaN).filter(isFinite), d = px / prev - 1, zd = d / (sdv(r) || 1);
-      out.push({ s, n, px, d, z, zd, sgn }); }
+      out.push({ s, n, px, d, z, zd, sgn, grp }); }
     const g = s => out.find(o => o.s === s), ts = g("^VIX") && g("^VIX3M") ? g("^VIX").px / g("^VIX3M").px : NaN;
     // stress index: z-scores signed so that + = stress (VIX, MOVE, SKEW, dollar, yields up; copper, semis, Nasdaq down), plus term structure
     const parts = out.filter(o => o.sgn).map(o => o.sgn * (0.6 * Math.max(-3, Math.min(3, o.z)) + 0.4 * Math.max(-3, Math.min(3, o.zd))) / Math.abs(o.sgn) * Math.min(1, Math.abs(o.sgn)));
@@ -191,6 +196,14 @@
       <div class="tw"><table><tr><th class="l">Market</th><th>Now</th><th>Today</th><th>Today vs normal day</th><th>vs 1-year average</th></tr>${out.map(o => `<tr><td class="l">${o.n}</td><td>${o.px >= 100 ? o.px.toFixed(1) : o.px.toFixed(2)}</td><td class="${cl(o.d)}">${pc(o.d, 2)}</td><td class="${Math.abs(o.zd) >= 2 ? (o.sgn * o.zd > 0 ? "down" : "up") : ""}">${o.zd.toFixed(1)}σ</td><td>${o.z > 0 ? "+" : ""}${o.z.toFixed(1)}σ</td></tr>`).join("")}</table></div>
       <div class="nt">σ = standard deviations: "today vs normal day" compares today's change with a normal daily change; "vs 1-year average" compares the level with the last 12 months. Moves of 2σ or more are colored (red = stress side). VIX above VIX3M (backwardation), a MOVE spike and a dollar spike came before most of the big semis drops of the last two years; the big-move model above uses the VIX ratio, VIX and MOVE.</div>`;
     MS = stress; top();
+    // the signal web learns what each bond, rate and currency move means for SOXL: the raw move (in σ of a normal day) is the node;
+    // the web finds the sign and the size (for example: yields up, yen up = carry-trade unwinding, junk bonds down = credit stress)
+    try { if (window.Web) { out.forEach(o => { if (/SOX|NDX/.test(o.s)) return; Web.emit("mkt." + o.s.replace(/[^A-Z0-9]/gi, "").toLowerCase(), "SOXL", Math.max(-1, Math.min(1, o.zd / 2.5)), `${o.grp} · ${o.n} today (σ)`); });
+      if (isFinite(ts)) Web.emit("mkt.vix-term", "SOXL", Math.max(-1, Math.min(1, (ts - 0.92) * 5)), "Volatility · VIX ÷ VIX3M (backwardation +)");
+      const y10 = g("^TNX"), y3m = g("^IRX"); if (y10 && y3m) Web.emit("mkt.curve-3m10y", "SOXL", Math.max(-1, Math.min(1, (y10.px - y3m.px) / 1.5)), "Rates · yield curve 10Y − 3M");
+      if (isFinite(hy)) Web.emit("mkt.hy-spread", "SOXL", Math.max(-1, Math.min(1, (hy - 3.5) / 1.5)), "Bonds · high-yield credit spread (wide +)");
+      const r10 = (() => { try { return fv("DGS10") - fv("T10YIE"); } catch (e) { return NaN; } })(); if (isFinite(r10)) Web.emit("mkt.real10y", "SOXL", Math.max(-1, Math.min(1, (r10 - 1.8) / 1)), "Rates · real 10Y yield (high +)"); } } catch (e) { }
+    window.MACROLIVE = out;
   }
   let MS = NaN;
 

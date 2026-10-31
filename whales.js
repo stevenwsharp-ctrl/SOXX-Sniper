@@ -299,6 +299,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
     return { long: f(r.long), short: f(r.short) };
   }
   window.wwMoves = () => MV.slice();
+  window.wwPositions = () => Object.values(W).filter(w => w.pos && w.pos.szi).map(w => ({ a: w.a, g: w.g, szi: w.pos.szi, ep: w.pos.ep, u: w.pos.u }));
   window.wwList = () => LIST.map(x => ({ a: x[0], g: x[1], pnl: x[2], coh: x[5] }));
   window.wwHlLimited = () => Date.now() - limited < 60000;
   window.wwCloseAvg = closeAvg;
