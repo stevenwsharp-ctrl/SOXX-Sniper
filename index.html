@@ -2372,8 +2372,10 @@ function macroEvents(from,to){
   const big=[...EARN.filter(e=>(HOLDINGS.find(h=>h[0]===e.s)||[0,0,0,0])[3]>0&&["NVDA","AVGO","AMD","MU","TSM","ASML","QCOM","INTC","LRCX","AMAT","KLAC","MRVL","ARM"].includes(e.s)),...BIGEARN];
   big.forEach(e=>L.push({d:e.d,t:e.h==="bmo"?"07:00":e.h==="amc"?"16:05":"12:00",n:`${e.s} earnings ${e.h==="bmo"?"(pre-market)":e.h==="amc"?"(after close)":""}`.trim(),k:"earn",i:["NVDA","MSFT","GOOGL","META","AMZN","AVGO","TSM"].includes(e.s)?3:2,s:e.s}));
   // merge the Worker feed (forecast / previous / actual and anything we do not list)
-  (MXT.ev||[]).forEach(x=>{const m=L.find(y=>y.d===x.d&&y.t===x.t&&y.k!=="earn"&&(y.i>=2||x.i>=2)&&simWords(y.n,x.n));
-    if(m){m.fc=x.fc;m.pv=x.pv;m.ac=x.ac}else if(x.i>=2)L.push({...x,k:"ext"})});
+  // a built-in entry takes the values of one feed item only; feed items never overwrite each other
+  const base=L.slice(),used=new Set();
+  (MXT.ev||[]).forEach(x=>{const m=base.find(y=>!used.has(y)&&y.d===x.d&&y.t===x.t&&y.k!=="earn"&&(y.i>=2||x.i>=2)&&simWords(y.n,x.n));
+    if(m){used.add(m);m.fc=x.fc;m.pv=x.pv;m.ac=x.ac;if(x.i>=3&&m.n!==x.n)m.n=x.n}else if(x.i>=2&&!L.some(y=>y.d===x.d&&y.t===x.t&&y.n===x.n))L.push({...x,k:"ext"})});
   return L.filter(x=>x.d>=from&&x.d<=to).sort((a,b)=>(a.d+a.t).localeCompare(b.d+b.t)||b.i-a.i);
 }
 function simWords(a,b){const w=t=>t.toLowerCase().replace(/[^a-z ]/g," ").split(" ").filter(z=>z.length>2);const A=w(a);return w(b).some(z=>A.some(y=>y.startsWith(z.slice(0,4))||z.startsWith(y.slice(0,4))))}
