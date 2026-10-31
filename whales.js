@@ -102,7 +102,7 @@
 .wwm .ag{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right;white-space:nowrap}
 .wwtag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--dim);margin:1px 3px 1px 0;white-space:nowrap}
 .wwtag.g{border-color:color-mix(in srgb,var(--up) 50%,transparent);color:var(--up)}.wwtag.b{border-color:color-mix(in srgb,var(--down) 50%,transparent);color:var(--down)}
-#wwTbl th{position:relative}#wwTbl th,#wwTbl td{overflow:hidden;text-overflow:ellipsis}#wwTbl td.wwdet{white-space:normal;overflow:visible;text-align:left}
+#wwTbl th{position:relative;cursor:grab}#wwTbl th.stk{cursor:default}#wwTbl th:active{cursor:grabbing}#wwTbl th,#wwTbl td{overflow:hidden;text-overflow:ellipsis}#wwTbl td.wwdet{white-space:normal;overflow:visible;text-align:left}
 #wwTbl .stk{position:sticky;z-index:2;background:var(--panel)}#wwTbl th.stk{z-index:3}#wwTbl td.stk{box-shadow:none}#wwTbl tr > .stk:nth-child(2){box-shadow:6px 0 6px -6px rgba(0,0,0,.35)}
 #whaleCard tr.wwr:hover td.stk{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}#whaleCard tr.wwst td.stk{background:color-mix(in srgb,var(--amber) 7%,var(--panel))}
 .cwh{position:absolute;right:0;top:0;bottom:0;width:8px;cursor:col-resize;z-index:5;touch-action:none}.cwh:hover,.cwh.on{background:color-mix(in srgb,var(--accent) 45%,transparent)}
@@ -494,10 +494,18 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       (() => { const b = ordAgg("B"), w = ordAgg("W"); return b.n + w.n ? `<div class="sub">Resting orders · Top: buy ${usd(b.buy)} / sell ${usd(b.sell)} (${usd(b.add)} to add, ${usd(b.close)} to close) · Worst: buy ${usd(w.buy)} / sell ${usd(w.sell)} · <a href="#whaleCard" data-wwgo="O">see orders</a></div>` : ""; })();
   }
   // ---------- adjustable columns: drag the edge of a header (it snaps to the content width when close); click the edge to fit ----------
-  let CW = load("soxx_ww_cols", {});
+  let CW = load("soxx_ww_cols", {}), CO = load("soxx_ww_order", []);
+  // column order: the saved order (star and rank stay first); new columns keep their place at the end
+  function applyOrder(t) {
+    if (!CO.length) return; const keys = [...t.rows[0].cells].map(ckey), n = keys.length, rest = keys.slice(2);
+    const order = CO.filter(k => rest.includes(k)).concat(rest.filter(k => !CO.includes(k))), idx = [0, 1, ...order.map(k => keys.indexOf(k))];
+    if (idx.every((v, i) => v === i)) return;
+    [...t.rows].forEach(tr => { if (tr.cells.length !== n) return; const c = [...tr.cells]; idx.forEach(i => tr.appendChild(c[i])); });
+  }
   const ckey = th => th.dataset.ck || th.textContent.trim() || "_";
   function fitCols() {
     const t = document.getElementById("wwTbl"); if (!t || !t.rows.length) return;
+    applyOrder(t);
     const ths = [...t.rows[0].cells]; let cg = t.querySelector("colgroup"); if (cg) cg.remove();
     t.style.tableLayout = "auto"; t.style.width = "max-content";
     const nat = ths.map(th => Math.ceil(th.getBoundingClientRect().width)); t._nat = nat;
@@ -517,7 +525,30 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       if (!moved) delete CW[k]; else CW[k] = Math.round(parseFloat(col.style.width)); lsSet("soxx_ww_cols", JSON.stringify(CW)); render(true); };
     window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up, { once: true }); }, true);
   card.addEventListener("dblclick", e => { const h = e.target.closest(".cwh"); if (!h) return; const t = document.getElementById("wwTbl"), th = t && t.rows[0].cells[+h.dataset.ci]; if (th) { delete CW[ckey(th)]; lsSet("soxx_ww_cols", JSON.stringify(CW)); render(true); } });
-  card.addEventListener("click", e => { if (e.target.closest(".cwh")) { e.stopPropagation(); return; } if (e.target.closest("[data-wwcolreset]")) { CW = {}; lsSet("soxx_ww_cols", "{}"); render(true); } }, true);
+  card.addEventListener("click", e => { if (e.target.closest(".cwh")) { e.stopPropagation(); return; } if (e.target.closest("[data-wwcolreset]")) { CW = {}; lsSet("soxx_ww_cols", "{}"); render(true); } if (e.target.closest("[data-wwcolorder]")) { CO = []; lsSet("soxx_ww_order", "[]"); render(true); } }, true);
+  // move a column: drag its header; a ghost follows the pointer and a line shows where it will land
+  card.addEventListener("pointerdown", e => {
+    const th = e.target.closest("#wwTbl tr:first-child th"); if (!th || e.target.closest(".cwh") || e.button > 0) return; const t = th.closest("table"), tw = document.getElementById("wwTw");
+    if (th.cellIndex < 2) return; const x0 = e.clientX, y0 = e.clientY; let drag = false, ghost = null, line = null, to = -1, scr = 0;
+    const cells = () => [...t.rows[0].cells];
+    const mv = ev => { hoverT = Date.now();
+      if (!drag) { if (Math.abs(ev.clientX - x0) < 6 && Math.abs(ev.clientY - y0) < 6) return; drag = true; document.body.style.userSelect = "none";
+        const r = th.getBoundingClientRect(); ghost = th.cloneNode(true); ghost.querySelectorAll(".cwh").forEach(x => x.remove());
+        ghost.style.cssText = `position:fixed;top:${r.top}px;left:${r.left}px;width:${r.width}px;height:${r.height}px;z-index:9999;pointer-events:none;opacity:.9;background:var(--panel2);border:1px solid var(--accent);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font:12px var(--mono);color:var(--ink)`;
+        line = document.createElement("div"); line.style.cssText = "position:fixed;width:3px;background:var(--accent);z-index:9998;pointer-events:none;border-radius:2px"; document.body.append(ghost, line); th.style.opacity = ".35"; }
+      ghost.style.left = (ev.clientX - ghost.offsetWidth / 2) + "px";
+      const C = cells(), tr = t.getBoundingClientRect(), wr = tw.getBoundingClientRect(); to = C.length;
+      for (let i = 2; i < C.length; i++) { const r = C[i].getBoundingClientRect(); if (ev.clientX < r.left + r.width / 2) { to = i; break; } }
+      const ref = to < C.length ? C[to].getBoundingClientRect().left : C[C.length - 1].getBoundingClientRect().right, x = Math.max(wr.left + C[0].offsetWidth + C[1].offsetWidth, Math.min(wr.right, ref));
+      line.style.left = (x - 1.5) + "px"; line.style.top = tr.top + "px"; line.style.height = Math.min(tr.height, window.innerHeight - tr.top) + "px";
+      scr = ev.clientX > wr.right - 40 ? 14 : ev.clientX < wr.left + 120 && tw.scrollLeft > 0 ? -14 : 0; };   // scroll the table when the pointer is near its edge
+    const tick = setInterval(() => { if (drag && scr) tw.scrollLeft += scr; }, 30);
+    const up = () => { window.removeEventListener("pointermove", mv); clearInterval(tick); document.body.style.userSelect = "";
+      if (!drag) return; ghost.remove(); line.remove(); th.style.opacity = "";
+      const keys = cells().map(ckey), from = th.cellIndex; if (to < 0 || to === from || to === from + 1) return render(true);
+      const k = keys[from], rest = keys.slice(2), fi = rest.indexOf(k); rest.splice(fi, 1); let ti = to - 2; if (to > from) ti--; rest.splice(Math.max(0, ti), 0, k);
+      CO = rest; lsSet("soxx_ww_order", JSON.stringify(CO)); render(true); };
+    window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up, { once: true }); });
   // automatic refreshes wait while the pointer is over the card (max 20 s), so a click never lands on a row that is being rebuilt
   let hoverT = 0, pend = false;
   function render(force) { const tw = document.getElementById("wwTw"), sl = tw ? tw.scrollLeft : 0, r = render0(force);
@@ -562,7 +593,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
     snapRanks();
     let L = ranked(tab, rkBy); if (onlyStar) L = L.filter(w => STAR[w.a]);
     const lr = liveRanks();
-    $("wwBody").innerHTML = `<div class="row" style="gap:6px;margin:0 0 8px;flex-wrap:wrap"><span class="sub">Rank by</span>${RKBY.map(([k, l]) => `<button class="chipb ${rkBy === k ? "on" : ""}" data-wwrk="${k}">${l}</button>`).join("")}<span class="tasep"></span><button class="chipb" data-wwcolreset="1" title="Fit every column to its content again">↔ Fit columns</button><button class="chipb ${onlyStar ? "on" : ""}" data-wwstaronly="1">★ Starred only (${L.filter ? Object.values(W).filter(w => w.g === tab && STAR[w.a]).length : 0})</button>
+    $("wwBody").innerHTML = `<div class="row" style="gap:6px;margin:0 0 8px;flex-wrap:wrap"><span class="sub">Rank by</span>${RKBY.map(([k, l]) => `<button class="chipb ${rkBy === k ? "on" : ""}" data-wwrk="${k}">${l}</button>`).join("")}<span class="tasep"></span><button class="chipb" data-wwcolreset="1" title="Fit every column to its content again">↔ Fit columns</button><button class="chipb" data-wwcolorder="1" title="Put the columns back in their first order (drag a header to move a column)">↺ Column order</button><button class="chipb ${onlyStar ? "on" : ""}" data-wwstaronly="1">★ Starred only (${L.filter ? Object.values(W).filter(w => w.g === tab && STAR[w.a]).length : 0})</button>
       <span class="sub">Live score = study profit + realized since the study + open P&L. Smart score = live score × skill weight (×0.5 to ×1.5) from the trade grade and grit. Grade (A–F): keeps gains, avoids round trips, holds through drawdowns that turn positive, open profit across all holdings. Grit (0–100): steady and disciplined, patient when patience pays and quick when speed pays; impulse (revenge, chasing, quick flips, panic sales) lowers it unless it paid. Hover a grade or grit score for the details. Arrows: change vs the start of the day (ET).</span></div>` +
       (() => { const gh = g => Grade.groupHold(Object.values(W).filter(w => w.g === g).map(w => GR[w.a])), b = gh("B"), x = gh("W"); return b || x ? `<div class="sub" style="margin:0 0 6px">Average time in a trade (median trader): <b class="up">best ${b ? Grade.dur(b.med) : "–"}</b> · <b class="down">worst ${x ? Grade.dur(x.med) : "–"}</b>${b && x ? ` — the best hold ${b.med >= x.med ? (b.med / x.med).toFixed(1) + "× longer" : (x.med / b.med).toFixed(1) + "× shorter"}` : ""}.</div>` : ""; })() +
       (L.length ? "" : `<div class="sub">No starred wallets in this list. Select ☆ in a row to star a wallet.</div>`) +
