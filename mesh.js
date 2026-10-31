@@ -50,7 +50,7 @@
     const s = Ent.signals(E, "xyz:SOXL");
     if (s) { if (s.catchup) I.push(["ent.catchup", s.catchup, "Coupling · stretch vs coupled markets closes"]); if (s.lead) I.push(["ent.lead", s.lead, "Coupling · a leading market already moved"]); if (s.peer) I.push(["ent.peer", s.peer, "Peers · SOXL ahead of or behind the chip stocks"]); }
     if (E && E.coh.long != null && E.coh.short != null) { const sp = E.R["xyz:SP500"], r = sp ? sp.r.slice(-8).reduce((a, v) => a + (v || 0), 0) : 0;
-      I.push(["ent.cohesion", c1((E.coh.short - E.coh.long) * 5) * Math.sign(r || 0), "Coupling · macro tide (high cohesion × S&P direction)"]); }
+      if (E.coh.short > E.coh.long + 0.05) I.push(["ent.cohesion", c1((E.coh.short - E.coh.long) * 5) * Math.sign(r || 0), "Coupling · macro tide (markets move as one, with the S&P)"]); }
     const lv = Sync.live(Y, null, 2 * 36e5);
     if (lv) { if (lv.burst) I.push(["sync.burst", lv.burst, "Coordination · wallets moved together"]); if (lv.best) I.push(["sync.best", lv.best, "Coordination · best traders moved together"]);
       if (lv.worst) I.push(["sync.worst", lv.worst, "Coordination · worst traders moved together (fade?)"]); if (lv.leader) I.push(["sync.leader", lv.leader, "Coordination · a leader wallet moved first"]); }
