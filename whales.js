@@ -326,7 +326,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
       if (!ok) throw new Error("no answer from Hyperliquid");
       err = ""; lastAt = Date.now(); detect();
       render();
-      await pollFills(); moveAlerts(mark); await pollOrders(); gradeAll();
+      await pollFills(); moveAlerts(mark); await pollOrders();
     } catch (e) { err = e.message || "error"; }
     save(); busy = 0; render();
   }
@@ -425,6 +425,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
         GR[a] = Grade.grade(TR, { bars: GB, px: mark, upnl: H.main || H.xyz ? up : null, acct: ac });
         GR[a].grit = Grade.grit(M, GB, TR);
         GR[a].mult = 1 + 0.5 * (0.55 * GR[a].Q + 0.45 * (GR[a].grit.n >= 5 ? GR[a].grit.G : 0));   // ×0.5 to ×1.5
+        if (Object.keys(GR).length % 8 === 0) render();
         GR[a].hold = { u: up, acct: ac, n: (H.main ? H.main.n : 0) + (H.xyz ? H.xyz.n : 0) };
         await new Promise(r => setTimeout(r, 400));
       }
@@ -527,6 +528,7 @@ td.wwdet{white-space:normal!important;text-align:left!important;background:var(-
   document.addEventListener("click", e => { const g = e.target.closest("[data-wwgo]"); if (g) { e.preventDefault(); tab = g.dataset.wwgo; render(); card.scrollIntoView({ behavior: "smooth", block: "start" }); } });
 
   render(); poll();
+  window.wwGrades = () => GR; setTimeout(gradeAll, 95000); setInterval(gradeAll, 60000);   // own timer: not behind the fills and orders reads
   // every minute, visible or not. A watchdog also runs a poll if one was missed (for example after the computer sleeps).
   setInterval(poll, 60000);
   setInterval(() => { try { if (Date.now() - lastAt > 75000 && Date.now() - tryAt > 60000) poll(); render(); } catch (e) { } }, 5000);
