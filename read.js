@@ -82,7 +82,7 @@
       if (vol > 0) add("Spot players · takers 1h (crypto risk appetite)", tk / vol * 4, 0.5, `takers net ${U(tk)} of ${U(vol)}`, "Spot");
       if (wh) add("Spot players · biggest side-takers 1h", wh / 2e6, 0.5, `net ${U(wh)}`, "Spot"); } } catch (e) { }
     // the web, rebalance, radar lean
-    try { const F = window.Web && Web.forecast("SEMIS"); if (F) add("Signal web (learned, both sites) · semis 4h", (F.p - 0.5) * 4, F.ready ? 1.5 : 0.5, `P(up) ${Math.round(F.p * 100)}%${F.ready ? "" : " (still learning)"}`, "Learned"); } catch (e) { }
+    try { const F = window.Web && Web.forecast("SEMIS"); if (F) add("Signal web (learned, both sites) · semis 4h", (F.p - 0.5) * 4, (F.ready ? 1.5 : 0.5) * (F.strike ? 1.5 : 0.6), `P(up) ${Math.round(F.p * 100)}%${F.ready ? "" : " (still learning)"} · ${F.strike ? "🕷 strike: this confidence level has paid" : "wait: this confidence level has not paid yet"}${F.shock ? " · ⚡ shock: relearning fast" : ""}`, "Learned"); } catch (e) { }
     try { const e = etInfo(Date.now()); if (!e.wk && e.min >= 840 && e.min < 960) { const lf = letfFlow(todaySess()); if (lf && isFinite(lf.usd)) add("Leveraged-ETF rebalance into the close", lf.usd / 3e9, 1, `${lf.usd > 0 ? "BUY" : "SELL"} ~${U(Math.abs(lf.usd))} of chip exposure by 4 pm`, "Flows"); } } catch (e) { }
     // crowd psychology (psych.js) and bonds / rates / currencies (radar.js live macro)
     try { (window.RHYTHM && RHYTHM.I || []).forEach(([id, v, lab]) => add(lab, v, 0.5, RHYTHM.R ? RHYTHM.R.rand.label : "", "Rhythm")); } catch (e) { }
