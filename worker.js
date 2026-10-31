@@ -313,7 +313,7 @@ const newsMemo = new Map();
 const xmlText = s => String(s || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, "&").replace(/<[^>]+>/g, "").trim();
 function rssItems(xml, src) {
   const out = [];
-  for (const m of String(xml).matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+  for (const m of String(xml).matchAll(/<item[^>]*>([\s\S]*?)<\/item>/g)) {
     const b = m[1], tag = n => { const r = b.match(new RegExp(`<${n}[^>]*>([\\s\\S]*?)<\\/${n}>`)); return r ? xmlText(r[1]) : ""; };
     let title = tag("title"), source = tag("source") || src;
     if (src === "google") { const i = title.lastIndexOf(" - "); if (i > 20) { source = source || title.slice(i + 3); title = title.slice(0, i); } }
@@ -325,21 +325,42 @@ function rssItems(xml, src) {
 // Macro headlines: Fed, inflation, jobs, growth, yields, dollar, tariffs and chip export rules, from Google News
 // (two focused searches, last 24h) and CNBC's economy and markets feeds. Only headlines about the macro picture are kept.
 const MACRO_RE = /\bfed\b|federal reserve|powell|fomc|rate (cut|hike)|interest rate|inflation|\bcpi\b|\bpce\b|\bppi\b|jobs report|payroll|jobless|unemployment|\bgdp\b|recession|economy|economic|treasury|yield|bond|dollar|tariff|trade war|export (control|curb|rule|ban)|chip (export|curb|rule|ban|act)|china|stimulus|deficit|debt ceiling|shutdown|consumer (spending|sentiment|confidence)|retail sales|ism|pmi|wage|housing|oil price|opec/i;
-async function getMacroNews() {
-  const k = "macro", hit = newsMemo.get(k); if (hit && Date.now() - hit.at < 120000) return hit.body;
-  const g = q => fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`, { headers: UA }).then(r => r.ok ? r.text() : "").catch(() => "");
-  const c = id => fetch(`https://www.cnbc.com/id/${id}/device/rss/rss.html`, { headers: UA }).then(r => r.ok ? r.text() : "").catch(() => "");
-  const [a, b, e, m] = await Promise.all([
-    g('(Fed OR "Federal Reserve" OR Powell OR FOMC OR "rate cut" OR inflation OR PCE OR CPI OR "jobs report" OR GDP OR "Treasury yields") when:1d'),
-    g('(tariffs OR "export controls" OR "chip exports" OR "trade war" OR "bond market" OR "dollar" OR recession OR "government shutdown") economy when:1d'),
-    c("20910258"), c("10000664")]);
-  const seen = new Set(), items = [];
-  for (const it of [...rssItems(a, "google"), ...rssItems(b, "google"), ...rssItems(e, "CNBC"), ...rssItems(m, "CNBC")]) {
-    if (!MACRO_RE.test(it.title) || Date.now() - it.at > 36 * 36e5) continue;
-    const key = it.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 70); if (seen.has(key)) continue; seen.add(key); items.push(it);
-  }
+async function getMacroNews(debug) {
+  const k = "macro", hit = newsMemo.get(k); if (hit && Date.now() - hit.at < 120000 && !debug) return hit.body;
+  const get = u => fetch(u, { headers: { ...UA, Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8" }, cf: { cacheTtl: 90 } }).then(r => r.ok ? r.text() : "").catch(() => "");
+  const gq = q => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
+  const bq = q => `https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=rss&qft=interval%3d%227%22`;
+  // many sources: if some block the Worker, the others still fill the list. ?debug=1 shows what each one returned.
+  const SRC = [
+    ["Google News", gq('(Fed OR "Federal Reserve" OR Powell OR FOMC OR "rate cut" OR inflation OR PCE OR CPI OR "jobs report" OR GDP OR "Treasury yields") when:1d'), "google"],
+    ["Google News", gq('(tariffs OR "export controls" OR "chip exports" OR "trade war" OR "bond market" OR "dollar" OR recession OR "government shutdown") economy when:1d'), "google"],
+    ["Bing News", bq('Federal Reserve OR inflation OR Treasury yields OR jobs report OR GDP'), "Bing News"],
+    ["Bing News", bq('tariffs OR chip export OR bond market OR dollar OR recession economy'), "Bing News"],
+    ["CNBC", "https://www.cnbc.com/id/20910258/device/rss/rss.html", "CNBC"],
+    ["CNBC", "https://www.cnbc.com/id/10000664/device/rss/rss.html", "CNBC"],
+    ["CNBC", "https://www.cnbc.com/id/100003114/device/rss/rss.html", "CNBC"],
+    ["CNBC", "https://www.cnbc.com/id/15839135/device/rss/rss.html", "CNBC"],
+    ["MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories", "MarketWatch"],
+    ["MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_marketpulse", "MarketWatch"],
+    ["WSJ", "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain", "WSJ"],
+    ["WSJ", "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed", "WSJ"],
+    ["Yahoo Finance", "https://finance.yahoo.com/news/rssindex", "Yahoo Finance"],
+    ["Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml", "Federal Reserve"],
+    ["Investing.com", "https://www.investing.com/rss/news_14.rss", "Investing.com"],
+    ["Investing.com", "https://www.investing.com/rss/news_95.rss", "Investing.com"]
+  ];
+  const texts = await Promise.all(SRC.map(x => get(x[1])));
+  const seen = new Set(), items = [], dbg = [];
+  SRC.forEach(([name, u, tag], n) => { const all = rssItems(texts[n], tag); let kept = 0;
+    for (const it of all) {
+      const fed = tag === "Federal Reserve";
+      if ((!fed && !MACRO_RE.test(it.title)) || Date.now() - it.at > 36 * 36e5) continue;
+      const key = it.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 70); if (seen.has(key)) continue; seen.add(key); items.push(it); kept++;
+    }
+    dbg.push({ src: name, url: u.slice(0, 80), bytes: texts[n].length, items: all.length, kept }); });
   items.sort((p, q) => q.at - p.at);
-  const body = { status: items.length ? "ok" : "error", error: items.length ? undefined : "news sources did not answer", at: Date.now(), items: items.slice(0, 40) };
+  const body = { status: items.length ? "ok" : "error", error: items.length ? undefined : "news sources did not answer", at: Date.now(), items: items.slice(0, 60) };
+  if (debug) body.sources = dbg;
   if (items.length) newsMemo.set(k, { at: Date.now(), body });
   return body;
 }
@@ -521,7 +542,7 @@ export default {
     }
     if (url.pathname === "/news") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
-      if (url.searchParams.get("macro") === "1") return json(await getMacroNews());
+      if (url.searchParams.get("macro") === "1") return json(await getMacroNews(url.searchParams.get("debug") === "1"));
       const tickers = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 12);
       const terms = (url.searchParams.get("q") || "").split("|").map(s => s.trim()).filter(s => /^[A-Za-z0-9 &.\-]{1,40}$/.test(s)).slice(0, 14);
       if (!tickers.length) return json({ status: "error", error: "bad ticker" }, 400);

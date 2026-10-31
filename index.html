@@ -2385,12 +2385,18 @@ async function fetchMacroFeed(){const p=fredProxy();if(!p||demo)return;
 setTimeout(fetchMacroFeed,4000);setInterval(fetchMacroFeed,5*60000);   // actuals arrive minutes after each release
 // macro headlines (Fed, inflation, jobs, growth, yields, tariffs, chip export rules), through the Worker's news search
 var MNEWS={t:0,items:[],err:""};
-async function fetchMacroNews(){const p=fredProxy();if(!p||demo)return;
+async function fetchMacroNews(){const p=fredProxy()||"";if(demo)return;
   try{const q=["Federal Reserve","Powell","inflation","Treasury yields","jobs report","GDP","PCE","tariffs","chip export","rate cut","recession","bond market"].join("|");
-    let j=await(await fetch(`${p}/news?macro=1&t=SPY`)).json();
-    if(!(j.status==="ok"&&j.items&&j.items.length&&j.items[0].via!=="yahoo"))j=await(await fetch(`${p}/news?t=SPY,QQQ,TLT,DIA&q=${encodeURIComponent(q)}`)).json();   // older Worker: general search
+    let j=await fetch(`${p}/news?macro=1&t=SPY`).then(r=>r.json()).catch(()=>null);
+    if(!(j&&j.status==="ok"&&j.items&&j.items.length&&j.items[0].via!=="yahoo"))j=await fetch(`${p}/news?t=SPY,QQQ,TLT,DIA&q=${encodeURIComponent(q)}`).then(r=>r.json()).catch(()=>null);   // older Worker: general search
     const MRE=/\bfed\b|federal reserve|powell|fomc|rate (cut|hike)|interest rate|inflation|\bcpi\b|\bpce\b|\bppi\b|jobs report|payroll|jobless|unemployment|\bgdp\b|recession|economy|economic|treasury|yield|bond|dollar|tariff|trade war|export (control|curb|rule|ban)|chip (export|curb|rule|ban|act)|china|stimulus|deficit|shutdown|consumer (spending|sentiment|confidence)|retail sales|\bism\b|\bpmi\b|wage|oil price|opec/i;
-    if(j.status==="ok"){MNEWS={t:Date.now(),items:j.items.filter(x=>MRE.test(x.title)&&Date.now()-x.at<36*36e5).slice(0,40),err:""};if(!MNEWS.items.length)MNEWS.err="no macro headlines in the last day (paste the new Worker for the macro feed)";renderMacro2()}else MNEWS.err=j.error||"no answer"}catch(e){MNEWS.err="news did not answer"}}
+    // second source: the macro headlines Cohort Sniper's news job collects every minute (WSJ, Bloomberg, Reuters, CNBC, the Fed ...)
+    let co=[];try{const r=await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/data/news.json?t="+Math.floor(Date.now()/18e4));if(r.ok){const N=await r.json();
+      const SN={wsj:"WSJ",bloomberg:"Bloomberg",reuters:"Reuters",cnbc:"CNBC",ft:"Financial Times","@business":"Bloomberg","@markets":"Bloomberg","@wsj":"WSJ","@reuters":"Reuters","@cnbc":"CNBC","@financialjuice":"FinancialJuice","@deltaone":"DeltaOne",marketwatch:"MarketWatch",barrons:"Barron's",fortune:"Fortune",semafor:"Semafor","@firstsquawk":"First Squawk","@zerohedge":"ZeroHedge","@unusual_whales":"Unusual Whales","@deitaone":"DeItaone","@watcherguru":"Watcher Guru","@kobeissiletter":"Kobeissi Letter","@solidintel_x":"Solid Intel","@truthtrumppost":"Trump (Truth Social)"};
+      co=(N.items||[]).filter(n=>n.m&&n.h&&n.url).map(n=>({title:n.h.length>220?n.h.slice(0,217)+"…":n.h,url:n.url,at:n.t,src:SN[String(n.src).toLowerCase()]||n.src||"News",via:"cohort"}))}}catch(e){}
+    const ok=j&&j.status==="ok"?j.items:[],seen=new Set(),all=[];
+    [...ok,...co].sort((a,b)=>b.at-a.at).forEach(x=>{const k=String(x.title).toLowerCase().replace(/[^a-z0-9]+/g," ").trim().slice(0,60);if(seen.has(k)||!MRE.test(x.title)||Date.now()-x.at>36*36e5)return;seen.add(k);all.push(x)});
+    if(all.length){MNEWS={t:Date.now(),items:all.slice(0,50),err:""};renderMacro2()}else MNEWS.err=(j&&j.error)||"no macro headlines in the last day"}catch(e){MNEWS.err="news did not answer"}}
 setTimeout(fetchMacroNews,6000);setInterval(fetchMacroNews,4*60000);
 // surprise vs consensus and what it means for stocks: hotter inflation = bad; weaker labor = bad for growth; stronger growth = good
 function econSurprise(e){const n=v=>{const x=parseFloat(String(v||"").replace(/[,%$KMBT]/g,""));return isFinite(x)?x:NaN};const a=n(e.ac),c=n(e.fc);if(!isFinite(a)||!isFinite(c)||a===c)return null;
