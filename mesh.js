@@ -11,6 +11,7 @@
     <div id="meshNow" style="margin:6px 0"></div><div class="mesh2"><div><div class="label" style="margin-top:6px">Coupling map ("entanglement")</div><div id="meshEnt"></div></div>
     <div><div class="label" style="margin-top:6px">Coordination · SOXL whales</div><div id="meshSync"></div></div></div>
     <div class="label" style="margin-top:10px">Crowd memory · how the crowd acts at every hour, and the past moments that rhyme with now</div><div id="meshRhyme"></div>
+    <div class="label" style="margin-top:10px">Liquidity · where the money waits (order books of SOXL and its chip neighbours)</div><div id="meshLiq"></div>
     <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
     <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
   anchor.before(card);
@@ -37,7 +38,7 @@
   }
   async function loadSync() {
     if (Date.now() - yT < 10 * 6e4) return;
-    try { if (!H1 || Date.now() - h1T > 30 * 6e4) { const k = await post({ type: "candleSnapshot", req: { coin: "xyz:SOXL", interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } }); if (Array.isArray(k) && k.length) { H1 = k.map(b => [b.t, +b.c]); HB = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c]); h1T = Date.now(); } } } catch (e) { }
+    try { if (!H1 || Date.now() - h1T > 30 * 6e4) { const k = await post({ type: "candleSnapshot", req: { coin: "xyz:SOXL", interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } }); if (Array.isArray(k) && k.length) { H1 = k.map(b => [b.t, +b.c]); HB = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c]); window.SOXL_HBV = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c, +b.v]); h1T = Date.now(); } } } catch (e) { }
     let L = null; try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/data/whalelog.json?t=" + Math.floor(Date.now() / 3e5)); if (r.ok) L = await r.json(); } catch (e) { }
     if (!L || !L.moves) return;
     const px = t => { if (!H1 || !H1.length) return null; let lo = 0, hi = H1.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (H1[m][0] <= t) lo = m; else hi = m - 1; } return t - H1[lo][0] <= 2 * 36e5 && H1[lo][0] <= t ? H1[lo][1] : null; };
@@ -101,4 +102,21 @@
       if (window.Web) { Rhyme.signals().forEach(([id, a, v, lab]) => Web.emit(id, a, v, lab)); if (Date.now() - rhFed > 60 * 6e4) { rhFed = Date.now(); Rhyme.feedWeb(); } } } catch (e) { console.warn("rhyme", e); } }
   setTimeout(rhymeTick, 11000); setInterval(rhymeTick, 5 * 6e4);
   window.mesh_ven = () => VEN;
+  // liquidity hound: SOXL's book every minute, one chip neighbour per minute in turn (2 light requests each)
+  const LQN = ["xyz:NVDA", "xyz:MU", "xyz:AMD", "xyz:AVGO", "xyz:TSM", "xyz:SMH"], LQ = {}; let lqi = 0;
+  async function liqTick() {
+    if (!window.Liquid || document.hidden) return;
+    const nb = LQN[lqi++ % LQN.length];
+    for (const c of ["xyz:SOXL", nb]) { try { const A = await Liquid.read(c, c === "xyz:SOXL" ? window.SOXL_HBV : null); if (A) LQ[c] = A; } catch (e) { if (String(e).includes("429")) break; } }
+    const S = LQ["xyz:SOXL"], I = S ? Liquid.signals(S, "SOXL") : [];
+    // neighbours: when the chip books lean one way together, SOXL often follows (the web tests it)
+    const nbr = LQN.map(c => LQ[c]).filter(A => A && Date.now() - A.at < 15 * 6e4);
+    if (nbr.length >= 3) { const m = nbr.reduce((s, A) => s + A.imb, 0) / nbr.length; if (Math.abs(m) >= 0.1) I.push(["liq.peers", "SOXL", c1(m * 2), "Liquidity · chip neighbours' books lean the same way"]);
+      const th = nbr.reduce((s, A) => s + A.thin, 0) / nbr.length; if (S && S.mo != null && th < 0.75) I.push(["liq.peerthin", "SOXL", c1(Math.sign(S.mo) * (0.75 - th) * 2.5), "Liquidity · chip books thin together (moves run, signed by SOXL's move)"]); }
+    try { if (window.Web) I.forEach(([id, a, v, lab]) => Web.emit(id, a, v, lab)); } catch (e) { }
+    window.LIQSIG = { at: Date.now(), I, S };
+    const el = document.getElementById("meshLiq"); if (el) el.innerHTML = (I.length ? `<div class="note">Live liquidity signals: ${I.map(([id, a, v, lab]) => `<span class="${v > 0 ? "L" : "S"}">${lab.replace("Liquidity · ", "")} ${v > 0 ? "▲" : "▼"}${Math.abs(v).toFixed(2)}</span>`).join(" · ")}</div>` : "")
+      + Liquid.html(["xyz:SOXL"].concat(LQN).map(c => LQ[c]), { px: v => "$" + (v >= 100 ? v.toFixed(2) : v.toFixed(3)) });
+  }
+  setTimeout(liqTick, 15000); setInterval(liqTick, 60000);
 })();
