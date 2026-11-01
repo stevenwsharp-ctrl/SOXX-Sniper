@@ -515,8 +515,8 @@ export default {
     }
     if (url.pathname === "/chart") {
       const t = (url.searchParams.get("t") || "").toUpperCase();
-      const range = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y"].includes(url.searchParams.get("range")) ? url.searchParams.get("range") : "1d";
-      const interval = ["1m", "2m", "5m", "15m", "30m", "60m", "1d", "1wk"].includes(url.searchParams.get("interval")) ? url.searchParams.get("interval") : "1m";
+      const range = ["1d", "5d", "1mo", "3mo", "6mo", "ytd", "1y", "2y", "5y", "10y", "max"].includes(url.searchParams.get("range")) ? url.searchParams.get("range") : "1d";
+      const interval = ["1m", "2m", "5m", "15m", "30m", "60m", "1d", "1wk", "1mo"].includes(url.searchParams.get("interval")) ? url.searchParams.get("interval") : "1m";
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       if (!/^\^?[A-Z][A-Z0-9.\-]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
       return json(await yahooChart(t, range, interval));
