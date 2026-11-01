@@ -95,7 +95,7 @@
     Web.addPrice && !web.p && (web.p = 1, Web.addPrice(a => { try { return Q && Q[a] && Q[a].c || null; } catch (e) { return null; } }));
     document.getElementById("inWebF").innerHTML = ["SOXL", "SEMIS"].map(a => Web.forecastHtml(a)).filter(Boolean).map((h, i) => `<div>${i ? "Semis (SOXL + SOXX + SOXS, both sites): " : "SOXL: "}${h}</div>`).join("");
     if (!document.getElementById("inWeb").open) return;
-    Web.render(document.getElementById("inWebBody"), { h: 340 });
+    Web.render(document.getElementById("inWebBody"), { h: 380, working: true });
   }
 
   /* ---------- spot ---------- */
