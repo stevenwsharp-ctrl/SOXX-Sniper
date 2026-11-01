@@ -10,6 +10,7 @@
   card.innerHTML = `<details open><summary class="label" style="cursor:pointer">Links · what moves with SOXL, and which traders move together</summary>
     <div id="meshNow" style="margin:6px 0"></div><div class="mesh2"><div><div class="label" style="margin-top:6px">Coupling map ("entanglement")</div><div id="meshEnt"></div></div>
     <div><div class="label" style="margin-top:6px">Coordination · SOXL whales</div><div id="meshSync"></div></div></div>
+    <div class="label" style="margin-top:10px">Crowd memory · how the crowd acts at every hour, and the past moments that rhyme with now</div><div id="meshRhyme"></div>
     <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
     <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
   anchor.before(card);
@@ -58,7 +59,7 @@
       if (lv.worst) I.push(["sync.worst", lv.worst, "Coordination · worst traders moved together (fade?)"]); if (lv.leader) I.push(["sync.leader", lv.leader, "Coordination · a leader wallet moved first"]); }
     // rhythm (rhythm.js): randomness, regularity, Fibonacci, music, flow — on SOXL hourly bars, 200 days
     try { if (window.Rhythm && HB && (!RH || Date.now() - rhT > 10 * 6e4)) { RH = Rhythm.analyze(HB, { win: 400 }); rhT = Date.now(); } } catch (e) { console.warn("rhythm", e); }
-    const RI = []; if (RH) [["trend", "Rhythm · path memory (trend or snap-back)"], ["hour", "Rhythm · this hour of the day, history"], ["cycle", "Rhythm · repeating cycle"], ["fib", "Rhythm · Fibonacci level (back-tested)"], ["home", "Rhythm · pull back home (vs chance)"], ["flow", "Rhythm · poetry in motion (smooth trend)"]].forEach(([k, lab]) => { const v = RH.sig[k]; if (v) RI.push(["rhy." + k, v, lab]); });
+    const RI = []; if (RH) [["trend", "Rhythm · path memory (trend or snap-back)"], ["hour", "Rhythm · this hour of the day, history"], ["cycle", "Rhythm · repeating cycle"], ["fib", "Rhythm · Fibonacci level (back-tested)"], ["home", "Rhythm · pull back home (vs chance)"], ["flow", "Rhythm · poetry in motion (smooth trend)"], ["wave", "Frequency · projected wave (back-tested)"], ["resonance", "Frequency · resonance (all waves turn together)"]].forEach(([k, lab]) => { const v = RH.sig[k]; if (v) RI.push(["rhy." + k, v, lab]); });
     window.RHYTHM = { R: RH, I: RI };
     try { if (window.Web) I.concat(RI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
     window.MESH = { I, why: [].concat(s ? s.why : [], lv ? lv.why : []), E, Y };
@@ -94,5 +95,10 @@
         + Venues.html({ filter: r => SEMI.has(r.sym), n: 10, px: v => "$" + (v >= 100 ? v.toFixed(2) : v.toFixed(3)) });
     } catch (e) { console.warn("venues", e); } }
   setTimeout(venTick, 9000); setInterval(venTick, 60000);
+  // crowd memory (rhyme.js): compass, time travel, rhymes; signals and the memory itself go to the web
+  let rhFed = 0, rhKey = "XYZ:SOXL";
+  async function rhymeTick() { if (!window.Rhyme || document.hidden) return; try { await Rhyme.load(); const el = document.getElementById("meshRhyme"); if (el && el._at == null) Rhyme.html(el._key || rhKey, el, { onKey: k => { rhKey = k; } });
+      if (window.Web) { Rhyme.signals().forEach(([id, a, v, lab]) => Web.emit(id, a, v, lab)); if (Date.now() - rhFed > 60 * 6e4) { rhFed = Date.now(); Rhyme.feedWeb(); } } } catch (e) { console.warn("rhyme", e); } }
+  setTimeout(rhymeTick, 11000); setInterval(rhymeTick, 5 * 6e4);
   window.mesh_ven = () => VEN;
 })();
