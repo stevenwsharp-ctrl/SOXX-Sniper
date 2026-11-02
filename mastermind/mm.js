@@ -76,7 +76,32 @@
     if (coin) { const k = await hl({ type: "candleSnapshot", req: { coin: (LT.ctx[coin] && LT.ctx[coin].n) || (coin.includes(":") ? coin.split(":")[0].toLowerCase() + ":" + coin.split(":")[1] : coin), interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } });
       if (Array.isArray(k) && k.length >= 300) { const B = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c, +b.v]); G.bars = B;
         try { G.plan = Planner.run("mm:" + sym, { "1h": B, "4h": Planner.agg(B, 144e5) }); } catch (e) { } try { G.mk = Markov.analyze(B); } catch (e) { } try { G.K = Matrix.kalman(B); G.Di = Matrix.dirac(B); } catch (e) { } try { G.ro = Rollover.analyze(B); } catch (e) { } } }
+    if (!G.bars && proxy()) { try { const j = await (await fetch(`${proxy()}/chart?t=${encodeURIComponent(/\.X$/.test(sym) ? sym.replace(/\.X$/, "-USD") : sym)}&range=1y&interval=60m`)).json(); if (j.status === "ok") G.bars = j.bars.filter(b => b[4] != null && b[2] != null && b[3] != null).map(b => [b[0], b[1], b[2], b[3], b[4], b[5] || 0]); } catch (e) { } }
     return G;
+  }
+  // ---------- price targets, time frames and confidence ----------
+  // From this market's own hourly history: for every start in the last ~180 days, what a trade on your side did within each
+  // time frame with no stop and no target. Target 1 = the typical best point (half the trades got there), target 2 = the
+  // best point 1 trade in 5 reached, "wrong if" = the room 80% of the winning trades needed. Confidence = how often target 1
+  // (or 2) was touched BEFORE the wrong-if level within the time frame (the base rate here), then tilted by today's evidence
+  // (at most ±15 points; the tilt is a judgment, not a tested number).
+  function hoursToEod(crypto) { const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "numeric", hourCycle: "h23", weekday: "short" }).formatToParts(new Date()).map(x => [x.type, x.value]));
+    const m = +p.hour * 60 + +p.minute, end = crypto ? 1440 : 960; let h = (end - m) / 60; if (h < 0.75) h += crypto ? 24 : 24; return Math.max(0.75, h); }
+  function targets(G, side, tilt) {
+    const B = G.bars; if (!B || B.length < 300) return null; const n = B.length, crypto = (G.tag && G.tag.cls === "Crypto") || /\.X$/.test(G.sym), px = (G.ctx && G.ctx.px) || B[n - 1][4];
+    const eod = hoursToEod(crypto), TF = [["4 hours", 4]].concat(eod >= 3 && Math.abs(eod - 4) > 1 ? [["Until end of day", eod]] : []).concat([["24 hours", 24], ["48 hours", 48], ["7 days", 168]])   /* hourly bars: 3+ hours, so a target and a stop are not inside the same bar */, q = (a, p) => { if (!a.length) return null; const z = a.slice().sort((x, y) => x - y); return z[Math.min(z.length - 1, Math.max(0, Math.floor(p * (z.length - 1))))]; };
+    const t0 = B[n - 1][0] - 180 * 864e5, out = [];
+    for (const [lab, h] of TF) { const S = [], step = Math.max(1, Math.round(h / 6));
+      for (let i = 0; i < n - 1; i += step) { if (B[i][0] < t0) continue; const tEnd = B[i][0] + h * 36e5; if (tEnd > B[n - 1][0]) break; const e0 = B[i][4]; let j = i, mae = 0, mfe = 0; const path = [];
+        while (j + 1 < n && B[j + 1][0] <= tEnd) { j++; const up = side > 0 ? B[j][2] / e0 - 1 : 1 - B[j][3] / e0, dn = side > 0 ? B[j][3] / e0 - 1 : 1 - B[j][2] / e0; mfe = Math.max(mfe, up); mae = Math.min(mae, dn); path.push([up, dn]); }
+        if (!path.length) continue; S.push({ mfe, mae, r: side > 0 ? B[j][4] / e0 - 1 : 1 - B[j][4] / e0, path }); }
+      if (S.length < 30) continue;
+      const T1 = q(S.map(x => x.mfe), 0.5), T2 = q(S.map(x => x.mfe), 0.8), win = S.filter(x => x.r > 0).map(x => x.mae), W = win.length >= 10 ? q(win, 0.2) : q(S.map(x => x.mae), 0.3);
+      if (!(T1 > 0) || !(W < 0)) continue;
+      const first = T => S.reduce((a, x) => { for (const [up, dn] of x.path) { if (dn <= W && up >= T) return a + 0.5; if (dn <= W) return a; if (up >= T) return a + 1; } return a; }, 0) / S.length;   /* both inside one bar: the order is unknown, count half */
+      const p1 = first(T1), p2 = first(T2), adj = p => Math.max(0.02, Math.min(0.98, p + (tilt >= 0 ? (1 - p) * tilt : p * tilt) * 0.3));
+      out.push({ lab, h, n: S.length, t1: px * (1 + side * T1), t2: px * (1 + side * T2), w: px * (1 - side * Math.abs(W)), lim: px * (1 - side * Math.abs(W) * 0.25), T1, T2, W, p1, p2, c1: adj(p1), c2: adj(p2), until: Date.now() + h * 36e5 }); }
+    return { px, side, rows: out };
   }
   // ---------- judge ----------
   function judge(G, side) {
@@ -132,10 +157,17 @@
       <div class="note">Gap (smart − fools) ${(G.coh.gap * 100).toFixed(0)} → smart money ${G.coh.gap >= 0 ? "long" : "short"}.${G.coh.tr ? " Gap change: " + ["4h", "24h", "7d"].filter(k => G.coh.tr[k]).map(k => `${k} ${G.coh.tr[k][0] > 0 ? "+" : ""}${G.coh.tr[k][0]}`).join(", ") + "." : ""}</div>` : `<div class="note">No Hyperdash cohort data (no Hyperliquid perp for ${esc(G.sym)}).</div>`;
     const spotT = G.spot ? `<div class="tw"><table><tr><th class="l">Spot ${esc(G.spot.k)}</th>${["15m", "1h", "4h", "24h"].map(w => `<th>${w}</th>`).join("")}</tr><tr><td class="l">Taker buy − sell</td>${["15m", "1h", "4h", "24h"].map(w => { const x = G.spot.W[w]; return `<td class="${x && x[0] >= x[1] ? "L" : "S"}">${x ? usd(x[0] - x[1]) : "–"}</td>`; }).join("")}</tr></table></div>${G.spotWh.length ? `<div class="note">Biggest spot traders who take a side: ${G.spotWh.map(w => `${w.a.slice(0, 6)}… <span class="${w.v > 0 ? "L" : "S"}">${usd(w.v)}</span>`).join(" · ")}</div>` : ""}` : `<div class="note">Not traded on Hyperliquid spot.</div>`;
     const u = G.fund ? G.fund.u : G.sym, L = G.fund ? G.fund.L : 1;
+    const TT = targets(G, sd, Math.max(-0.5, Math.min(0.5, sup))), bestR = TT && TT.rows.length ? TT.rows.slice().sort((a, b) => b.c1 * b.T1 - a.c1 * a.T1)[0] : null;
     $("ans").innerHTML = `<section class="card"><div class="label">Your question · ${esc(q.text)}</div>
-        <div class="verdict ${vrd[1]}">${esc(vrd[0])}</div><div class="thesis">${t1} ${t2} ${t3} ${t4}${sideTxt}</div>
+        <div class="verdict ${vrd[1]}">${esc(vrd[0])}</div>${bestR ? `<div class="thesis" style="margin-bottom:6px"><b>Best ${sn} plan:</b> limit ${sd > 0 ? "buy" : "sell"} near ${fx(bestR.lim)}, target ${fx(bestR.t1)} (${pc(sd * bestR.T1)}) within ${esc(bestR.lab.toLowerCase())}, <b class="${bestR.c1 >= 0.55 ? "L" : bestR.c1 < 0.4 ? "S" : "A"}">${Math.round(bestR.c1 * 100)}% confidence</b> it gets there before ${fx(bestR.w)} (wrong if). Stretch target ${fx(bestR.t2)} at ${Math.round(bestR.c2 * 100)}%.</div>` : ""}<div class="thesis">${t1} ${t2} ${t3} ${t4}${sideTxt}</div>
         <ul class="pts">${P.map(p => `<li>${p}</li>`).join("")}</ul>
         <div class="note">Score ${(sup >= 0 ? "+" : "")}${sup.toFixed(2)} for your side from ${E.length} pieces of evidence (−1 … +1). Weights: smart money and the lab's tested setups count most; untested signals count least. This is what the data and the tests say, not advice.</div></section>
+      ${(() => { const T = TT; if (!T || !T.rows.length) return ""; const tm = t => new Date(t).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+        const set = h => { const L = G.lab && G.lab.out, I = G.intra && G.intra.out, x = h <= 1 ? I && I["1h"] : h <= 4 ? I && I["4h"] : h < 24 ? I && I.eod : h <= 24 ? L && L[1] : h <= 48 ? L && L[2] : L && L[7]; return !x || !x.side ? '<span class="note">no tested setup</span>' : x.side === sd ? '<b class="L">agrees</b>' : '<b class="S">points the other way</b>'; };
+        const cc = p => `<b class="${p >= 0.55 ? "L" : p < 0.4 ? "S" : "A"}">${Math.round(p * 100)}%</b>`;
+        return `<section class="card"><div class="label">Price targets and time frames · going ${sn} from ${fx(T.px)}</div><div class="tw"><table><tr><th class="l">Time frame</th><th title="A limit order a little better than now">Limit entry</th><th>Target 1</th><th title="How often target 1 was reached before the wrong-if level, on this market, tilted by today's evidence">Confidence</th><th>Target 2</th><th>Confidence</th><th title="80% of winning trades never went past this level">Wrong if</th><th>Hold until</th><th class="l">Tested setup</th></tr>
+          ${T.rows.map(r => `<tr><td class="l">${esc(r.lab)}</td><td>${fx(r.lim)}</td><td class="${sd > 0 ? "L" : "S"}"><b>${fx(r.t1)}</b> <span class="note">${pc(sd * r.T1)}</span></td><td>${cc(r.c1)} <span class="note">base ${Math.round(r.p1 * 100)}%</span></td><td class="${sd > 0 ? "L" : "S"}">${fx(r.t2)} <span class="note">${pc(sd * r.T2)}</span></td><td>${cc(r.c2)}</td><td>${fx(r.w)} <span class="note">${pc(-Math.abs(r.W) * 1)}</span></td><td>${tm(r.until)}</td><td class="l">${set(r.h)}</td></tr>`).join("")}</table></div>
+          <div class="note">For 15 minutes to 1 hour, use the intraday rows of the setups table below. From ${esc(G.m.s)}'s own hourly history (about 180 days): target 1 is where half of all ${sn} trades got to at their best within the time frame, target 2 where 1 in 5 got to; "wrong if" is the room 80% of the winning trades needed. <b>Confidence</b> = how often the target was touched before the wrong-if level (the base rate on this market), tilted by today's evidence score (${(sup >= 0 ? "+" : "")}${sup.toFixed(2)}, at most ±15 points; the tilt is a judgment, not a tested number). A tested setup that agrees makes a time frame stronger; one that points the other way is a warning.</div></section>`; })()}
       <section class="card"><div class="label">Setups · 15 min to 7 days (the same numbers all three trackers show)</div><div class="tw">${Agree.html(u, { L, px: px || (G.intra && G.intra.px), s: G.m.s })}</div></section>
       <div class="grid"><section class="card"><div class="label">Evidence · for and against going ${sn}</div><div class="ev">${ev || '<div class="note">No evidence yet.</div>'}</div></section>
         <section class="card"><div class="label">Hyperdash cohorts · futures (perp ${esc(G.coin || "–")})</div>${cohT}</section>
