@@ -39,14 +39,14 @@
       return { px, prev, d: prev ? px / prev - 1 : null, spark: b.map(x => x[4]).slice(-120), at: b.length ? b[b.length - 1][0] : Date.now() }; } catch (e) { return null; } }
   async function perps() {
     try { const r = await fetch("https://api.hyperliquid.xyz/info", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "metaAndAssetCtxs", dex: "xyz" }) });
-      if (!r.ok) return null; const [m, c] = await r.json(), o = {}; m.universe.forEach((u, i) => { const x = c[i]; if (x) o[u.name.split(":").pop()] = { px: +x.markPx, prev: +x.prevDayPx, d: +x.prevDayPx ? +x.markPx / +x.prevDayPx - 1 : null }; }); return o; } catch (e) { return null; } }
+      if (!r.ok) return null; const [m, c] = await r.json(), o = {}; m.universe.forEach((u, i) => { const x = c[i]; if (x) o[u.name.split(":").pop()] = { px: +x.markPx, prev: +x.prevDayPx, d: +x.prevDayPx ? +x.markPx / +x.prevDayPx - 1 : null, f: +x.funding }; }); return o; } catch (e) { return null; } }
   const spark = a => { if (!a || a.length < 3) return ""; const lo = Math.min(...a), hi = Math.max(...a), w = 160, h = 26, k = (hi - lo) || 1;
     const pts = a.map((v, i) => `${(i / (a.length - 1) * w).toFixed(1)},${(h - 2 - (v - lo) / k * (h - 4)).toFixed(1)}`).join(" ");
     return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--${a[a.length - 1] >= a[0] ? "up" : "down"})" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`; };
   async function tick() {
     if (document.hidden && T.at) return;
     const [nq, es, ks, P] = await Promise.all([yq("NQ=F"), yq("ES=F"), yq("^KS11"), perps()]);
-    if (nq) T.nq = nq; if (es) T.es = es; if (ks) T.ks = ks; if (P) T.P = P; T.at = Date.now();
+    if (nq) T.nq = nq; if (es) T.es = es; if (ks) T.ks = ks; if (P) { T.P = P; window.PERPCTX = P; } T.at = Date.now();
     draw();
   }
   function parts() {

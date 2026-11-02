@@ -14,6 +14,7 @@
     <div class="label" style="margin-top:10px">Liquidity · where the money waits (order books of SOXL and its chip neighbours)</div><div id="meshLiq"></div>
     <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
     <div class="label" style="margin-top:10px">Trade planner · one plan per time frame (15 m, 1 h, 4 h, 1 day), 14 days at most, only at inflection points, re-tested at every refresh (SOXL)</div><div id="meshPlan"></div>
+    <div class="label" style="margin-top:10px">Roll-over and carry · "by 4 pm ET the day has confessed", and the side that gets paid to hold (SOXL perp and the euro perp)</div><div id="meshRoll"></div>
     <div class="label" style="margin-top:10px">P and B ranges · push, range, breakout or failed breakout (Patrick Nill, 12× top 5 in the Robbins World Cup) · SOXL perp, 15-minute bars</div><div id="meshPB"></div>
     <div class="label" style="margin-top:10px">Markov chains · memory, next-hour odds, Monte Carlo paths and PageRank of the web (SOXL perp, hourly)</div><div id="meshMk"></div>
     <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
@@ -74,9 +75,13 @@
     try { if (window.Planner && window.SOXL_HBV && (!PL || Date.now() - plT > 15 * 6e4 || plHave !== !!window.SOXL_M15 + !!D1 * 2)) { plHave = !!window.SOXL_M15 + !!D1 * 2; PL = Planner.run("SOXL", { "15m": window.SOXL_M15, "1h": SOXL_HBV, "4h": Planner.agg(SOXL_HBV, 144e5), "1d": D1 }); plT = Date.now(); } } catch (e) { console.warn("planner", e); }
     const PLI = window.Planner ? Planner.signals(PL) : []; window.PLAN = { P: PL, I: PLI };
     try { const el = document.getElementById("meshPlan"); if (el && window.Planner) el.innerHTML = Planner.html(PL, { px: v => "$" + v.toFixed(2) }); } catch (e) { console.warn("planner html", e); }
+    // roll-over and carry (rollover.js)
+    let ROI = []; try { if (window.Rollover) { const P = window.PERPCTX || {}, fS = P.SOXL && P.SOXL.f, fE = P.EUR && P.EUR.f, RS = window.SOXL_HBV ? Rollover.analyze(SOXL_HBV) : null, RE = EURB ? Rollover.analyze(EURB) : null;
+        ROI = Rollover.signals(RS, fS); RE && Rollover.signals(RE, null).forEach(([id, v, lab]) => ROI.push([id.replace("day.", "day.eur-"), v, lab.replace("Roll-over ·", "Roll-over · euro ·")]));
+        window.ROLL = { RS, RE, I: ROI }; const el = document.getElementById("meshRoll"); if (el) el.innerHTML = Rollover.html(RS, "SOXL perp", fS) + (RE ? `<div style="margin-top:6px">${Rollover.html(RE, "Euro perp (EUR/USD)", fE, true)}</div>` : ""); } } catch (e) { console.warn("rollover", e); }
     const MI = window.Markov ? Markov.signals(MK) : []; window.MARKOV = { M: MK, I: MI };
     try { const el = document.getElementById("meshMk"); if (el && window.Markov) el.innerHTML = Markov.html(MK, "SOXL") + (window.Web ? `<div class="label" style="margin-top:8px">PageRank · the most trusted signals in the web</div>` + Markov.rankHtml(Markov.pagerank(Web.nodes(), Web.edges()), 10) : ""); } catch (e) { console.warn("markov html", e); }
-    try { if (window.Web) I.concat(RI, MI, PI, PLI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
+    try { if (window.Web) I.concat(RI, MI, PI, PLI, ROI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
     window.MESH = { I, why: [].concat(s ? s.why : [], lv ? lv.why : []), E, Y };
     return I;
   }
@@ -90,9 +95,13 @@
   async function loadD1() {
     try { if (window.Planner && (!D1 || Date.now() - d1T > 6 * 36e5) && typeof fredProxy === "function" && fredProxy()) { d1T = Date.now(); for (const rg of ["5y", "2y"]) { const j = await (await fetch(`${fredProxy()}/chart?t=SOXL&range=${rg}&interval=1d`)).json().catch(() => null); if (j && j.status === "ok" && j.bars && j.bars.length > 300) { D1 = j.bars.filter(b => b[4] != null && b[1] != null).map(b => [b[0], b[1], b[2], b[3], b[4], b[5] || 0]); break; } } } } catch (e) { }
   }
+  // euro perp hourly bars for the roll-over test (the euro is 57.6% of the dollar index), every 30 minutes
+  let EURB = null, eurT = 0;
+  async function loadEur() { if (!window.Rollover || EURB && Date.now() - eurT < 30 * 6e4) return; eurT = Date.now();
+    try { const k = await post({ type: "candleSnapshot", req: { coin: "xyz:EUR", interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } }); if (Array.isArray(k) && k.length) EURB = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c, +b.v]); } catch (e) { } }
   async function run() {
     if (busy || document.hidden) return; busy = true;
-    try { await loadSync(); render(emit()); await loadEnt(); await loadD1(); render(emit()); } catch (e) { console.warn("mesh", e); } busy = false;
+    try { await loadSync(); render(emit()); await loadEnt(); await loadD1(); await loadEur(); render(emit()); } catch (e) { console.warn("mesh", e); } busy = false;
   }
   setTimeout(run, 12000); setInterval(run, 5 * 6e4);
   // venues (venues.js): Hyperliquid stock perps vs their stocks, crypto across exchanges, and SOXL vs 3 × SOXX today
