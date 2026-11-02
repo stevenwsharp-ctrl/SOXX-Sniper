@@ -76,6 +76,7 @@
     let sum = sc == null ? "Reading futures, KOSPI and the macro board…" : `${pos.length ? "Support: " + pos.slice(0, 3).map(nm).join(", ") + ". " : ""}${neg.length ? "Pressure: " + neg.slice(0, 3).map(nm).join(", ") + ". " : ""}${!pos.length && !neg.length ? "No strong push from any side. " : ""}`;
     if (sc != null) sum += sc >= 0.12 ? "Lean: SOXL." : sc <= -0.12 ? "Lean: SOXS, or wait." : "No clear lean: size down or wait.";
     if (!us && gap != null) sum += ` The SOXL perp implies a ${pc(gap)} gap at the next open (last cash ${fx(cash)}).`;
+    try { const TT = window.TRAPSIG && TRAPSIG.T, U = v => "$" + (v / 1e6).toFixed(1) + "M"; if (TT) sum += ` Trapped on the SOXL perp: longs ${U(TT.L.usd)} (${(TT.L.depW * 100).toFixed(1)}% under) vs shorts ${U(TT.S.usd)} (${(TT.S.depW * 100).toFixed(1)}% under)${TT.P > 0.05 ? ", squeeze risk up" : TT.P < -0.05 ? ", flush risk down" : ""}.`; } catch (e) { }
     if (krO) sum += " Korea is open: watch Samsung and SK Hynix for the first chip read of the night.";
     const ten = (name, o, open, sub, sp, note) => `<div class="stt"><div class="stn"><span>${name}</span>${open != null ? `<span class="sto ${open ? "on" : ""}">${open ? "open" : "closed"}</span>` : ""}</div>
       <div class="stp">${o ? fx(o.px) : "–"}</div><div class="stc"><span class="${o ? cls(o.d) : ""}">${o ? pc(o.d) : "–"}</span> <span style="color:var(--dim)">${sub}</span></div>${sp ? spark(sp) : ""}${note ? `<div class="stn" style="margin-top:2px">${note}</div>` : ""}</div>`;
