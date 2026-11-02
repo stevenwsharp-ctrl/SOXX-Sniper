@@ -86,6 +86,7 @@
     try { const e = etInfo(Date.now()); if (!e.wk && e.min >= 840 && e.min < 960) { const lf = letfFlow(todaySess()); if (lf && isFinite(lf.usd)) add("Leveraged-ETF rebalance into the close", lf.usd / 3e9, 1, `${lf.usd > 0 ? "BUY" : "SELL"} ~${U(Math.abs(lf.usd))} of chip exposure by 4 pm`, "Flows"); } } catch (e) { }
     // crowd psychology (psych.js) and bonds / rates / currencies (radar.js live macro)
     try { const V = window.mesh_ven && mesh_ven(); (V && V.I || []).filter(x => ["SOXL", "SOXX", "SMH", "NVDA", "AVGO", "AMD", "MU", "TSM"].includes(x[1])).forEach(([id, a, v, lab]) => add(lab + (a !== "SOXL" ? " · " + a : ""), v * (a === "SOXL" ? 1 : 0.5), 0.5, "", "Venues")); } catch (e) { }
+    try { (window.STANCE && STANCE.I || []).forEach(([id, a, v, lab]) => add(lab, v, id === "fut.soxlgap" ? 0.9 : 0.6, "", "Futures and Korea")); } catch (e) { }
     try { (window.LIQSIG && LIQSIG.I || []).forEach(([id, a, v, lab]) => add(lab, v, 0.4, "", "Liquidity")); } catch (e) { }
     try { (window.VOLSIG && VOLSIG.I || []).filter(x => x[1] === "SOXL").forEach(([id, a, v, lab]) => add(lab, v, id.startsWith("vold.") ? 0.6 : 0.5, "", "Volume")); } catch (e) { }
     try { (window.RHYTHM && RHYTHM.I || []).forEach(([id, v, lab]) => add(lab, v, 0.5, RHYTHM.R ? RHYTHM.R.rand.label : "", "Rhythm")); } catch (e) { }
