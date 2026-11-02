@@ -13,6 +13,7 @@
     <div class="label" style="margin-top:10px">Crowd memory · how the crowd acts at every hour, and the past moments that rhyme with now</div><div id="meshRhyme"></div>
     <div class="label" style="margin-top:10px">Liquidity · where the money waits (order books of SOXL and its chip neighbours)</div><div id="meshLiq"></div>
     <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
+    <div class="label" style="margin-top:10px">P and B ranges · push, range, breakout or failed breakout (Patrick Nill, 12× top 5 in the Robbins World Cup) · SOXL perp, 15-minute bars</div><div id="meshPB"></div>
     <div class="label" style="margin-top:10px">Markov chains · memory, next-hour odds, Monte Carlo paths and PageRank of the web (SOXL perp, hourly)</div><div id="meshMk"></div>
     <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
   anchor.before(card);
@@ -26,13 +27,13 @@
   const SET = [["xyz:SOXL", "SOXL"], ["xyz:NVDA", "NVDA"], ["xyz:AMD", "AMD"], ["xyz:AVGO", "AVGO"], ["xyz:MU", "MU"], ["xyz:TSM", "TSM"], ["xyz:INTC", "INTC"], ["xyz:SMH", "SMH"],
     ["xyz:SP500", "S&P 500"], ["xyz:XYZ100", "Nasdaq 100"], ["xyz:KR200", "KOSPI 200"], ["para:10Y", "US 10Y"], ["xyz:EUR", "Euro"], ["xyz:JPY", "Yen"], ["xyz:GOLD", "Gold"], ["xyz:CL", "Oil"], ["BTC", "Bitcoin"]];
   const NM = Object.fromEntries(SET.map(([c, n]) => [c, n])), nm = c => NM[c] || c;
-  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0;
+  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0, PBA = null, pbT = 0;
   const SC = {};   // coin -> { t, k }: bars per market, kept between runs, so one rate-limit reply does not empty the map
   async function loadEnt() {
     if (Date.now() - eT < 15 * 6e4) return;
     for (const [c] of SET) { if (SC[c] && Date.now() - SC[c].t < 14 * 6e4) continue;
-      for (let tr = 0; tr < 2; tr++) { try { const k = await post({ type: "candleSnapshot", req: { coin: c, interval: "15m", startTime: Date.now() - 10 * 864e5, endTime: Date.now() } });
-        if (Array.isArray(k) && k.length) SC[c] = { t: Date.now(), k: k.map(b => [b.t, +b.c]) }; break; } catch (e) { await sleep(String(e.message) === "429" ? 8000 : 1500); } }
+      for (let tr = 0; tr < 2; tr++) { try { const k = await post({ type: "candleSnapshot", req: { coin: c, interval: "15m", startTime: Date.now() - (c === "xyz:SOXL" ? 50 : 10) * 864e5, endTime: Date.now() } });
+        if (Array.isArray(k) && k.length) { if (c === "xyz:SOXL") window.SOXL_M15 = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c, +b.v]); SC[c] = { t: Date.now(), k: k.slice(-960).map(b => [b.t, +b.c]) }; } break; } catch (e) { await sleep(String(e.message) === "429" ? 8000 : 1500); } }
       await sleep(500); }
     const S = {}; Object.entries(SC).forEach(([c, v]) => S[c] = v.k);
     E = Ent.analyze(S, { bar: 9e5, short: 24, k: 8, maxLag: 3, minN: 60, tag: window.Tax ? Tax.tag : null }); eT = Object.keys(S).length >= SET.length - 2 ? Date.now() : Date.now() - 12 * 6e4;   // incomplete: retry in ~3 min
@@ -65,9 +66,12 @@
     window.RHYTHM = { R: RH, I: RI };
     // Markov chains (markov.js): memory test, next-step odds, Monte Carlo, mixing time; PageRank of the signal web
     try { if (window.Markov && window.SOXL_HBV && (!MK || Date.now() - mkT > 10 * 6e4)) { MK = Markov.analyze(SOXL_HBV); mkT = Date.now(); } } catch (e) { console.warn("markov", e); }
+    try { if (window.PB && window.SOXL_M15 && (!PBA || Date.now() - pbT > 5 * 6e4)) { PBA = PB.analyze(SOXL_M15, { tf: "15m" }); pbT = Date.now(); } } catch (e) { console.warn("pb", e); }
+    const PI = window.PB ? PB.signals(PBA) : []; window.PBSIG = { A: PBA, I: PI };
+    try { const el = document.getElementById("meshPB"); if (el && window.PB) el.innerHTML = PB.html(PBA, "SOXL", v => "$" + v.toFixed(2)); } catch (e) { console.warn("pb html", e); }
     const MI = window.Markov ? Markov.signals(MK) : []; window.MARKOV = { M: MK, I: MI };
     try { const el = document.getElementById("meshMk"); if (el && window.Markov) el.innerHTML = Markov.html(MK, "SOXL") + (window.Web ? `<div class="label" style="margin-top:8px">PageRank · the most trusted signals in the web</div>` + Markov.rankHtml(Markov.pagerank(Web.nodes(), Web.edges()), 10) : ""); } catch (e) { console.warn("markov html", e); }
-    try { if (window.Web) I.concat(RI, MI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
+    try { if (window.Web) I.concat(RI, MI, PI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
     window.MESH = { I, why: [].concat(s ? s.why : [], lv ? lv.why : []), E, Y };
     return I;
   }

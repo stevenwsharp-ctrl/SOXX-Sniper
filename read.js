@@ -87,6 +87,7 @@
     // crowd psychology (psych.js) and bonds / rates / currencies (radar.js live macro)
     try { const V = window.mesh_ven && mesh_ven(); (V && V.I || []).filter(x => ["SOXL", "SOXX", "SMH", "NVDA", "AVGO", "AMD", "MU", "TSM"].includes(x[1])).forEach(([id, a, v, lab]) => add(lab + (a !== "SOXL" ? " · " + a : ""), v * (a === "SOXL" ? 1 : 0.5), 0.5, "", "Venues")); } catch (e) { }
     try { (window.STANCE && STANCE.I || []).forEach(([id, a, v, lab]) => add(lab, v, id === "fut.soxlgap" ? 0.9 : 0.6, "", "Futures and Korea")); } catch (e) { }
+    try { (window.PBSIG && PBSIG.I || []).forEach(([id, v, lab]) => add(lab, v, id === "pb.reclaim" ? 0.8 : 0.5, "", "P/B ranges")); } catch (e) { }
     try { (window.MARKOV && MARKOV.I || []).forEach(([id, v, lab]) => add(lab, v, 0.5, MARKOV.M ? MARKOV.M.verdict : "", "Markov")); } catch (e) { }
     try { (window.LIQSIG && LIQSIG.I || []).forEach(([id, a, v, lab]) => add(lab, v, 0.4, "", "Liquidity")); } catch (e) { }
     try { (window.VOLSIG && VOLSIG.I || []).filter(x => x[1] === "SOXL").forEach(([id, a, v, lab]) => add(lab, v, id.startsWith("vold.") ? 0.6 : 0.5, "", "Volume")); } catch (e) { }
