@@ -74,6 +74,7 @@
     try { const el = document.getElementById("meshPB"); if (el && window.PB) el.innerHTML = PB.html(PBA, "SOXL", v => "$" + v.toFixed(2)); } catch (e) { console.warn("pb html", e); }
     // trade planner (planner.js): daily SOXL bars from the Worker (5 years, else 2), every 6 hours; plans every 15 minutes
     try { if (window.Planner && window.SOXL_HBV && (!PL || Date.now() - plT > 15 * 6e4 || plHave !== !!window.SOXL_M15 + !!D1 * 2)) { plHave = !!window.SOXL_M15 + !!D1 * 2; PL = Planner.run("SOXL", { "15m": window.SOXL_M15, "1h": SOXL_HBV, "4h": Planner.agg(SOXL_HBV, 144e5), "1d": D1 }); plT = Date.now(); } } catch (e) { console.warn("planner", e); }
+    try { if (window.Agree && PL) Object.entries(PL.tf).forEach(([tf, x]) => Agree.publish("SOXX Sniper · planner " + tf, "SOXX", { side: x.plan ? x.plan.side : 0, h: tf, txt: x.plan ? `${x.plan.proven ? "proven" : "unproven"} rule, limit ${x.plan.limit.toFixed(2)} (SOXL perp)` : "no plan now" })); } catch (e) { }
     const PLI = window.Planner ? Planner.signals(PL) : []; window.PLAN = { P: PL, I: PLI };
     try { const el = document.getElementById("meshPlan"); if (el && window.Planner) el.innerHTML = Planner.html(PL, { px: v => "$" + v.toFixed(2) }); } catch (e) { console.warn("planner html", e); }
     // matrix and Dirac (matrix.js)
