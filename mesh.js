@@ -14,6 +14,7 @@
     <div class="label" style="margin-top:10px">Liquidity · where the money waits (order books of SOXL and its chip neighbours)</div><div id="meshLiq"></div>
     <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
     <div class="label" style="margin-top:10px">Trade planner · one plan per time frame (15 m, 1 h, 4 h, 1 day), 14 days at most, only at inflection points, re-tested at every refresh (SOXL)</div><div id="meshPlan"></div>
+    <div class="label" style="margin-top:10px">Matrix and Dirac · eigenvalues, random-matrix edge, absorption, factor residual, Kalman trend; mass, spin and the speed limit (SOXL and its markets)</div><div id="meshMx"></div>
     <div class="label" style="margin-top:10px">Roll-over and carry · "by 4 pm ET the day has confessed", and the side that gets paid to hold (SOXL perp and the euro perp)</div><div id="meshRoll"></div>
     <div class="label" style="margin-top:10px">P and B ranges · push, range, breakout or failed breakout (Patrick Nill, 12× top 5 in the Robbins World Cup) · SOXL perp, 15-minute bars</div><div id="meshPB"></div>
     <div class="label" style="margin-top:10px">Markov chains · memory, next-hour odds, Monte Carlo paths and PageRank of the web (SOXL perp, hourly)</div><div id="meshMk"></div>
@@ -29,7 +30,7 @@
   const SET = [["xyz:SOXL", "SOXL"], ["xyz:NVDA", "NVDA"], ["xyz:AMD", "AMD"], ["xyz:AVGO", "AVGO"], ["xyz:MU", "MU"], ["xyz:TSM", "TSM"], ["xyz:INTC", "INTC"], ["xyz:SMH", "SMH"],
     ["xyz:SP500", "S&P 500"], ["xyz:XYZ100", "Nasdaq 100"], ["xyz:KR200", "KOSPI 200"], ["para:10Y", "US 10Y"], ["xyz:EUR", "Euro"], ["xyz:JPY", "Yen"], ["xyz:GOLD", "Gold"], ["xyz:CL", "Oil"], ["BTC", "Bitcoin"]];
   const NM = Object.fromEntries(SET.map(([c, n]) => [c, n])), nm = c => NM[c] || c;
-  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0, PBA = null, pbT = 0, PL = null, plT = 0, plHave = -1, D1 = null, d1T = 0;
+  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0, PBA = null, pbT = 0, MXA = null, mxT = 0, PL = null, plT = 0, plHave = -1, D1 = null, d1T = 0;
   const SC = {};   // coin -> { t, k }: bars per market, kept between runs, so one rate-limit reply does not empty the map
   async function loadEnt() {
     if (Date.now() - eT < 15 * 6e4) return;
@@ -37,7 +38,7 @@
       for (let tr = 0; tr < 2; tr++) { try { const k = await post({ type: "candleSnapshot", req: { coin: c, interval: "15m", startTime: Date.now() - (c === "xyz:SOXL" ? 50 : 10) * 864e5, endTime: Date.now() } });
         if (Array.isArray(k) && k.length) { if (c === "xyz:SOXL") window.SOXL_M15 = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c, +b.v]); SC[c] = { t: Date.now(), k: k.slice(-960).map(b => [b.t, +b.c]) }; } break; } catch (e) { await sleep(String(e.message) === "429" ? 8000 : 1500); } }
       await sleep(500); }
-    const S = {}; Object.entries(SC).forEach(([c, v]) => S[c] = v.k);
+    const S = {}; Object.entries(SC).forEach(([c, v]) => S[c] = v.k); window.MESH_S = S;
     E = Ent.analyze(S, { bar: 9e5, short: 24, k: 8, maxLag: 3, minN: 60, tag: window.Tax ? Tax.tag : null }); eT = Object.keys(S).length >= SET.length - 2 ? Date.now() : Date.now() - 12 * 6e4;   // incomplete: retry in ~3 min
   }
   async function loadSync() {
@@ -75,13 +76,16 @@
     try { if (window.Planner && window.SOXL_HBV && (!PL || Date.now() - plT > 15 * 6e4 || plHave !== !!window.SOXL_M15 + !!D1 * 2)) { plHave = !!window.SOXL_M15 + !!D1 * 2; PL = Planner.run("SOXL", { "15m": window.SOXL_M15, "1h": SOXL_HBV, "4h": Planner.agg(SOXL_HBV, 144e5), "1d": D1 }); plT = Date.now(); } } catch (e) { console.warn("planner", e); }
     const PLI = window.Planner ? Planner.signals(PL) : []; window.PLAN = { P: PL, I: PLI };
     try { const el = document.getElementById("meshPlan"); if (el && window.Planner) el.innerHTML = Planner.html(PL, { px: v => "$" + v.toFixed(2) }); } catch (e) { console.warn("planner html", e); }
+    // matrix and Dirac (matrix.js)
+    let MXI = []; try { if (window.Matrix) { if (!MXA || (!MXA.M && window.MESH_S) || Date.now() - mxT > 10 * 6e4) { mxT = Date.now(); const M = window.MESH_S ? Matrix.analyze(MESH_S, "xyz:SOXL") : null; if (M) M.mode.forEach(x => x.n = nm(x.n)); MXA = { M, K: window.SOXL_HBV ? Matrix.kalman(SOXL_HBV) : null, D: window.SOXL_HBV ? Matrix.dirac(SOXL_HBV) : null }; }
+        MXI = Matrix.signals(MXA, "xyz:SOXL"); window.MATRIX = { X: MXA, I: MXI }; const el = document.getElementById("meshMx"); if (el) el.innerHTML = Matrix.html(MXA, "SOXL"); } } catch (e) { console.warn("matrix", e); }
     // roll-over and carry (rollover.js)
     let ROI = []; try { if (window.Rollover) { const P = window.PERPCTX || {}, fS = P.SOXL && P.SOXL.f, fE = P.EUR && P.EUR.f, RS = window.SOXL_HBV ? Rollover.analyze(SOXL_HBV) : null, RE = EURB ? Rollover.analyze(EURB) : null;
         ROI = Rollover.signals(RS, fS); RE && Rollover.signals(RE, null).forEach(([id, v, lab]) => ROI.push([id.replace("day.", "day.eur-"), v, lab.replace("Roll-over ·", "Roll-over · euro ·")]));
         window.ROLL = { RS, RE, I: ROI }; const el = document.getElementById("meshRoll"); if (el) el.innerHTML = Rollover.html(RS, "SOXL perp", fS) + (RE ? `<div style="margin-top:6px">${Rollover.html(RE, "Euro perp (EUR/USD)", fE, true)}</div>` : ""); } } catch (e) { console.warn("rollover", e); }
     const MI = window.Markov ? Markov.signals(MK) : []; window.MARKOV = { M: MK, I: MI };
     try { const el = document.getElementById("meshMk"); if (el && window.Markov) el.innerHTML = Markov.html(MK, "SOXL") + (window.Web ? `<div class="label" style="margin-top:8px">PageRank · the most trusted signals in the web</div>` + Markov.rankHtml(Markov.pagerank(Web.nodes(), Web.edges()), 10) : ""); } catch (e) { console.warn("markov html", e); }
-    try { if (window.Web) I.concat(RI, MI, PI, PLI, ROI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
+    try { if (window.Web) I.concat(RI, MI, PI, PLI, ROI, MXI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
     window.MESH = { I, why: [].concat(s ? s.why : [], lv ? lv.why : []), E, Y };
     return I;
   }
