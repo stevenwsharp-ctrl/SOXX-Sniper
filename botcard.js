@@ -1,0 +1,68 @@
+/* SOXX Sniper · paper trading bots (scripts/bots.mjs runs them in GitHub Actions during US market hours and writes
+   bots.json to the "bots" branch). Three bots, only what Schwab can trade, long only, limit entries, 5–30 minute holds,
+   the same bet every time (1 unit = $1,000). This card shows their results, every trade with its grade, what they
+   learned (the best and the benched versions, the best times of day) and the big swings they caught or missed. */
+(function () {
+  "use strict";
+  if (window.BOTCARD) return; window.BOTCARD = 1;
+  const anchor = document.getElementById("stanceCard"); const c = document.createElement("section"); c.className = "card"; c.id = "botCard"; c.style.margin = "0 0 12px";
+  if (anchor) anchor.after(c); else { const h = document.querySelector("header"); if (!h) return; h.after(c); }
+  const URL0 = "https://raw.githubusercontent.com/stevenwsharp-ctrl/SOXX-Sniper/bots/bots.json";
+  const st = document.createElement("style");
+  st.textContent = `#botCard table{width:100%;border-collapse:collapse;font:12px var(--mono)}#botCard th,#botCard td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}#botCard th{color:var(--dim);font-weight:600}#botCard td.l,#botCard th.l{text-align:left}
+#botCard .L{color:var(--up)}#botCard .S{color:var(--down)}#botCard .A{color:var(--amber,#ffb547)}#botCard .note{font-size:11.5px;color:var(--dim);margin:4px 0;line-height:1.45}#botCard .b3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}@media(max-width:1000px){#botCard .b3{grid-template-columns:1fr}}
+#botCard .bx{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel2,transparent)}#botCard .big{font:600 22px var(--mono)}#botCard .tw{overflow-x:auto}#botCard .gr{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:6px 0}#botCard .gr i{display:block;height:8px}
+#botCard .tabs button{font:12px var(--mono);color:var(--ink);background:var(--panel2,transparent);border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin:0 6px 6px 0;cursor:pointer}#botCard .tabs button.on{border-color:var(--accent);color:var(--accent)}
+#botCard .gl{display:inline-block;min-width:18px;text-align:center;border-radius:5px;font-weight:700;color:#fff;padding:0 4px}`;
+  document.head.appendChild(st);
+  const GC = { A: "#19a974", B: "#5fb36b", C: "#b9a23a", D: "#d9822b", F: "#e5484d" };
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, x => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[x]));
+  const usd = v => v == null ? "–" : (v >= 0 ? "+$" : "−$") + Math.abs(v).toFixed(2), pc = (v, d) => v == null || !isFinite(v) ? "–" : (v >= 0 ? "+" : "") + (v * 100).toFixed(d == null ? 2 : d) + "%";
+  const fx = v => v == null ? "–" : v >= 100 ? v.toFixed(2) : v >= 10 ? v.toFixed(3) : v.toFixed(4), cl = v => v > 0 ? "L" : v < 0 ? "S" : "";
+  const tm = t => t ? new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "–", dt = t => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
+  let R = null, tab = "both", view = "trades";
+  const spark = cv => { if (!cv || cv.length < 2) return ""; let s = 0; const a = cv.map(x => s += x[1]), lo = Math.min(0, ...a), hi = Math.max(0, ...a), k = hi - lo || 1, w = 100, h = 26;
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:26px"><line x1="0" x2="${w}" y1="${h - 2 - (0 - lo) / k * (h - 4)}" y2="${h - 2 - (0 - lo) / k * (h - 4)}" stroke="var(--line)" stroke-width="1"/><polyline points="${a.map((v, i) => `${(i / (a.length - 1) * w).toFixed(1)},${(h - 2 - (v - lo) / k * (h - 4)).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--${a[a.length - 1] >= 0 ? "up" : "down"})" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`; };
+  function botBox(k, b) {
+    const g = b.grades || {}, gt = Object.values(g).reduce((p, q) => p + q, 0) || 1;
+    return `<div class="bx"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(b.name)}</b><span class="note" style="margin:0">${b.u.length} symbols</span></div>
+      <div class="big ${cl(b.today.usd)}">${usd(b.today.usd)}</div><div class="note" style="margin:0">today · ${b.today.n} trades${b.today.win != null ? ` · ${Math.round(b.today.win * 100)}% won` : ""}${b.today.min ? ` · ${b.today.min.toFixed(0)} min avg` : ""}</div>
+      <div style="margin-top:6px;font:12.5px var(--mono)">All: <b class="${cl(b.all.usd)}">${usd(b.all.usd)}</b> = <b class="${cl(b.all.units)}">${b.all.units >= 0 ? "+" : ""}${b.all.units} units</b> · ${b.all.n} trades${b.all.win != null ? ` · ${Math.round(b.all.win * 100)}% won` : ""}</div>
+      <div style="font:12px var(--mono);color:var(--dim)">Last 50: <span class="${cl(b.last50.usd)}">${usd(b.last50.usd)}</span>${b.last50.win != null ? ` · ${Math.round(b.last50.win * 100)}% won` : ""} (is it getting better?)</div>
+      ${spark(b.curve)}<div class="gr">${"ABCDF".split("").map(L => g[L] ? `<i style="width:${g[L] / gt * 100}%;background:${GC[L]}" title="${L}: ${g[L]}"></i>` : "").join("")}</div>
+      <div class="note" style="margin:0">Grades (last 200): ${"ABCDF".split("").map(L => `<span class="gl" style="background:${GC[L]}">${L}</span> ${g[L] || 0}`).join(" ")}</div>
+      ${b.open.length ? `<div class="tw" style="margin-top:6px"><table><tr><th class="l">Now</th><th>Limit / fill</th><th>Stop</th><th>Target</th><th>Last</th><th>Open P&L</th></tr>${b.open.map(o => { const u = o.fill && o.last ? o.last / o.fill - 1 : null; return `<tr><td class="l"><b>${esc(o.sym)}</b> ${o.st === "open" ? '<span class="A">limit waiting</span>' : '<span class="L">in</span>'}</td><td>${fx(o.fill || o.lim)}</td><td>${fx(o.stop)}</td><td>${fx(o.tgt)}</td><td>${fx(o.last)}</td><td class="${cl(u)}">${u == null ? "–" : pc(u)}</td></tr>`; }).join("")}</table></div>` : '<div class="note">No open order or position.</div>'}</div>`;
+  }
+  function trades() { const T = tab === "all" ? Object.entries(R.bots).flatMap(([k, b]) => b.trades.map(x => ({ ...x, bot: k }))).sort((a, b) => b.tx - a.tx).slice(0, 80) : R.bots[tab].trades.map(x => ({ ...x, bot: tab }));
+    if (!T.length) return '<div class="note">No trades yet. The bots trade from 9:35 to 16:00 ET on market days.</div>';
+    return `<div class="tw"><table><tr><th class="l">Exit</th>${tab === "all" ? '<th class="l">Bot</th>' : ""}<th class="l">Symbol</th><th class="l">Idea · entry · exit plan</th><th>Signal</th><th>Fill</th><th>Exit</th><th class="l">How</th><th>Min</th><th>Result</th><th>$ (1 unit)</th><th>Best · worst</th><th>Grade</th></tr>
+      ${T.map(x => `<tr><td class="l">${dt(x.tx)} ${tm(x.tx)}</td>${tab === "all" ? `<td class="l">${esc(x.bot)}</td>` : ""}<td class="l"><b>${esc(x.sym)}</b></td><td class="l" title="${esc((R.ideas[x.idea] || "") + " · limit " + x.k + " ATR under the signal · " + (R.plans[x.plan] || ""))}">${esc(x.idea)} · ${x.k} ATR · ${esc(x.plan)}${x.explore ? ' <span class="note">(test)</span>' : ""}</td><td>${fx(x.sig)}</td><td>${fx(x.fill)}</td><td>${fx(x.px)}</td><td class="l">${esc(x.why)}</td><td>${x.min}</td><td class="${cl(x.r)}">${pc(x.r)}</td><td class="${cl(x.usd)}">${usd(x.usd)}</td><td><span class="L">${pc(x.mfe, 1)}</span> · <span class="S">${pc(x.mae, 1)}</span></td><td title="score ${x.g.sc} · ${x.g.atr} ATR · kept ${Math.round(x.g.cap * 100)}% of the best"><span class="gl" style="background:${GC[x.g.L]}">${x.g.L}</span></td></tr>`).join("")}</table></div>
+      <div class="note">Grade = result in ATRs (60%), share of the best price it kept (20%), how far it went against the entry (20%). "(test)" = a version with little record yet, tried to learn. Best · worst = the most it was up and down while held.</div>`; }
+  function learned() {
+    const A = R.arms.filter(a => a.n >= 20).map(a => ({ ...a, sh: a.m * a.n / (a.n + 15) })), top = A.slice().sort((a, b) => b.sh - a.sh).slice(0, 10), bench = A.filter(a => a.benched).sort((a, b) => a.sh - b.sh).slice(0, 8);
+    const row = a => `<tr><td class="l">${a.cl === "L" ? "2×/3×" : "spot"}</td><td class="l" title="${esc(R.ideas[a.idea])}">${esc(a.idea)}</td><td>${a.k}</td><td class="l" title="${esc(R.plans[a.plan])}">${esc(a.plan)}</td><td>${a.n}</td><td>${a.fill != null ? Math.round(a.fill * 100) + "%" : "–"}</td><td>${Math.round(a.w * 100)}%</td><td class="${cl(a.m)}">${pc(a.m, 3)}</td><td class="${cl(a.m)}">${usd(a.m * R.unit)}</td><td>${a.t}</td></tr>`;
+    const hd = `<tr><th class="l">Class</th><th class="l">Idea</th><th>Limit (ATR)</th><th class="l">Exit plan</th><th>Trades</th><th>Filled</th><th>Won</th><th>Mean</th><th>$ per bet</th><th>t</th></tr>`;
+    const times = cls => { const T = R.times[cls] || []; const mx = Math.max(1e-6, ...T.map(x => Math.abs(x.m))); return `<table><tr><th class="l">${cls === "L" ? "2×/3× funds" : "Spot"} · time (ET)</th><th>Trades</th><th>Won</th><th>Mean</th><th class="l" style="width:40%"></th></tr>${T.map(x => `<tr><td class="l">${x.name}</td><td>${x.n}</td><td>${x.w != null ? Math.round(x.w * 100) + "%" : "–"}</td><td class="${cl(x.m)}">${x.n ? pc(x.m, 3) : "–"}</td><td class="l"><div style="height:7px;border-radius:3px;width:${Math.abs(x.m) / mx * 100}%;background:var(--${x.m >= 0 ? "up" : "down"})"></div></td></tr>`).join("")}</table>`; };
+    return `<div class="note">Every signal is traded on paper by all 15 versions of its idea (3 limit depths × 5 exit plans) over the last 7 days and every live minute. The bots pick versions by their record (Thompson sampling) and try new ones sometimes. 20+ trades shown.</div>
+      <div class="tw"><b style="font-size:12.5px">Best versions</b><table>${hd}${top.map(row).join("") || '<tr><td class="l note" colspan="10">Not enough trades yet.</td></tr>'}</table></div>
+      <div class="tw" style="margin-top:8px"><b style="font-size:12.5px">Benched (they lose: the bots use them only 5% of the time, to check again)</b><table>${hd}${bench.map(row).join("") || '<tr><td class="l note" colspan="10">None yet.</td></tr>'}</table></div>
+      <div class="b3" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px"><div class="tw">${times("S")}</div><div class="tw">${times("L")}</div></div>
+      <div class="note">When to strike: the mean of every paper trade that started in each half hour (all ideas). The bots weight each version's record in the half hour of the signal.</div>`; }
+  function swings() { const W = R.swings || []; if (!W.length) return '<div class="note">No big swing yet today (8+ ATR up inside 30 minutes).</div>';
+    const n = W.filter(w => w.caught).length;
+    return `<div class="note">Big swings today: <b>${n} of ${W.length}</b> caught (a bot trade filled in the swing and made money). The goal: catch more of these.</div><div class="tw"><table><tr><th class="l">Symbol</th><th>From</th><th>To</th><th>Move</th><th>Low → high</th><th class="l">Caught</th><th>$</th></tr>${W.map(w => `<tr><td class="l"><b>${esc(w.sym)}</b></td><td>${fx(w.from)}</td><td>${fx(w.to)}</td><td class="L">${pc(w.pct, 1)}</td><td>${tm(w.t0)} → ${tm(w.t1)}</td><td class="l">${w.caught ? '<b class="L">caught</b>' : '<span class="S">missed</span>'}</td><td class="${cl(w.usd)}">${w.caught ? usd(w.usd) : ""}</td></tr>`).join("")}</table></div>`; }
+  function draw() {
+    if (!R) { c.innerHTML = `<div class="label">🤖 Paper trading bots</div><div class="note">Waiting for the first bot run (GitHub Actions, market days 9:30–16:00 ET).</div>`; return; }
+    const age = Math.round((Date.now() - R.at) / 6e4), was = c.querySelector("details"), op = !was || was.open;
+    c.innerHTML = `<details ${op ? "open" : ""}><summary class="label" style="cursor:pointer">🤖 Paper trading bots · Schwab-tradable only · limit entries · 5–30 min · 1 unit = $${R.unit.toLocaleString()} every bet</summary>
+      <div class="note">${esc(R.note || "")} · updated ${age < 1 ? "just now" : age + " min ago"}. Paper only: no real orders. Long only, as in a cash account: bearish ideas go through inverse funds. Losing is allowed while they learn; the score that matters is "Last 50" getting better.</div>
+      <div class="b3">${["spot", "letf", "both"].filter(k => R.bots[k]).map(k => botBox(k, R.bots[k])).join("")}</div>
+      <div class="tabs" style="margin-top:10px">${[["trades", "Trades"], ["learned", "What they learned"], ["swings", "Big swings"]].map(([k, l]) => `<button data-v="${k}" class="${view === k ? "on" : ""}">${l}</button>`).join("")}
+        ${view === "trades" ? ` · ${[["both", "Spot + funds"], ["spot", "Spot"], ["letf", "Funds"], ["all", "All bots"]].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? "on" : ""}">${l}</button>`).join("")}` : ""}</div>
+      ${view === "trades" ? trades() : view === "learned" ? learned() : swings()}
+      <div class="note">For real money at Schwab later: under $25,000 a margin account allows only 3 day trades in 5 days (pattern day trader rule); a cash account has no such limit, but the money from a sale can be used again only after it settles (next business day). These bots ignore both rules while they learn.</div></details>`;
+    c.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { view = b.dataset.v; draw(); }); c.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
+  }
+  async function load() { try { const r = await fetch(URL0 + "?t=" + Math.floor(Date.now() / 6e4)); if (r.ok) { R = await r.json(); draw(); return; } } catch (e) { } if (!R) draw(); }
+  draw(); load(); setInterval(() => { if (!document.hidden) load(); }, 60000);
+})();

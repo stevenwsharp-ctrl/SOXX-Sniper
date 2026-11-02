@@ -1,0 +1,44 @@
+name: Paper bots
+
+# Three paper trading bots (scripts/bots.mjs): Schwab-tradable stocks and ETFs, limit entries, 5–30 minute holds.
+# A run checks the market every minute and pushes bots.json to the "bots" branch (the dashboard reads it).
+# A job lasts at most 6 hours, so a market day has two runs: one starts before the open, one at about 2:50 PM ET
+# (EST; 1:50 PM in summer) and runs to the close. Only one run works at a time; the next waits in the queue.
+# On a push of the bot script, or when the market is closed, it only replays the last 7 days (the bots learn).
+on:
+  schedule:
+    - cron: "5 13 * * 1-5"
+    - cron: "50 18 * * 1-5"
+  push:
+    branches: [main]
+    paths: ["scripts/bots.mjs", ".github/workflows/bots.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bots
+  cancel-in-progress: false
+
+jobs:
+  bots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Get the bots' memory from the bots branch
+        run: |
+          mkdir -p out && cd out && git init -q -b bots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          if git fetch -q --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" bots 2>/dev/null; then git checkout -q FETCH_HEAD -- . && git reset -q --soft FETCH_HEAD 2>/dev/null || true; fi
+          ls -la
+      - name: Run the bots
+        env:
+          REMOTE: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          MAX_MIN: "340"
+        run: node scripts/bots.mjs out auto
