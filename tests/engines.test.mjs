@@ -22,7 +22,7 @@ const T = { markov: [0, 0], kalman: [0, 0], diracSpin: [0, 0], diracSpeed: [0, 0
 for (let k = 0; k < RUNS; k++) for (const [j, rho] of [[0, 0], [1, 0.15]]) {
   const B = walk(4800, 36e5, 0.01, rho), M = W.Markov.analyze(B), K = W.Matrix.kalman(B), D = W.Matrix.dirac(B), RO = W.Rollover.analyze(B), RH = W.Rhythm.analyze(B, { win: 400 });
   if (M && M.pass) T.markov[j]++; if (K && K.pass) T.kalman[j]++; if (D && D.Ws.z >= 2) T.diracSpin[j]++; if (D && D.Wg.z >= 2) T.diracSpeed[j]++; if (RO && RO.dir) T.rollover[j]++; if (RH && RH.freq && RH.freq.trust > 0) T.rhythmWave[j]++;
-  if (k < Math.min(RUNS, 12)) { const P = W.Planner.run("t" + k, { "1h": B, "4h": W.Planner.agg(B, 144e5) }); if (Object.values(P.tf).some(x => x.pick)) T.plannerProven[j]++; } }
+  if (k < Math.min(RUNS, 12)) { const P = W.Planner.run("hubtest:t" + k, { "1h": B, "4h": W.Planner.agg(B, 144e5) }); if (Object.values(P.tf).some(x => x.pick)) T.plannerProven[j]++; } }
 console.log("   engine            false alarms (random)   detections (persistent)");
 for (const [k, [a, b]] of Object.entries(T)) { const n = k === "plannerProven" ? Math.min(RUNS, 12) : RUNS; console.log(`   ${k.padEnd(18)} ${(a + "/" + n).padStart(8)} = ${String(Math.round(a / n * 100)).padStart(3)}%        ${(b + "/" + n).padStart(8)} = ${String(Math.round(b / n * 100)).padStart(3)}%`);
   ok(a / n <= (k === "plannerProven" ? 0.25 : 0.12), `${k}: too many false alarms (${a}/${n})`); }
