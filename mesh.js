@@ -30,7 +30,7 @@
   const SET = [["xyz:SOXL", "SOXL"], ["xyz:NVDA", "NVDA"], ["xyz:AMD", "AMD"], ["xyz:AVGO", "AVGO"], ["xyz:MU", "MU"], ["xyz:TSM", "TSM"], ["xyz:INTC", "INTC"], ["xyz:SMH", "SMH"],
     ["xyz:SP500", "S&P 500"], ["xyz:XYZ100", "Nasdaq 100"], ["xyz:KR200", "KOSPI 200"], ["para:10Y", "US 10Y"], ["xyz:EUR", "Euro"], ["xyz:JPY", "Yen"], ["xyz:GOLD", "Gold"], ["xyz:CL", "Oil"], ["BTC", "Bitcoin"]];
   const NM = Object.fromEntries(SET.map(([c, n]) => [c, n])), nm = c => NM[c] || c;
-  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0, PBA = null, pbT = 0, MXA = null, mxT = 0, PL = null, plT = 0, plHave = -1, D1 = null, d1T = 0;
+  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0, PBA = null, pbT = 0, MXA = null, mxT = 0, hubT = 0, PL = null, plT = 0, plHave = -1, D1 = null, d1T = 0;
   const SC = {};   // coin -> { t, k }: bars per market, kept between runs, so one rate-limit reply does not empty the map
   async function loadEnt() {
     if (Date.now() - eT < 15 * 6e4) return;
@@ -83,6 +83,9 @@
     let ROI = []; try { if (window.Rollover) { const P = window.PERPCTX || {}, fS = P.SOXL && P.SOXL.f, fE = P.EUR && P.EUR.f, RS = window.SOXL_HBV ? Rollover.analyze(SOXL_HBV) : null, RE = EURB ? Rollover.analyze(EURB) : null;
         ROI = Rollover.signals(RS, fS); RE && Rollover.signals(RE, null).forEach(([id, v, lab]) => ROI.push([id.replace("day.", "day.eur-"), v, lab.replace("Roll-over ·", "Roll-over · euro ·")]));
         window.ROLL = { RS, RE, I: ROI }; const el = document.getElementById("meshRoll"); if (el) el.innerHTML = Rollover.html(RS, "SOXL perp", fS) + (RE ? `<div style="margin-top:6px">${Rollover.html(RE, "Euro perp (EUR/USD)", fE, true)}</div>` : ""); } } catch (e) { console.warn("rollover", e); }
+    // knowledge hub (hub.js): what SOXL's engines tested, every 10 minutes
+    try { if (window.Hub && Date.now() - hubT > 10 * 6e4 && MK) { hubT = Date.now(); const H = Hub.from, R = window.ROLL || {};
+        Hub.report([].concat(H.planner(PL, "SOXL"), H.pb(PBA, "SOXL", "15m"), H.markov(MK, "SOXL"), H.kd(MXA && MXA.K, MXA && MXA.D, "SOXL"), H.roll(R.RS, "SOXL"), H.roll(R.RE, "EUR"), H.rhythm(RH, "SOXL"))); } } catch (e) { console.warn("hub", e); }
     const MI = window.Markov ? Markov.signals(MK) : []; window.MARKOV = { M: MK, I: MI };
     try { const el = document.getElementById("meshMk"); if (el && window.Markov) el.innerHTML = Markov.html(MK, "SOXL") + (window.Web ? `<div class="label" style="margin-top:8px">PageRank · the most trusted signals in the web</div>` + Markov.rankHtml(Markov.pagerank(Web.nodes(), Web.edges()), 10) : ""); } catch (e) { console.warn("markov html", e); }
     try { if (window.Web) I.concat(RI, MI, PI, PLI, ROI, MXI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
@@ -103,6 +106,7 @@
   let EURB = null, eurT = 0;
   async function loadEur() { if (!window.Rollover || EURB && Date.now() - eurT < 30 * 6e4) return; eurT = Date.now();
     try { const k = await post({ type: "candleSnapshot", req: { coin: "xyz:EUR", interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } }); if (Array.isArray(k) && k.length) EURB = k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c, +b.v]); } catch (e) { } }
+  if (window.Hub) SET.filter(([c]) => c !== "xyz:SOXL" && !/^para:/.test(c)).forEach(([c, n]) => Hub.task("SOXX · engines on " + n, async () => { const k = await post({ type: "candleSnapshot", req: { coin: c, interval: "1h", startTime: Date.now() - 200 * 864e5, endTime: Date.now() } }); return Array.isArray(k) && k.length >= 400 ? Hub.battery(k.map(b => [b.t, +b.o, +b.h, +b.l, +b.c, +b.v]), c.split(":").pop()) : null; }));
   async function run() {
     if (busy || document.hidden) return; busy = true;
     try { await loadSync(); render(emit()); await loadEnt(); await loadD1(); await loadEur(); render(emit()); } catch (e) { console.warn("mesh", e); } busy = false;
