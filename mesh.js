@@ -13,6 +13,7 @@
     <div class="label" style="margin-top:10px">Crowd memory · how the crowd acts at every hour, and the past moments that rhyme with now</div><div id="meshRhyme"></div>
     <div class="label" style="margin-top:10px">Liquidity · where the money waits (order books of SOXL and its chip neighbours)</div><div id="meshLiq"></div>
     <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
+    <div class="label" style="margin-top:10px">Trade planner · one plan per time frame (15 m, 1 h, 4 h, 1 day), 14 days at most, only at inflection points, re-tested at every refresh (SOXL)</div><div id="meshPlan"></div>
     <div class="label" style="margin-top:10px">P and B ranges · push, range, breakout or failed breakout (Patrick Nill, 12× top 5 in the Robbins World Cup) · SOXL perp, 15-minute bars</div><div id="meshPB"></div>
     <div class="label" style="margin-top:10px">Markov chains · memory, next-hour odds, Monte Carlo paths and PageRank of the web (SOXL perp, hourly)</div><div id="meshMk"></div>
     <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
@@ -27,7 +28,7 @@
   const SET = [["xyz:SOXL", "SOXL"], ["xyz:NVDA", "NVDA"], ["xyz:AMD", "AMD"], ["xyz:AVGO", "AVGO"], ["xyz:MU", "MU"], ["xyz:TSM", "TSM"], ["xyz:INTC", "INTC"], ["xyz:SMH", "SMH"],
     ["xyz:SP500", "S&P 500"], ["xyz:XYZ100", "Nasdaq 100"], ["xyz:KR200", "KOSPI 200"], ["para:10Y", "US 10Y"], ["xyz:EUR", "Euro"], ["xyz:JPY", "Yen"], ["xyz:GOLD", "Gold"], ["xyz:CL", "Oil"], ["BTC", "Bitcoin"]];
   const NM = Object.fromEntries(SET.map(([c, n]) => [c, n])), nm = c => NM[c] || c;
-  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0, PBA = null, pbT = 0;
+  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0, PBA = null, pbT = 0, PL = null, plT = 0, plHave = -1, D1 = null, d1T = 0;
   const SC = {};   // coin -> { t, k }: bars per market, kept between runs, so one rate-limit reply does not empty the map
   async function loadEnt() {
     if (Date.now() - eT < 15 * 6e4) return;
@@ -69,9 +70,13 @@
     try { if (window.PB && window.SOXL_M15 && (!PBA || Date.now() - pbT > 5 * 6e4)) { PBA = PB.analyze(SOXL_M15, { tf: "15m" }); pbT = Date.now(); } } catch (e) { console.warn("pb", e); }
     const PI = window.PB ? PB.signals(PBA) : []; window.PBSIG = { A: PBA, I: PI };
     try { const el = document.getElementById("meshPB"); if (el && window.PB) el.innerHTML = PB.html(PBA, "SOXL", v => "$" + v.toFixed(2)); } catch (e) { console.warn("pb html", e); }
+    // trade planner (planner.js): daily SOXL bars from the Worker (5 years, else 2), every 6 hours; plans every 15 minutes
+    try { if (window.Planner && window.SOXL_HBV && (!PL || Date.now() - plT > 15 * 6e4 || plHave !== !!window.SOXL_M15 + !!D1 * 2)) { plHave = !!window.SOXL_M15 + !!D1 * 2; PL = Planner.run("SOXL", { "15m": window.SOXL_M15, "1h": SOXL_HBV, "4h": Planner.agg(SOXL_HBV, 144e5), "1d": D1 }); plT = Date.now(); } } catch (e) { console.warn("planner", e); }
+    const PLI = window.Planner ? Planner.signals(PL) : []; window.PLAN = { P: PL, I: PLI };
+    try { const el = document.getElementById("meshPlan"); if (el && window.Planner) el.innerHTML = Planner.html(PL, { px: v => "$" + v.toFixed(2) }); } catch (e) { console.warn("planner html", e); }
     const MI = window.Markov ? Markov.signals(MK) : []; window.MARKOV = { M: MK, I: MI };
     try { const el = document.getElementById("meshMk"); if (el && window.Markov) el.innerHTML = Markov.html(MK, "SOXL") + (window.Web ? `<div class="label" style="margin-top:8px">PageRank · the most trusted signals in the web</div>` + Markov.rankHtml(Markov.pagerank(Web.nodes(), Web.edges()), 10) : ""); } catch (e) { console.warn("markov html", e); }
-    try { if (window.Web) I.concat(RI, MI, PI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
+    try { if (window.Web) I.concat(RI, MI, PI, PLI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
     window.MESH = { I, why: [].concat(s ? s.why : [], lv ? lv.why : []), E, Y };
     return I;
   }
@@ -82,9 +87,12 @@
     try { const R = window.RHYTHM; document.getElementById("meshRhy").innerHTML = (R && R.I.length ? `<div class="note">Live rhythm signals: ${R.I.map(([id, v, lab]) => `<span class="${v > 0 ? "L" : "S"}">${lab.replace("Rhythm · ", "")} ${v > 0 ? "▲" : "▼"}${Math.abs(v).toFixed(2)}</span>`).join(" · ")}</div>` : "") + Rhythm.html(R && R.R, { px: v => "$" + v.toFixed(2) }); } catch (e) { }
     document.getElementById("meshSync").innerHTML = Sync.html(Y, { usd: U, label: a => a.slice(0, 6) + "…" + a.slice(-4) });
   }
+  async function loadD1() {
+    try { if (window.Planner && (!D1 || Date.now() - d1T > 6 * 36e5) && typeof fredProxy === "function" && fredProxy()) { d1T = Date.now(); for (const rg of ["5y", "2y"]) { const j = await (await fetch(`${fredProxy()}/chart?t=SOXL&range=${rg}&interval=1d`)).json().catch(() => null); if (j && j.status === "ok" && j.bars && j.bars.length > 300) { D1 = j.bars.filter(b => b[4] != null && b[1] != null).map(b => [b[0], b[1], b[2], b[3], b[4], b[5] || 0]); break; } } } } catch (e) { }
+  }
   async function run() {
     if (busy || document.hidden) return; busy = true;
-    try { await loadSync(); render(emit()); await loadEnt(); render(emit()); } catch (e) { console.warn("mesh", e); } busy = false;
+    try { await loadSync(); render(emit()); await loadEnt(); await loadD1(); render(emit()); } catch (e) { console.warn("mesh", e); } busy = false;
   }
   setTimeout(run, 12000); setInterval(run, 5 * 6e4);
   // venues (venues.js): Hyperliquid stock perps vs their stocks, crypto across exchanges, and SOXL vs 3 × SOXX today
