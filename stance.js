@@ -69,7 +69,7 @@
   function draw() {
     const { L, I, gap, cash } = parts(), sw = L.reduce((s, x) => s + x.wt, 0), sc = sw ? L.reduce((s, x) => s + x.v * x.wt, 0) / sw : null, now = Date.now(), P = T.P || {};
     try { if (window.Web) I.forEach(([id, a, v, lab]) => { if (v) Web.emit(id, a, v, lab); }); } catch (e) { }
-    window.STANCE = { at: now, score: sc, L, I };
+    window.STANCE = { at: now, score: sc, L, I, T };
     const lab = sc == null ? "Loading…" : sc >= 0.35 ? "RISK-ON" : sc >= 0.12 ? "LEANING RISK-ON" : sc <= -0.35 ? "RISK-OFF" : sc <= -0.12 ? "LEANING RISK-OFF" : "MIXED";
     const pos = L.filter(x => x.v >= 0.15).sort((a, b) => b.v * b.wt - a.v * a.wt), neg = L.filter(x => x.v <= -0.15).sort((a, b) => a.v * a.wt - b.v * b.wt);
     const nm = x => `${x.lab} ${x.txt}`, cmeO = cmeOpen(now), krO = krxOpen(now), us = usCash(now);

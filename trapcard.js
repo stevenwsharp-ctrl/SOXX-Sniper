@@ -15,7 +15,7 @@
     if (document.hidden && at) return;
     if (Date.now() - at > 10 * 6e4) { const k = Math.floor(Date.now() / 6e5);
       try { const [a, b] = await Promise.all([fetch(RAW + "specialists.json?t=" + k).then(r => r.ok ? r.json() : null), fetch(RAW + "levels.json?t=" + k).then(r => r.ok ? r.json() : null)]);
-        if (a && a.m) SP = a.m["XYZ:SOXL"] || SP; if (b && b.m) LV = b.m["XYZ:SOXL"] || LV; at = Date.now(); } catch (e) { } }
+        if (a && a.m) SP = a.m["XYZ:SOXL"] || SP; if (b && b.m) LV = b.m["XYZ:SOXL"] || LV; window.TRAPDATA = { SP: a || (window.TRAPDATA || {}).SP, LV: b || (window.TRAPDATA || {}).LV, at: Date.now() }; at = Date.now(); } catch (e) { } }
     const P = window.PERPCTX || {}, px = P.SOXL && P.SOXL.px || (typeof Q === "object" && Q.SOXL && Q.SOXL.c) || null;
     const T = SP && SP.holders && px ? Trapped.analyze(SP.holders, LV && LV.h, px) : null, I = Trapped.signals(T);
     try { if (window.Web) I.forEach(([id, v, lab]) => Web.emit(id, "SOXL", v, lab)); } catch (e) { }

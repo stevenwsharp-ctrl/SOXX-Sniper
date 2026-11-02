@@ -8,7 +8,7 @@
   const anchor = document.getElementById("trioCard"); if (!anchor || !window.VFlow) return;
   const card = document.createElement("section"); card.className = "card"; card.id = "volCard"; card.style.marginBottom = "12px";
   anchor.after(card);
-  const SY = ["SOXL", "SOXS", "SOXX"], VV = [["1d", "1D · 1m", "1d", "1m"], ["5d", "5D · 5m", "5d", "5m"], ["1mo", "1M · 30m", "1mo", "30m"], ["3mo", "3M · 1h", "3mo", "60m"], ["6mo", "6M · day", "6mo", "1d"], ["ytd", "YTD · day", "1y", "1d"], ["1y", "1Y · day", "1y", "1d"], ["2y", "2Y · day", "2y", "1d"], ["5y", "5Y · week", "5y", "1wk"]];
+  const SY = ["SOXL", "SOXS", "SOXX", "QQQ"], VV = [["1d", "1D · 1m", "1d", "1m"], ["5d", "5D · 5m", "5d", "5m"], ["1mo", "1M · 30m", "1mo", "30m"], ["3mo", "3M · 1h", "3mo", "60m"], ["6mo", "6M · day", "6mo", "1d"], ["ytd", "YTD · day", "1y", "1d"], ["1y", "1Y · day", "1y", "1d"], ["2y", "2Y · day", "2y", "1d"], ["5y", "5Y · week", "5y", "1wk"]];
   const lsG = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }, lsS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
   const O = Object.assign({ sym: "SOXL", view: "5d", vp: true, vwap: true, ema: true, ext: true }, lsG("soxx_vf", {})), save = () => lsS("soxx_vf", O);
   const daily = v => ["6mo", "ytd", "1y", "2y", "5y"].includes(v), C = {};   // C[sym|view] = { at, bars, err }
