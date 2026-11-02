@@ -44,7 +44,7 @@ const bucket = m => Math.max(0, Math.min(12, Math.floor((m - 570) / 30)));   // 
 const bname = b => { const m = 570 + b * 30, f = x => `${Math.floor(x / 60) > 12 ? Math.floor(x / 60) - 12 : Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; return `${f(m)}–${f(m + 30)}`; };
 
 // ---------- data ----------
-async function http(url) { for (let i = 0; i < 3; i++) { try { const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36" } }); if (r.status === 404) return null; if (!r.ok) throw new Error("HTTP " + r.status); return await r.json(); } catch (e) { if (i === 2) return null; await sleep(1500 * (i + 1)); } } }
+let FAILS = 0; async function http(url) { for (let i = 0; i < 3; i++) { try { const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36", accept: "application/json,*/*" } }); if (r.status === 404) return null; if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0, 120)); return await r.json(); } catch (e) { if (i === 2) { if (FAILS++ < 3) console.error("yahoo:", url.split("?")[0].split("/").pop(), e.message); return null; } await sleep(1500 * (i + 1)); } } }
 async function chart(sym, range) {
   if (MOCK) return mockBars(sym, range);
   const j = await http(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1m&range=${range}&includePrePost=false`);
@@ -149,7 +149,7 @@ async function prep(S) {
   for (const [sym, d] of data) { if (!d || !d.B.length) continue; for (const [day, B] of byDay(d.B)) { if (day >= today && !MOCK) continue; const k = sym + ":" + day; if (S.seeded[k] || B.length < 100) continue;
       const F = feats(B); for (let i = 0; i < B.length; i++) onBar(S, sym, F, B, i, true, i === B.length - 1); S.seeded[k] = 1; n++; } }
   S.shadow = []; const cut = Object.keys(S.seeded).sort((a, b) => a.split(":")[1] < b.split(":")[1] ? -1 : 1); if (cut.length > 3000) cut.slice(0, cut.length - 3000).forEach(k => delete S.seeded[k]);
-  console.log(`replayed ${n} symbol-days`);
+  console.log(`replayed ${n} symbol-days · data for ${data.filter(([, d]) => d && d.B.length).length} of ${ALL.length} symbols · ${data.reduce((p, [, d]) => p + (d ? d.B.length : 0), 0)} bars`);
 }
 
 // ---------- the dashboard file ----------
