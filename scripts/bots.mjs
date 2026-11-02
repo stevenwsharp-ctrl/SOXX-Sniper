@@ -44,7 +44,13 @@ const bucket = m => Math.max(0, Math.min(12, Math.floor((m - 570) / 30)));   // 
 const bname = b => { const m = 570 + b * 30, f = x => `${Math.floor(x / 60) > 12 ? Math.floor(x / 60) - 12 : Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; return `${f(m)}–${f(m + 30)}`; };
 
 // ---------- data ----------
-let FAILS = 0; async function http(url) { for (let i = 0; i < 3; i++) { try { const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36", accept: "application/json,*/*" } }); if (r.status === 404) return null; if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0, 120)); return await r.json(); } catch (e) { if (i === 2) { if (FAILS++ < 3) console.error("yahoo:", url.split("?")[0].split("/").pop(), e.message); return null; } await sleep(1500 * (i + 1)); } } }
+// Yahoo often answers 429 to cloud servers without a session: get a cookie and a "crumb" first, as a browser does
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"; let YC = null;
+async function ysess() { if (YC) return YC; try { const r = await fetch("https://fc.yahoo.com/", { headers: { "user-agent": UA }, redirect: "manual" }); const ck = (r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get("set-cookie") || ""]).map(x => x.split(";")[0]).filter(Boolean).join("; ");
+    const c = await fetch("https://query2.finance.yahoo.com/v1/test/getcrumb", { headers: { "user-agent": UA, cookie: ck } }); const crumb = c.ok ? (await c.text()).trim() : ""; YC = { ck, crumb }; console.log(`yahoo session: cookie ${ck ? "yes" : "no"}, crumb ${crumb ? "yes" : "no"}`); } catch (e) { YC = { ck: "", crumb: "" }; } return YC; }
+let FAILS = 0; async function http(url0) { const Y = await ysess(); let url = url0 + (Y.crumb ? "&crumb=" + encodeURIComponent(Y.crumb) : "");
+  for (let i = 0; i < 4; i++) { if (i % 2) url = url.replace("query1.", "query2."); else url = url.replace("query2.", "query1."); try { const r = await fetch(url, { headers: { "user-agent": UA, accept: "application/json,*/*", ...(Y.ck ? { cookie: Y.ck } : {}) } }); if (r.status === 404) return null; if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0, 120)); return await r.json(); } catch (e) { if (i === 3) { if (FAILS++ < 3) console.error("yahoo:", url.split("?")[0].split("/").pop(), e.message); return null; } await sleep(2000 * (i + 1)); } } }
+async function httpOld(url) { for (let i = 0; i < 3; i++) { try { const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36", accept: "application/json,*/*" } }); if (r.status === 404) return null; if (!r.ok) throw new Error("HTTP " + r.status + " " + (await r.text()).slice(0, 120)); return await r.json(); } catch (e) { if (i === 2) { if (FAILS++ < 3) console.error("yahoo:", url.split("?")[0].split("/").pop(), e.message); return null; } await sleep(1500 * (i + 1)); } } }
 async function chart(sym, range) {
   if (MOCK) return mockBars(sym, range);
   const j = await http(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1m&range=${range}&includePrePost=false`);
@@ -145,7 +151,7 @@ function swings(F, B) { const out = []; let i = 0; while (i < F.n - 5) { let bes
 // ---------- replay of past days (seeds the memory) ----------
 async function prep(S) {
   const today = et(Date.now()).d; let n = 0;
-  const data = await pool(ALL, 6, async s => [s, await chart(s, "7d")]);
+  const data = await pool(ALL, 3, async s => [s, await chart(s, "7d")]);
   for (const [sym, d] of data) { if (!d || !d.B.length) continue; for (const [day, B] of byDay(d.B)) { if (day >= today && !MOCK) continue; const k = sym + ":" + day; if (S.seeded[k] || B.length < 100) continue;
       const F = feats(B); for (let i = 0; i < B.length; i++) onBar(S, sym, F, B, i, true, i === B.length - 1); S.seeded[k] = 1; n++; } }
   S.shadow = []; const cut = Object.keys(S.seeded).sort((a, b) => a.split(":")[1] < b.split(":")[1] ? -1 : 1); if (cut.length > 3000) cut.slice(0, cut.length - 3000).forEach(k => delete S.seeded[k]);
@@ -195,7 +201,7 @@ async function main() {
   const C = {};   // today's bars per symbol
   for (let loop = 0; ; loop++) {
     const now = Date.now(), e = et(now);
-    const got = await pool(ALL, 8, async s => [s, await chart(s, "1d")]);
+    const got = await pool(ALL, 6, async s => [s, await chart(s, "1d")]);
     for (const [sym, d] of got) { if (!d || !d.B.length) continue; const B = d.B.filter(b => et(b[0]).d === today && (b[0] + 6e4 <= now || MOCK)); if (!B.length) continue; C[sym] = B;
       S.live[sym] = +B[B.length - 1][4].toFixed(4); const F = feats(B), from = S.last[sym] == null ? 0 : B.findIndex(b => b[0] > S.last[sym]); if (from < 0) continue;
       const isLast = i => et(B[i][0]).m >= 959;
