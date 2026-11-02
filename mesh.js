@@ -13,6 +13,7 @@
     <div class="label" style="margin-top:10px">Crowd memory · how the crowd acts at every hour, and the past moments that rhyme with now</div><div id="meshRhyme"></div>
     <div class="label" style="margin-top:10px">Liquidity · where the money waits (order books of SOXL and its chip neighbours)</div><div id="meshLiq"></div>
     <div class="label" style="margin-top:10px">Venues · the same thing in different places and currencies</div><div id="meshVen"></div>
+    <div class="label" style="margin-top:10px">Markov chains · memory, next-hour odds, Monte Carlo paths and PageRank of the web (SOXL perp, hourly)</div><div id="meshMk"></div>
     <div class="label" style="margin-top:10px">Rhythm · randomness, regularity, Fibonacci, music and flow (SOXL perp, hourly, 200 days)</div><div id="meshRhy"></div></details>`;
   anchor.before(card);
   const st = document.createElement("style");
@@ -25,7 +26,7 @@
   const SET = [["xyz:SOXL", "SOXL"], ["xyz:NVDA", "NVDA"], ["xyz:AMD", "AMD"], ["xyz:AVGO", "AVGO"], ["xyz:MU", "MU"], ["xyz:TSM", "TSM"], ["xyz:INTC", "INTC"], ["xyz:SMH", "SMH"],
     ["xyz:SP500", "S&P 500"], ["xyz:XYZ100", "Nasdaq 100"], ["xyz:KR200", "KOSPI 200"], ["para:10Y", "US 10Y"], ["xyz:EUR", "Euro"], ["xyz:JPY", "Yen"], ["xyz:GOLD", "Gold"], ["xyz:CL", "Oil"], ["BTC", "Bitcoin"]];
   const NM = Object.fromEntries(SET.map(([c, n]) => [c, n])), nm = c => NM[c] || c;
-  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0;
+  let E = null, eT = 0, Y = null, yT = 0, H1 = null, HB = null, h1T = 0, busy = false, RH = null, rhT = 0, MK = null, mkT = 0;
   const SC = {};   // coin -> { t, k }: bars per market, kept between runs, so one rate-limit reply does not empty the map
   async function loadEnt() {
     if (Date.now() - eT < 15 * 6e4) return;
@@ -62,7 +63,11 @@
     try { if (window.Rhythm && HB && (!RH || Date.now() - rhT > 10 * 6e4)) { RH = Rhythm.analyze(HB, { win: 400 }); rhT = Date.now(); } } catch (e) { console.warn("rhythm", e); }
     const RI = []; if (RH) [["trend", "Rhythm · path memory (trend or snap-back)"], ["hour", "Rhythm · this hour of the day, history"], ["cycle", "Rhythm · repeating cycle"], ["fib", "Rhythm · Fibonacci level (back-tested)"], ["home", "Rhythm · pull back home (vs chance)"], ["flow", "Rhythm · poetry in motion (smooth trend)"], ["wave", "Frequency · projected wave (back-tested)"], ["resonance", "Frequency · resonance (all waves turn together)"]].forEach(([k, lab]) => { const v = RH.sig[k]; if (v) RI.push(["rhy." + k, v, lab]); });
     window.RHYTHM = { R: RH, I: RI };
-    try { if (window.Web) I.concat(RI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
+    // Markov chains (markov.js): memory test, next-step odds, Monte Carlo, mixing time; PageRank of the signal web
+    try { if (window.Markov && window.SOXL_HBV && (!MK || Date.now() - mkT > 10 * 6e4)) { MK = Markov.analyze(SOXL_HBV); mkT = Date.now(); } } catch (e) { console.warn("markov", e); }
+    const MI = window.Markov ? Markov.signals(MK) : []; window.MARKOV = { M: MK, I: MI };
+    try { const el = document.getElementById("meshMk"); if (el && window.Markov) el.innerHTML = Markov.html(MK, "SOXL") + (window.Web ? `<div class="label" style="margin-top:8px">PageRank · the most trusted signals in the web</div>` + Markov.rankHtml(Markov.pagerank(Web.nodes(), Web.edges()), 10) : ""); } catch (e) { console.warn("markov html", e); }
+    try { if (window.Web) I.concat(RI, MI).forEach(([id, v, lab]) => { if (isFinite(v) && v) Web.emit(id, "SOXL", c1(v), lab); }); } catch (e) { }
     window.MESH = { I, why: [].concat(s ? s.why : [], lv ? lv.why : []), E, Y };
     return I;
   }
