@@ -152,7 +152,7 @@ function swings(F, B) { const out = []; let i = 0; while (i < F.n - 5) { let bes
 async function prep(S) {
   const today = et(Date.now()).d; let n = 0;
   const data = await pool(ALL, 3, async s => [s, await chart(s, "7d")]);
-  for (const [sym, d] of data) { if (!d || !d.B.length) continue; for (const [day, B] of byDay(d.B)) { if (day >= today && !MOCK) continue; const k = sym + ":" + day; if (S.seeded[k] || B.length < 100) continue;
+  for (const [sym, d] of data) { if (!d || !d.B.length) continue; for (const [day, B] of byDay(d.B)) { if (day >= today && !MOCK && et(Date.now()).m < 961 && !["Sat", "Sun"].includes(et(Date.now()).wd)) continue; const k = sym + ":" + day; if (S.seeded[k] || B.length < 100) continue;
       const F = feats(B); for (let i = 0; i < B.length; i++) onBar(S, sym, F, B, i, true, i === B.length - 1); S.seeded[k] = 1; n++; } }
   S.shadow = []; const cut = Object.keys(S.seeded).sort((a, b) => a.split(":")[1] < b.split(":")[1] ? -1 : 1); if (cut.length > 3000) cut.slice(0, cut.length - 3000).forEach(k => delete S.seeded[k]);
   console.log(`replayed ${n} symbol-days · data for ${data.filter(([, d]) => d && d.B.length).length} of ${ALL.length} symbols · ${data.reduce((p, [, d]) => p + (d ? d.B.length : 0), 0)} bars`);
