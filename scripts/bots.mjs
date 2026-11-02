@@ -195,6 +195,8 @@ async function main() {
   await prep(S); save(S, "replayed the last 7 days", true);
   const t0 = Date.now(), maxMin = +(process.env.MAX_MIN || 340), today = et(Date.now()).d;
   const open = () => { const e = et(Date.now()); return !["Sat", "Sun"].includes(e.wd) && e.m >= 570 && e.m < 963; };
+  // started before the open (the morning run): wait for 9:30 ET
+  { const e = et(Date.now()); if (MODE !== "prep" && !MOCK && !["Sat", "Sun"].includes(e.wd) && e.m < 570 && e.m >= 570 - 150) { console.log(`waiting ${570 - e.m} min for the open`); await sleep((570 - e.m) * 6e4 - (Date.now() % 6e4) + 5000); } }
   if (MODE === "prep" || (!open() && !MOCK)) { console.log("market closed: replay only"); save(S, "market closed: replay only", true); return; }
   // a new day: orders from an earlier day are gone (all trades end at 15:59)
   for (const b of Object.values(S.bots)) b.orders = b.orders.filter(o => et(o.t0).d === today); if (S.day !== today) { S.swings = {}; S.last = {}; S.shadow = []; S.day = today; }
