@@ -128,13 +128,14 @@ const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v)
 function choose(S, cl, idea, b) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && Math.random() > 0.05) continue; const draw = s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
 
 // ---------- the engine over one symbol's day ----------
-function emptyState() { return { v: 1, arms: {}, tr: {}, seeded: {}, bots: Object.fromEntries(Object.keys(BOTS).map(k => [k, { orders: [], trades: [], days: {} }])), shadow: [], swings: {}, last: {}, live: {} }; }
+let BT = false;
+function emptyState() { return { v: 2, arms: {}, tr: {}, seeded: {}, bots: Object.fromEntries(Object.keys(BOTS).map(k => [k, { orders: [], trades: [], days: {} }])), shadow: [], swings: {}, last: {}, live: {} }; }
 // process bar i of the day (bars 0..i known). shadowOnly: the replay of past days (no bot trades).
 function onBar(S, sym, F, B, i, shadowOnly, last) {
   const bar = B[i], t = bar[0], m = et(t).m;
   // 1. orders and trades already running
   S.shadow = S.shadow.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done) { tries(S, o); if (o.st === "done") rec(S, o); } return !done; });
-  if (!shadowOnly) for (const [bk, bot] of Object.entries(S.bots)) bot.orders = bot.orders.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done && o.st === "done") { const g = grade(o); bot.trades.push({ sym, idea: o.idea, k: o.k, plan: o.plan, t0: o.t0, tf: o.tf, tx: o.tx, fill: +o.fill.toFixed(4), px: +o.px.toFixed(4), r: +o.r.toFixed(5), usd: +(UNIT * o.r).toFixed(2), why: o.why, min: o.min, mfe: +o.mfe.toFixed(5), mae: +o.mae.toFixed(5), g, sig: o.sig, explore: o.explore || 0 }); } return !done; });
+  if (!shadowOnly) for (const [bk, bot] of Object.entries(S.bots)) bot.orders = bot.orders.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done && o.st === "done") { const g = grade(o); bot.trades.push({ sym, idea: o.idea, k: o.k, plan: o.plan, t0: o.t0, tf: o.tf, tx: o.tx, fill: +o.fill.toFixed(4), px: +o.px.toFixed(4), r: +o.r.toFixed(5), usd: +(UNIT * o.r).toFixed(2), why: o.why, min: o.min, mfe: +o.mfe.toFixed(5), mae: +o.mae.toFixed(5), g, sig: o.sig, explore: o.explore || 0, bt: BT ? 1 : 0 }); } return !done; });
   if (last) return;
   // 2. new signals on this closed bar
   const sg = signals(F, i, m); if (!sg.length) return;
@@ -152,9 +153,16 @@ function swings(F, B) { const out = []; let i = 0; while (i < F.n - 5) { let bes
 async function prep(S) {
   const today = et(Date.now()).d; let n = 0;
   const data = await pool(ALL, 3, async s => [s, await chart(s, "7d")]);
-  for (const [sym, d] of data) { if (!d || !d.B.length) continue; for (const [day, B] of byDay(d.B)) { if (day >= today && !MOCK && et(Date.now()).m < 961 && !["Sat", "Sun"].includes(et(Date.now()).wd)) continue; const k = sym + ":" + day; if (S.seeded[k] || B.length < 100) continue;
-      const F = feats(B); for (let i = 0; i < B.length; i++) onBar(S, sym, F, B, i, true, i === B.length - 1); S.seeded[k] = 1; n++; } }
-  S.shadow = []; const cut = Object.keys(S.seeded).sort((a, b) => a.split(":")[1] < b.split(":")[1] ? -1 : 1); if (cut.length > 3000) cut.slice(0, cut.length - 3000).forEach(k => delete S.seeded[k]);
+  // day by day, all symbols minute by minute together: the bots trade the past as they would have (walk-forward: each
+  // choice uses only what was learned before that minute), and every shadow trade feeds the memory
+  const DAYS = {}; for (const [sym, d] of data) { if (!d || !d.B.length) continue; for (const [day, B] of byDay(d.B)) if (B.length >= 100) (DAYS[day] = DAYS[day] || {})[sym] = B; }
+  const marketOpenToday = !["Sat", "Sun"].includes(et(Date.now()).wd) && et(Date.now()).m < 961;
+  for (const day of Object.keys(DAYS).sort()) { if (S.seeded["D:" + day] || (day >= today && !MOCK && marketOpenToday)) continue;
+    const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; }); for (const b of Object.values(S.bots)) b.orders = [];
+    const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); BT = true;
+    for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, false, i === B.length - 1); ptr[s]++; } }
+    BT = false; S.shadow = []; for (const b of Object.values(S.bots)) b.orders = []; S.seeded["D:" + day] = 1; n += syms.length; }
+  const keep = Object.keys(S.seeded).sort().slice(-40); S.seeded = Object.fromEntries(keep.map(k => [k, 1]));
   console.log(`replayed ${n} symbol-days · data for ${data.filter(([, d]) => d && d.B.length).length} of ${ALL.length} symbols · ${data.reduce((p, [, d]) => p + (d ? d.B.length : 0), 0)} bars`);
 }
 
@@ -162,13 +170,14 @@ async function prep(S) {
 function report(S, note) {
   const today = et(Date.now()).d, R = { at: Date.now(), today, unit: UNIT, note, bots: {}, ideas: IDEAS, plans: PLANS, arms: [], times: {}, swings: [], live: S.live };
   for (const [bk, bot] of Object.entries(S.bots)) {
-    const T = bot.trades, td = T.filter(x => et(x.tx).d === today), sum = a => a.reduce((p, x) => p + x.usd, 0), win = a => a.length ? a.filter(x => x.r > 0).length / a.length : null;
+    const T = bot.trades, LV = T.filter(x => !x.bt), BK = T.filter(x => x.bt), td = LV.filter(x => et(x.tx).d === today), sum = a => a.reduce((p, x) => p + x.usd, 0), win = a => a.length ? a.filter(x => x.r > 0).length / a.length : null;
     const days = {}; T.forEach(x => { const d = et(x.tx).d; (days[d] = days[d] || []).push(x); });
-    const curve = Object.keys(days).sort().map(d => [d, +sum(days[d]).toFixed(2), days[d].length]);
+    const curve = Object.keys(days).sort().map(d => [d, +sum(days[d]).toFixed(2), days[d].length, days[d].every(x => x.bt) ? 1 : 0]);
     const gr = {}; T.slice(-200).forEach(x => gr[x.g.L] = (gr[x.g.L] || 0) + 1);
     const byIdea = {}; T.slice(-300).forEach(x => { const z = byIdea[x.idea] || (byIdea[x.idea] = { n: 0, usd: 0, w: 0 }); z.n++; z.usd += x.usd; if (x.r > 0) z.w++; });
     R.bots[bk] = { name: BOTS[bk].name, u: BOTS[bk].u, today: { n: td.length, usd: +sum(td).toFixed(2), win: win(td), min: td.length ? td.reduce((p, x) => p + x.min, 0) / td.length : null },
-      all: { n: T.length, usd: +sum(T).toFixed(2), win: win(T), min: T.length ? T.reduce((p, x) => p + x.min, 0) / T.length : null, units: +(sum(T) / UNIT).toFixed(3) },
+      all: { n: LV.length, usd: +sum(LV).toFixed(2), win: win(LV), min: LV.length ? LV.reduce((p, x) => p + x.min, 0) / LV.length : null, units: +(sum(LV) / UNIT).toFixed(3) },
+      bt: { n: BK.length, usd: +sum(BK).toFixed(2), win: win(BK), min: BK.length ? BK.reduce((p, x) => p + x.min, 0) / BK.length : null, units: +(sum(BK) / UNIT).toFixed(3), days: new Set(BK.map(x => et(x.tx).d)).size, best: BK.length ? BK.reduce((a, x) => x.usd > a.usd ? x : a) : null, worst: BK.length ? BK.reduce((a, x) => x.usd < a.usd ? x : a) : null, pf: (() => { const g = BK.filter(x => x.usd > 0).reduce((p, x) => p + x.usd, 0), l = -BK.filter(x => x.usd < 0).reduce((p, x) => p + x.usd, 0); return l ? +(g / l).toFixed(2) : null; })() },
       last50: { n: Math.min(50, T.length), usd: +sum(T.slice(-50)).toFixed(2), win: win(T.slice(-50)) }, curve, grades: gr, byIdea,
       open: bot.orders.map(o => ({ sym: o.sym, idea: o.idea, k: o.k, plan: o.plan, st: o.st, lim: +o.lim.toFixed(4), fill: o.fill != null ? +o.fill.toFixed(4) : null, stop: o.stop != null ? +o.stop.toFixed(4) : null, tgt: o.tgt != null ? +o.tgt.toFixed(4) : null, t0: o.t0, tf: o.tf || null, last: S.live[o.sym] || null })),
       trades: T.slice(-60).reverse() };
@@ -190,7 +199,7 @@ function save(S, note, force) {
 
 // ---------- main ----------
 async function main() {
-  const S = Object.assign(emptyState(), io.r("state.json", {})); S.shadow = S.shadow || []; S.live = S.live || {};
+  const S0 = io.r("state.json", {}), S = Object.assign(emptyState(), S0.v === 2 ? S0 : {});   // v2: the bots also trade the replay (a new memory) S.shadow = S.shadow || []; S.live = S.live || {};
   for (const k of Object.keys(BOTS)) S.bots[k] = Object.assign({ orders: [], trades: [], days: {} }, S.bots[k] || {});
   await prep(S); save(S, "replayed the last 7 days", true);
   const t0 = Date.now(), maxMin = +(process.env.MAX_MIN || 340), today = et(Date.now()).d;

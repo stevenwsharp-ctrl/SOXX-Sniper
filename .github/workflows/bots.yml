@@ -9,6 +9,7 @@ on:
   schedule:
     - cron: "5 13 * * 1-5"
     - cron: "50 18 * * 1-5"
+    - cron: "*/30 13-21 * * 1-5"   # a back-up: GitHub can start scheduled runs late or skip them; extra runs wait in the queue or are cancelled
   push:
     branches: [main]
     paths: ["scripts/bots.mjs", ".github/workflows/bots.yml"]
