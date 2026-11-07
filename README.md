@@ -307,3 +307,19 @@ Built after the Oct 29 night, when Intel's warning after the close took the chip
 - **Price cards**: 1D / 5D / 1M / 6M / 1Y charts with volume, high / low, extended-hours shading and hover; stats strip with 5D, 1M, 3M, 1Y, day range, 52-week range and today's move in σ. Side-by-side charts also have 1M, 6M and 1Y (daily candles) and volume.
 - **The Sniper read (top of the page, `read.js`)**: one call from all inputs, each with a lean and a weight: the page's decision read, top whales (net and newest moves), worst wallets (faded), whale tendencies (what the beliefs that fire now did before), market makers on the SOXL perp (contra inventory), SOXL specialists, cohort smart vs fools on the holdings and the SOXL perp, spot players (takers and side-takers, 1h), the signal web, the closing rebalance flow. Shows the call, agreement and confidence, the size of the next move (big-move odds, earnings tonight, macro stress, after-hours perp), levels, why, and what would prove it wrong. The 1h–24h model line and the signal web picture sit next to it.
 - **Paper bots · gates (Nov 7, 2026 review)**: in the week's record the bots' "explore" trades lost about $236 over the three bots, while the versions picked on their record made about +$50. The bots now trade only a version with 30+ paper trades and a positive record (the shadow trades still test every version on every signal). They also skip a half hour that is clearly worse than the class's average (spot this week: 9:30–10:30, 11:30–12:30, 2:00–2:30, 3:30–4:00; 2×/3×: 9:30–10:00, 2:00–2:30, 3:00–4:00) and an idea whose paper record clearly loses (only squeeze break, VWAP snap-back and, for spot, the EMA 21 pull-back stay on). The gates come from the record, so they open again when it turns. The bot card shows the gates now and the signals skipped today.
+
+## First Breaths (fb.js · shared by LETF Sniper, SOXX Sniper, Cohort Sniper and Mastermind Investor)
+
+A spider-web intelligence factor that finds the first signs of an inflection point. Open a stock, ETF or crypto (fund page, stock page, an open Cohort row, or a Mastermind search) and the First Breaths card shows two lists:
+
+- **Reversal breaths** (the move may turn): RSI divergence, volume climax, rejection wick, VWAP 2.5σ snap back, failed breakout, structure break, engulfing bar, VWAP lost, squeeze or range break against the move.
+- **Continuation breaths** (the move may amplify): range breakout on volume, pullback to EMA 20 held, flag breakout, squeeze release, higher low / lower high, momentum ignition, VWAP reclaimed.
+
+A list with no breath is not shown. Each breath shows the exact bar it flashed on (1m or 5m bar close), when the page pushed it, its price, the ±1 ATR test levels, its learned reliability and how often it repeated.
+
+- Live data: Yahoo 1-minute bars through the Worker every 15 s (stocks and ETFs, with extended hours); Hyperliquid 1-minute candles every 5 s (crypto and Hyperliquid markets). Only closed bars count.
+- Learning: every breath is scored when its time is up (1m: 15 bars, 5m: 6 bars): a hit if price went +1 ATR its way before −1 ATR against it. On the first open, the last 3–5 days are scored at once. Reliability = this market's hit rate, pulled toward the same breath's rate on all markets of the same kind. Breaths that fail (under 46% over 30+) are hidden; ★ proven = 30+ scored and 57%+. The ranking favors strong, reliable and repeated breaths.
+- Push: new breaths are highlighted; reliable, repeated or confirmed ones also pop up. Sound and browser notifications are buttons on the card.
+- The live breaths feed the spider web as `fb.rev` and `fb.cont`, and the scored results go to the knowledge hub.
+- No Worker change is needed (it uses the existing `/chart` route).
+- Test: `node tests/fb.test.mjs`

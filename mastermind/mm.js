@@ -250,6 +250,7 @@
     const TT = targets(G, sd, Math.max(-0.5, Math.min(0.5, sup))), bestR = TT && TT.rows.length ? TT.rows.slice().sort((a, b) => b.c1 * b.T1 - a.c1 * a.T1)[0] : null;
     const UPX = TT ? TT.px : px, tf = toFund(G, UPX), FV = !!(G.fund && G.fp), vsd = FV ? fsd : sd, vsn = FV ? fsn : sn, vnm = FV ? G.m.s : (G.fund ? G.fund.u : G.m.s), vd = v => FV ? v / G.fp - 1 : v / UPX - 1;
     const V = TT ? { px: tf(UPX), rows: TT.rows.map(r => ({ ...r, lim: tf(r.lim), t1: tf(r.t1), t2: tf(r.t2), w: tf(r.w), d1: vd(tf(r.t1)), d2: vd(tf(r.t2)), dw: vd(tf(r.w)) })) } : null, bestV = bestR && V ? V.rows[TT.rows.indexOf(bestR)] : null;
+    window.MM_SEL = { s: G.m.s, coin: G.coin, fund: !!G.fund, crypto: !G.fund && ((G.tag && G.tag.cls === "Crypto") || /\.X$/.test(G.sym)) };   // First Breaths (fb.js) follows this market
     $("ans").innerHTML = `<section class="card"><div class="label">Your question · ${esc(q.text)}</div>
         <div class="verdict ${vrd[1]}">${esc(vrd[0])}</div>${bestR ? `<div class="thesis" style="margin-bottom:6px"><b>Best plan · ${vsn} ${esc(vnm)}:</b> limit ${vsd > 0 ? "buy" : "sell"} near ${fx(bestV.lim)}, target ${fx(bestV.t1)} (${pc(bestV.d1)}) within ${esc(bestR.lab.toLowerCase())}, <b class="${bestR.c1 >= 0.55 ? "L" : bestR.c1 < 0.4 ? "S" : "A"}">${Math.round(bestR.c1 * 100)}% confidence</b> it gets there before ${fx(bestV.w)} (wrong if). Stretch target ${fx(bestV.t2)} (${pc(bestV.d2)}) at ${Math.round(bestR.c2 * 100)}%.${FV ? ` <span class="note">(${esc(G.fund.u)}: target ${fx(bestR.t1)}, wrong if ${fx(bestR.w)})</span>` : ""}</div>` : ""}<div class="thesis">${t1} ${t2} ${t3} ${t4}${sideTxt}</div>
         <ul class="pts">${P.map(p => `<li>${p}</li>`).join("")}</ul>
@@ -275,7 +276,7 @@
   }
   // ---------- ask ----------
   async function ask(text) {
-    if (!text.trim()) return; const qi = $("qi"); qi.value = text; $("ans").innerHTML = `<section class="card"><div class="note">Reading cohorts, the lab, the spider web and every tracker…</div></section>`;
+    if (!text.trim()) return; window.MM_SEL = null; const qi = $("qi"); qi.value = text; $("ans").innerHTML = `<section class="card"><div class="note">Reading cohorts, the lab, the spider web and every tracker…</div></section>`;
     if (!IDX.length) await base(); const q = { text, ...parse(text) };
     if (!q.m && q.unknown) { $("ans").innerHTML = `<section class="card"><div class="verdict A">${q.unknown}: not found</div><div class="note">${q.unknown} is not in the Hyperliquid list, the stock list or the leveraged fund list (${(FUNDS || []).length} funds known in this browser). I do not guess a different market from the name. If ${q.unknown} is a new fund, open LETF Sniper once (it saves the full fund list in this browser), then ask again. Or ask with the underlying ticker, for example "short BE" for a 2× short fund on Bloom Energy.</div></section>`; return; }
     if (!q.m) { $("ans").innerHTML = `<section class="card"><div class="verdict A">Market not found</div><div class="note">Try the ticker, for example "NVDA", "HYPE", "SOXL" or "$BE". The search knows every Hyperliquid market, every stock with leveraged funds and every leveraged fund.</div></section>`; return; }
