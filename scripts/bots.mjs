@@ -16,6 +16,8 @@
 //   3. Each version keeps a score (mean return per filled trade, by market class and by half hour of the day).
 //      The bots choose by Thompson sampling: a version with a good record is chosen often, a new one is tried
 //      sometimes, a version that clearly loses (30+ trades, 90% upper bound < 0) is benched.
+//      Since Nov 7 2026 the bots do not explore: new versions are tried only by the shadow trades, and a bot skips a
+//      signal in a half hour, or with an idea, whose paper record clearly loses for that class (see gate()).
 //   4. Before each day the bots replay the last 7 days of 1-minute bars (Yahoo), so they start with a record.
 //   5. Each bot trade gets a grade (A–F): result in ATRs, how much of the best price it kept, how far it went
 //      against the entry. Big swings of the day (8+ ATR in 30 minutes) are listed with "caught" or "missed".
@@ -125,7 +127,17 @@ const stat = x => { if (!x || !x.n) return { n: 0, m: 0, sd: 0.003 }; const m = 
 function score(S, cl, idea, k, plan, b) { const A = stat(S.arms[key(cl, idea, k, plan)]), B = stat(S.arms[key(cl, idea, k, plan) + "@" + b]), n0 = 15;
   const m = (A.n * A.m + B.n * B.m * 1.5) / (A.n + B.n * 1.5 + n0); const n = A.n + n0; return { m, se: A.sd / Math.sqrt(n), n: A.n, benched: A.n >= 30 && A.m + 1.28 * A.sd / Math.sqrt(A.n) < 0 }; }
 const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-function choose(S, cl, idea, b) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && Math.random() > 0.05) continue; const draw = s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
+// Gates before a bot trade (shadow trades are never gated, so the record of a gated idea or half hour keeps growing and
+// the gate opens again by itself when the record turns): a half hour of the day, or an idea, whose paper record for this
+// market class clearly loses (enough trades and the 90% upper bound of the mean below 0).
+const loses = (x, nMin) => x.n >= nMin && x.m + 1.28 * x.sd / Math.sqrt(x.n) < 0;
+// A half hour is gated only when it is clearly worse than the class's average half hour (the losing ideas pull every half
+// hour down, so "below 0" alone would close nearly all of them).
+function badTime(S, cl, b) { const x = stat(S.arms[`${cl}|*@${b}`]); if (x.n < 200 || x.m >= 0) return false; let n = 0, s = 0; for (let i = 0; i < 13; i++) { const y = stat(S.arms[`${cl}|*@${i}`]); n += y.n; s += y.m * y.n; }
+  return x.m + 1.28 * x.sd / Math.sqrt(x.n) < (n ? s / n : 0); }
+function gate(S, cl, idea, b) { if (badTime(S, cl, b)) return "time"; if (loses(stat(S.arms[`${cl}|${idea}|*`]), 100)) return "idea"; return null; }
+function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.skips || (S.skips = {}); if (k.d !== d) { for (const x of Object.keys(k)) delete k[x]; k.d = d; } const z = k[bk] || (k[bk] = { time: 0, idea: 0, unproven: 0 }); z[why]++; }
+function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && (strict || Math.random() > 0.05)) continue; const draw = s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
 
 // ---------- the engine over one symbol's day ----------
 let BT = false;
@@ -142,8 +154,13 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   for (const idea of sg) { for (const k of KS) for (const p of Object.keys(PLANS)) S.shadow.push(newOrder(sym, idea, k, p, F, i, t));
     if (shadowOnly) continue;
     for (const [bk, bot] of Object.entries(S.bots)) { if (!BOTS[bk].u.includes(sym)) continue; if (bot.orders.length >= MAXPOS || bot.orders.some(o => o.sym === sym)) continue;
-      const ch = choose(S, cls(sym), idea, bucket(m)); if (!ch) continue; const explore = ch.s.n < 30 || ch.s.m <= 0; if (ch.draw <= 0 && Math.random() > 0.25) continue;   // most bad draws skip; a quarter still trade (learning)
-      bot.orders.push(newOrder(sym, idea, ch.k, ch.p, F, i, t, { sig: +F.c[i].toFixed(4), explore: explore ? 1 : 0, exp: +ch.s.m.toFixed(5) })); }
+      const g = gate(S, cls(sym), idea, bucket(m)); if (g) { skip(S, bk, g); continue; }
+      const ch = choose(S, cls(sym), idea, bucket(m), true); if (!ch) { skip(S, bk, "unproven"); continue; }
+      // Nov 7 2026 review: "explore" trades (a version with little or a losing record) lost $236 over the three bots, the
+      // proven picks made about +$50. The shadow trades already test every version on every signal, so the bots now trade
+      // only a version with 30+ paper trades, a positive mean and a good draw.
+      if (ch.s.n < 30 || ch.s.m <= 0 || ch.draw <= 0) { skip(S, bk, "unproven"); continue; }
+      bot.orders.push(newOrder(sym, idea, ch.k, ch.p, F, i, t, { sig: +F.c[i].toFixed(4), explore: 0, exp: +ch.s.m.toFixed(5) })); }
   }
 }
 // big swings of the day: 8+ ATR up inside 30 minutes, low first (what a long-only bot could catch)
@@ -187,6 +204,10 @@ function report(S, note) {
   const all = Object.values(S.bots).flatMap(b => b.trades.filter(x => et(x.tx).d === today));
   for (const [sym, L] of Object.entries(S.swings)) L.forEach(w => { const hit = all.filter(x => x.sym === sym && x.tf >= w.t0 - 5 * 6e4 && x.tf <= w.t1 && x.r > 0); R.swings.push({ sym, ...w, caught: hit.length, usd: +hit.reduce((p, x) => p + x.usd, 0).toFixed(2) }); });
   R.swings.sort((a, b) => b.pct - a.pct); R.swings = R.swings.slice(0, 30);
+  // the gates as they stand now (what the bots will not trade), and today's skipped signals per bot
+  R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100)); }
+  R.skips = S.skips && S.skips.d === today ? S.skips : {};
+  R.rules = "Bots trade only versions with 30+ paper trades and a positive record; no trades in a half hour or with an idea whose paper record clearly loses for that class (the gates reopen when the record turns).";
   return R;
 }
 let lastPush = 0;
