@@ -125,8 +125,15 @@ function grade(o) {   // result in ATRs (60%), share of the best price kept (20%
 
 // ---------- the memory: scores of every version ----------
 const key = (cl, idea, k, plan) => `${cl}|${idea}|${k}|${plan}`;
-function rec(S, o) { const r = o.r; for (const kk of [key(o.cl, o.idea, o.k, o.plan), key(o.cl, o.idea, o.k, o.plan) + "@" + o.b, `${o.cl}|*@${o.b}`, `${o.cl}|${o.idea}|*`]) { const x = S.arms[kk] || (S.arms[kk] = { n: 0, s: 0, q: 0, w: 0 }); x.n++; x.s += r; x.q += r * r; if (r > 0) x.w++; if (x.n > 3000) { const f = 3000 / x.n; x.n = 3000; x.s *= f; x.q *= f; x.w *= f; } } }
-function tries(S, o) { const kk = key(o.cl, o.idea, o.k, o.plan), x = S.tr[kk] || (S.tr[kk] = [0, 0]); x[0]++; if (o.fill != null) x[1]++; }
+// The dated record (Nov 8 2026 EV review): the scores above have no dates, so no time gate or idea rule could be fitted
+// on older days and checked on newer days. dated(): per day, per class × idea × half hour and per version, [n, sum,
+// sum of squares, wins] of the paper trades that started that day (file dated.json, the last 30 days). A past day that
+// is already in the memory is replayed once more with DATED on: it fills only the dated record, not the scores.
+let DATED = false;
+function dated(S, o) { const D = S.dated || (S.dated = {}), z = D[et(o.t0).d] || (D[et(o.t0).d] = {});
+  for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan)]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
+function rec(S, o) { dated(S, o); if (DATED) return; const r = o.r; for (const kk of [key(o.cl, o.idea, o.k, o.plan), key(o.cl, o.idea, o.k, o.plan) + "@" + o.b, `${o.cl}|*@${o.b}`, `${o.cl}|${o.idea}|*`]) { const x = S.arms[kk] || (S.arms[kk] = { n: 0, s: 0, q: 0, w: 0 }); x.n++; x.s += r; x.q += r * r; if (r > 0) x.w++; if (x.n > 3000) { const f = 3000 / x.n; x.n = 3000; x.s *= f; x.q *= f; x.w *= f; } } }
+function tries(S, o) { if (DATED) return; const kk = key(o.cl, o.idea, o.k, o.plan), x = S.tr[kk] || (S.tr[kk] = [0, 0]); x[0]++; if (o.fill != null) x[1]++; }
 const stat = x => { if (!x || !x.n) return { n: 0, m: 0, sd: 0.003 }; const m = x.s / x.n, sd = Math.sqrt(Math.max(1e-8, x.q / x.n - m * m)); return { n: x.n, m, sd: Math.max(sd, 1e-4), w: x.w / x.n }; };
 function score(S, cl, idea, k, plan, b) { const A = stat(S.arms[key(cl, idea, k, plan)]), B = stat(S.arms[key(cl, idea, k, plan) + "@" + b]), n0 = 15;
   const m = (A.n * A.m + B.n * B.m * 1.5) / (A.n + B.n * 1.5 + n0); const n = A.n + n0; return { m, se: A.sd / Math.sqrt(n), n: A.n, benched: A.n >= 30 && A.m + 1.28 * A.sd / Math.sqrt(A.n) < 0 }; }
@@ -183,9 +190,19 @@ async function prep(S) {
   const marketOpenToday = !["Sat", "Sun"].includes(et(Date.now()).wd) && et(Date.now()).m < 961;
   for (const day of Object.keys(DAYS).sort()) { if (S.seeded["D:" + day] || (day >= today && !MOCK && marketOpenToday)) continue;
     const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; }); for (const b of Object.values(S.bots)) b.orders = [];
+    (S.dated || (S.dated = {}))[day] = {};   // the replay of the whole day replaces the live minutes' dated record (no double count)
     const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); BT = true;
     for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, false, i === B.length - 1); ptr[s]++; } }
-    BT = false; S.shadow = []; for (const b of Object.values(S.bots)) b.orders = []; S.seeded["D:" + day] = 1; n += syms.length; }
+    BT = false; S.shadow = []; for (const b of Object.values(S.bots)) b.orders = []; S.seeded["D:" + day] = 1; S.dated[day]._full = 1; n += syms.length; }
+  // the dated record of past days that were replayed before it existed (shadow trades only; the scores do not change)
+  let nd = 0; const keepShadow = S.shadow; for (const day of Object.keys(DAYS).sort()) { if (!S.seeded["D:" + day] || (S.dated && S.dated[day] && S.dated[day]._full)) continue;
+    const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; }); (S.dated || (S.dated = {}))[day] = {};
+    const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); DATED = true; BT = true; S.shadow = [];
+    for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, true, i === B.length - 1); ptr[s]++; } }
+    DATED = false; BT = false; S.shadow = []; S.dated[day]._full = 1; nd++; }
+  S.shadow = keepShadow;
+  if (S.dated) { const ks = Object.keys(S.dated).sort(); ks.slice(0, Math.max(0, ks.length - 30)).forEach(k => delete S.dated[k]); }
+  if (nd) console.log(`dated record: ${nd} past days filled`);
   const keep = Object.keys(S.seeded).sort().slice(-40); S.seeded = Object.fromEntries(keep.map(k => [k, 1]));
   console.log(`replayed ${n} symbol-days · data for ${data.filter(([, d]) => d && d.B.length).length} of ${ALL.length} symbols · ${data.reduce((p, [, d]) => p + (d ? d.B.length : 0), 0)} bars`);
 }
@@ -208,8 +225,11 @@ function report(S, note) {
   }
   for (const cl of ["S", "L"]) for (const idea of Object.keys(IDEAS)) for (const k of KS) for (const p of Object.keys(PLANS)) { const x = stat(S.arms[key(cl, idea, k, p)]), tr = S.tr[key(cl, idea, k, p)] || [0, 0]; if (x.n) R.arms.push({ cl, idea, k, plan: p, n: x.n, m: +x.m.toFixed(5), w: +(x.w || 0).toFixed(3), t: +(x.m / (x.sd / Math.sqrt(x.n))).toFixed(2), fill: tr[0] ? +(tr[1] / tr[0]).toFixed(2) : null, benched: x.n >= 30 && x.m + 1.28 * x.sd / Math.sqrt(x.n) < 0 }); }
   for (const cl of ["S", "L"]) R.times[cl] = Array.from({ length: 13 }, (_, b) => { const x = stat(S.arms[`${cl}|*@${b}`]); return { b, name: bname(b), n: x.n, m: +x.m.toFixed(5), w: x.n ? +x.w.toFixed(3) : null }; });
-  const all = Object.values(S.bots).flatMap(b => b.trades.filter(x => et(x.tx).d === today));
-  for (const [sym, L] of Object.entries(S.swings)) L.forEach(w => { const hit = all.filter(x => x.sym === sym && x.tf >= w.t0 - 5 * 6e4 && x.tf <= w.t1 && x.r > 0); R.swings.push({ sym, ...w, caught: hit.length, usd: +hit.reduce((p, x) => p + x.usd, 0).toFixed(2) }); });
+  // big swings of the last market day (S.day): "caught" = a LIVE bot trade filled in the swing and made money; "bt" = only
+  // the replay of that day caught it. Before Nov 8 2026 the test used only trades that ended "today", so after midnight and
+  // on weekends every swing showed "missed", and replay trades counted as caught.
+  const all = Object.values(S.bots).flatMap(b => b.trades); R.swingDay = S.day || null;
+  for (const [sym, L] of Object.entries(S.swings)) L.forEach(w => { const hit = all.filter(x => x.sym === sym && x.tf >= w.t0 - 5 * 6e4 && x.tf <= w.t1 && x.r > 0), lv = hit.filter(x => !x.bt); R.swings.push({ sym, ...w, caught: lv.length, bt: hit.length - lv.length, usd: +lv.reduce((p, x) => p + x.usd, 0).toFixed(2), usdBt: +hit.filter(x => x.bt).reduce((p, x) => p + x.usd, 0).toFixed(2) }); });
   R.swings.sort((a, b) => b.pct - a.pct); R.swings = R.swings.slice(0, 30);
   // the gates as they stand now (what the bots will not trade), and today's skipped signals per bot
   R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100)); }
@@ -220,7 +240,7 @@ function report(S, note) {
 let lastPush = 0;
 function save(S, note, force) {
   for (const b of Object.values(S.bots)) if (b.trades.length > 4000) b.trades = b.trades.slice(-4000);
-  io.w("state.json", S); io.w("bots.json", report(S, note));
+  io.w("state.json", S); io.w("bots.json", report(S, note)); io.w("dated.json", { at: Date.now(), cols: ["n", "sum r", "sum r²", "wins"], keys: "class|idea@half hour (0 = 9:30–10:00 ET) and class|idea|limit ATR|plan; trades by the day they started", days: S.dated || {} });
   if (!process.env.REMOTE || (!force && Date.now() - lastPush < 110000)) return; lastPush = Date.now();
   try { execSync(`cd ${OUT} && git add -A && (git commit -q --amend -m "bots $(date -u +%FT%TZ)" 2>/dev/null || git commit -q -m "bots $(date -u +%FT%TZ)") && git push -f -q "$REMOTE" HEAD:bots`, { stdio: "inherit", shell: "/bin/bash" }); } catch (e) { console.error("push failed", e.message); }
 }
