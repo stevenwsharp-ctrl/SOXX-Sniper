@@ -140,7 +140,9 @@ function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.sk
 function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && (strict || Math.random() > 0.05)) continue; const draw = s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
 
 // ---------- the engine over one symbol's day ----------
-let BT = false;
+let BT = false, EVF = {};
+// the EV governor's rulings (Cohort Sniper's ev branch, after each close): 0 = mute, 0.5 = cut, 1.25 = back
+async function evRules() { try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/ev/ev.json?t=" + Date.now()); if (!r.ok) return; const j = await r.json(), T = j.trackers && j.trackers.soxx; if (T && T.rules) EVF = T.rules; console.log(`EV rules: ${Object.keys(EVF).length} (${Object.entries(EVF).map(([k, v]) => k + "=" + v).join(", ")})`); } catch (e) { } }
 function emptyState() { return { v: 2, arms: {}, tr: {}, seeded: {}, bots: Object.fromEntries(Object.keys(BOTS).map(k => [k, { orders: [], trades: [], days: {} }])), shadow: [], swings: {}, last: {}, live: {} }; }
 // process bar i of the day (bars 0..i known). shadowOnly: the replay of past days (no bot trades).
 function onBar(S, sym, F, B, i, shadowOnly, last) {
@@ -154,6 +156,7 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   for (const idea of sg) { for (const k of KS) for (const p of Object.keys(PLANS)) S.shadow.push(newOrder(sym, idea, k, p, F, i, t));
     if (shadowOnly) continue;
     for (const [bk, bot] of Object.entries(S.bots)) { if (!BOTS[bk].u.includes(sym)) continue; if (bot.orders.length >= MAXPOS || bot.orders.some(o => o.sym === sym)) continue;
+      const evf = EVF[`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`] ?? 1; if (evf === 0 && !BT) { skip(S, bk, "EV muted"); continue; }   // EV governor: a muted idea is only shadow-traded (it keeps its score and can come back)
       const g = gate(S, cls(sym), idea, bucket(m)); if (g) { skip(S, bk, g); continue; }
       const ch = choose(S, cls(sym), idea, bucket(m), true); if (!ch) { skip(S, bk, "unproven"); continue; }
       // Nov 7 2026 review: "explore" trades (a version with little or a losing record) lost $236 over the three bots, the
@@ -222,7 +225,7 @@ function save(S, note, force) {
 async function main() {
   const S0 = io.r("state.json", {}), S = Object.assign(emptyState(), S0.v === 2 ? S0 : {});   // v2: the bots also trade the replay (a new memory) S.shadow = S.shadow || []; S.live = S.live || {};
   for (const k of Object.keys(BOTS)) S.bots[k] = Object.assign({ orders: [], trades: [], days: {} }, S.bots[k] || {});
-  await prep(S); save(S, "replayed the last 7 days", true);
+  await evRules(); await prep(S); save(S, "replayed the last 7 days", true);
   const t0 = Date.now(), maxMin = +(process.env.MAX_MIN || 340), today = et(Date.now()).d;
   const open = () => { const e = et(Date.now()); return !["Sat", "Sun"].includes(e.wd) && e.m >= 570 && e.m < 963; };
   // started before the open (the morning run): wait for 9:30 ET
