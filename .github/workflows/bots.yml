@@ -5,6 +5,8 @@ name: Paper bots
 # A job lasts at most 6 hours, so a market day has two runs: one starts before the open, one at about 2:50 PM ET
 # (EST; 1:50 PM in summer) and runs to the close. Only one run works at a time; the next waits in the queue.
 # On a push of the bot script, or when the market is closed, it only replays the last 7 days (the bots learn).
+# Since Nov 8 2026 each run starts the next one (scripts/bots.mjs relay()): the schedule alone started the first run of
+# the day at about 2:55 PM ET, so the bots traded only the last hour. A closed-market run sleeps until 20 min before the open.
 on:
   schedule:
     - cron: "5 13 * * 1-5"
@@ -17,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # a run starts the next run (workflow_dispatch): GitHub's schedule starts runs hours late
 
 concurrency:
   group: bots
@@ -42,4 +45,14 @@ jobs:
         env:
           REMOTE: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           MAX_MIN: "340"
+          NEXT_FILE: ${{ runner.temp }}/next-run
         run: node scripts/bots.mjs out auto
+      - name: Start the next run (the relay)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f "${{ runner.temp }}/next-run" ]; then
+            cat "${{ runner.temp }}/next-run"
+            gh workflow run bots.yml --repo "${GITHUB_REPOSITORY}" --ref main || echo "dispatch failed: the schedule is the back-up"
+          else echo "no next run asked"; fi

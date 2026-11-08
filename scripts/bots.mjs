@@ -18,6 +18,8 @@
 //      sometimes, a version that clearly loses (30+ trades, 90% upper bound < 0) is benched.
 //      Since Nov 7 2026 the bots do not explore: new versions are tried only by the shadow trades, and a bot skips a
 //      signal in a half hour, or with an idea, whose paper record clearly loses for that class (see gate()).
+//      Since Nov 8 2026 each run starts the next one (see relay()), so the bots trade the whole day, not only the late
+//      runs that GitHub's delayed schedule gave them.
 //   4. Before each day the bots replay the last 7 days of 1-minute bars (Yahoo), so they start with a record.
 //   5. Each bot trade gets a grade (A–F): result in ATRs, how much of the best price it kept, how far it went
 //      against the entry. Big swings of the day (8+ ATR in 30 minutes) are listed with "caught" or "missed".
@@ -232,7 +234,7 @@ async function main() {
   const open = () => { const e = et(Date.now()); return !["Sat", "Sun"].includes(e.wd) && e.m >= 570 && e.m < 963; };
   // started before the open (the morning run): wait for 9:30 ET
   { const e = et(Date.now()); if (MODE !== "prep" && !MOCK && !["Sat", "Sun"].includes(e.wd) && e.m < 570 && e.m >= 570 - 150) { console.log(`waiting ${570 - e.m} min for the open`); await sleep((570 - e.m) * 6e4 - (Date.now() % 6e4) + 5000); } }
-  if (MODE === "prep" || (!open() && !MOCK)) { console.log("market closed: replay only"); save(S, "market closed: replay only", true); return; }
+  if (MODE === "prep" || ((!open() || et(Date.now()).m >= 961) && !MOCK)) { console.log("market closed: replay only"); save(S, "market closed: replay only", true); if (MODE === "auto" && !MOCK) await relay(t0, maxMin); return; }
   // a new day: orders from an earlier day are gone (all trades end at 15:59)
   for (const b of Object.values(S.bots)) b.orders = b.orders.filter(o => et(o.t0).d === today); if (S.day !== today) { S.swings = {}; S.last = {}; S.shadow = []; S.day = today; }
   const C = {};   // today's bars per symbol
@@ -249,5 +251,21 @@ async function main() {
     await sleep(Math.max(5000, 60000 - (Date.now() - now)));
   }
   save(S, "stopped", true);
+  if (MODE === "auto" && !MOCK) next("the run ended (time limit or the close): the next run continues or replays today");
 }
+// ---------- the relay (Nov 8 2026 EV review) ----------
+// GitHub starts scheduled runs late or drops them: from Nov 4 to Nov 6 the first run of the day started at about 2:55 PM
+// ET, so the bots traded live only in the last hour (16 trades, −$72), the worst hour of the day in the paper record;
+// on Nov 3 a run started at the open (a push) and the bots made +$90 in 73 trades. So each run now starts the next one
+// itself (workflow_dispatch, which GitHub starts at once): a run that ends while the market is open, or at the close,
+// starts the next; a run that starts while the market is closed sleeps (at most about 5.3 hours, a job lasts at most 6)
+// until 20 minutes before the next open, then starts the next. The schedule stays as a back-up. Only one run works at
+// a time (the concurrency group), so extra runs wait or are cancelled; a failed dispatch only falls back to the schedule.
+function next(why) { if (!process.env.NEXT_FILE) return; try { fs.writeFileSync(process.env.NEXT_FILE, why + "\n"); console.log("next run: " + why); } catch (e) { } }
+function nextOpen(now) { for (let d = 0; d < 8; d++) { const t = now + d * 864e5, e = et(t), at = t + (570 - e.m) * 6e4 - (t % 6e4); if (!["Sat", "Sun"].includes(e.wd) && at > now) return at; } return now + 864e5; }
+async function relay(t0, maxMin) { if (!process.env.NEXT_FILE) return;
+  const open0 = nextOpen(Date.now());
+  const wake = open0 - 20 * 6e4, left = (maxMin - 15) * 6e4 - (Date.now() - t0), ms = Math.max(0, Math.min(wake - Date.now(), left));
+  console.log(`relay: next open ${new Date(open0).toISOString()}, sleeping ${Math.round(ms / 6e4)} min`); await sleep(ms);
+  next(Date.now() < wake - 5 * 6e4 ? "relay: the market is still closed, the next run sleeps again" : "relay: the open is near"); }
 main().catch(e => { console.error(e); process.exit(1); });
