@@ -104,7 +104,9 @@ function step(o, bar, last) {   // bar = [t, o, h, l, c, v]; returns true when t
   if (o.st === "open") { o.age++; if (lo <= o.lim) { o.fill = Math.min(op, o.lim); o.tf = t; o.st = "in"; o.hold = 0; o.mx = hi; o.mn = lo;
       o.stop = o.plan === "t6a" ? o.fill - 4 * o.a : o.plan === "tim" ? null : (o.swing < o.fill - 0.5 * o.a ? o.swing : o.fill - 2 * o.a);
       o.tgt = o.plan === "t3s" ? o.fill + 3 * o.a : o.plan === "t6s" || o.plan === "t6a" ? o.fill + 6 * o.a : null;
-      if (o.stop != null && lo <= o.stop && cl < o.fill) return exit(o, t, Math.min(o.stop, cl), "stop");   // the worst case inside the fill bar
+      // the stop is below the fill, so a low at or under the stop in the fill bar came after the fill: the stop hit, even
+      // when the bar closed back above the fill (before Nov 8 2026 such a trade lived on: a too-kind fill rule)
+      if (o.stop != null && lo <= o.stop) return exit(o, t, Math.min(o.stop, cl), "stop");   // the worst case inside the fill bar
       if (last) return exit(o, t, cl, "close"); return false; }
     if (o.age >= ALIVE || last) { o.st = "cancel"; return true; } return false; }
   o.hold++; o.mx = Math.max(o.mx, hi); o.mn = Math.min(o.mn, lo);
