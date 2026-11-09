@@ -44,6 +44,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // ---------- time (US Eastern) ----------
 const ETF = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "numeric", hourCycle: "h23", weekday: "short" });
 const et = t => { const p = Object.fromEntries(ETF.formatToParts(new Date(t)).map(x => [x.type, x.value])); return { d: `${p.year}-${p.month}-${p.day}`, m: +p.hour * 60 + +p.minute, wd: p.weekday }; };
+// US market holidays and early closes (NYSE; Nov 9 2026 review): on a holiday the bots stay idle and the relay skips the
+// day; on an early close (1:00 PM ET) the last signal is 30 minutes before the close and every trade ends at 12:59.
+const HOLI = new Set(["2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18", "2027-02-15"]), HALF = new Set(["2026-11-27", "2026-12-24"]);
+const closeM = d => HALF.has(d) ? 780 : 960, tradeDay = e => !["Sat", "Sun"].includes(e.wd) && !HOLI.has(e.d);
 const bucket = m => Math.max(0, Math.min(12, Math.floor((m - 570) / 30)));   // 0 = 9:30–10:00 … 12 = 15:30–16:00
 const bname = b => { const m = 570 + b * 30, f = x => `${Math.floor(x / 60) > 12 ? Math.floor(x / 60) - 12 : Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; return `${f(m)}–${f(m + 30)}`; };
 
@@ -59,7 +63,7 @@ async function chart(sym, range) {
   if (MOCK) return mockBars(sym, range);
   const j = await http(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1m&range=${range}&includePrePost=false`);
   const r = j && j.chart && j.chart.result && j.chart.result[0]; if (!r || !r.timestamp) return null; const q = r.indicators.quote[0], B = [];
-  r.timestamp.forEach((t, i) => { const o = q.open[i], h = q.high[i], l = q.low[i], c = q.close[i]; if ([o, h, l, c].some(v => v == null || !(v > 0))) return; const e = et(t * 1000); if (e.m < 570 || e.m >= 960) return; B.push([t * 1000, o, h, l, c, q.volume[i] || 0]); });
+  r.timestamp.forEach((t, i) => { const o = q.open[i], h = q.high[i], l = q.low[i], c = q.close[i]; if ([o, h, l, c].some(v => v == null || !(v > 0))) return; const e = et(t * 1000); if (e.m < 570 || e.m >= closeM(e.d)) return; B.push([t * 1000, o, h, l, c, q.volume[i] || 0]); });
   return { B, prev: r.meta && r.meta.chartPreviousClose };
 }
 async function pool(items, n, f) { const out = new Array(items.length); let k = 0; await Promise.all(Array.from({ length: n }, async () => { while (k < items.length) { const i = k++; out[i] = await f(items[i], i); } })); return out; }
@@ -82,8 +86,8 @@ function feats(B) {
   const orH = n >= 15 ? Math.max(...h.slice(0, 15)) : null, orL = n >= 15 ? Math.min(...l.slice(0, 15)) : null;
   return { n, c, h, l, o, v, atr, e9, e21, rsi, vw, vsd, rv, orH, orL };
 }
-function signals(F, i, m) {
-  if (i < 20 || m < 575 || m > 930) return [];   // 9:35–15:30 only: a 5–30 minute trade needs room
+function signals(F, i, m, cm = 960) {
+  if (i < 20 || m < 575 || m > cm - 30) return [];   // 9:35–15:30 only (30 min before an early close): a 5–30 minute trade needs room
   const { c, h, l, o, atr, e9, e21, rsi, vw, vsd, rv } = F, S = [];
   const dayH = Math.max(...h.slice(0, i)), lvl = Math.max(F.orH || 0, dayH);
   if (i >= 15 && c[i] > lvl && c[i - 1] <= lvl && rv[i] >= 1.3) S.push("brk");
@@ -144,9 +148,22 @@ const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v)
 const loses = (x, nMin) => x.n >= nMin && x.m + 1.28 * x.sd / Math.sqrt(x.n) < 0;
 // A half hour is gated only when it is clearly worse than the class's average half hour (the losing ideas pull every half
 // hour down, so "below 0" alone would close nearly all of them).
-function badTime(S, cl, b) { const x = stat(S.arms[`${cl}|*@${b}`]); if (x.n < 200 || x.m >= 0) return false; let n = 0, s = 0; for (let i = 0; i < 13; i++) { const y = stat(S.arms[`${cl}|*@${i}`]); n += y.n; s += y.m * y.n; }
+// Nov 9 2026 EV review: the gate now uses only the ideas that the bot can trade (not muted by the EV governor; in the
+// replay, all ideas), from the dated record of the days BEFORE the trade's day (no look-ahead). Before, it averaged all
+// six ideas, and five of them are muted and lose; so it closed half hours where the squeeze break wins (spot 10:00–10:30:
+// sqz +42 bps). Walk-forward (dated.json, fit on the days before each test day, test Nov 4, 5, 6, 9): sqz trades the
+// old all-idea gate let through made spot +$8 and funds +$71 (summed per signal); with the gate on sqz only (same rule,
+// n ≥ 200, which closed no half hour then) spot +$43 and funds +$154. A half hour with fewer than 200 such trades stays open.
+const tradable = cl => Object.keys(IDEAS).filter(i => BT || (EVF[`idea.${cl === "L" ? "funds" : "spot"}.${i}`] ?? 1) !== 0);
+const TG = {};
+function timeRec(S, cl, day) { const ids = tradable(cl), ck = cl + day + ids.join(",") + (S.dated ? Object.keys(S.dated).length : 0);
+  if (TG[cl] && TG[cl].ck === ck) return TG[cl].xs;
+  const xs = Array.from({ length: 13 }, () => ({ n: 0, s: 0, q: 0, w: 0 }));
+  for (const [d, z] of Object.entries(S.dated || {})) { if (d >= day) continue; for (const i of ids) for (let b = 0; b < 13; b++) { const v = z[`${cl}|${i}@${b}`]; if (v) { xs[b].n += v[0]; xs[b].s += v[1]; xs[b].q += v[2]; xs[b].w += v[3]; } } }
+  TG[cl] = { ck, xs }; return xs; }
+function badTime(S, cl, b, day) { const xs = timeRec(S, cl, day), x = stat(xs[b]); if (x.n < 200 || x.m >= 0) return false; let n = 0, s = 0; for (const y of xs) { n += y.n; s += y.s; }
   return x.m + 1.28 * x.sd / Math.sqrt(x.n) < (n ? s / n : 0); }
-function gate(S, cl, idea, b) { if (badTime(S, cl, b)) return "time"; if (loses(stat(S.arms[`${cl}|${idea}|*`]), 100)) return "idea"; return null; }
+function gate(S, cl, idea, b, day) { if (badTime(S, cl, b, day)) return "time"; if (loses(stat(S.arms[`${cl}|${idea}|*`]), 100)) return "idea"; return null; }
 function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.skips || (S.skips = {}); if (k.d !== d) { for (const x of Object.keys(k)) delete k[x]; k.d = d; } const z = k[bk] || (k[bk] = { time: 0, idea: 0, unproven: 0 }); z[why]++; }
 function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && (strict || Math.random() > 0.05)) continue; const draw = s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
 
@@ -163,12 +180,12 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   if (!shadowOnly) for (const [bk, bot] of Object.entries(S.bots)) bot.orders = bot.orders.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done && o.st === "done") { const g = grade(o); bot.trades.push({ sym, idea: o.idea, k: o.k, plan: o.plan, t0: o.t0, tf: o.tf, tx: o.tx, fill: +o.fill.toFixed(4), px: +o.px.toFixed(4), r: +o.r.toFixed(5), usd: +(UNIT * o.r).toFixed(2), why: o.why, min: o.min, mfe: +o.mfe.toFixed(5), mae: +o.mae.toFixed(5), g, sig: o.sig, explore: o.explore || 0, bt: BT ? 1 : 0 }); } return !done; });
   if (last) return;
   // 2. new signals on this closed bar
-  const sg = signals(F, i, m); if (!sg.length) return;
+  const sg = signals(F, i, m, closeM(et(t).d)); if (!sg.length) return;
   for (const idea of sg) { for (const k of KS) for (const p of Object.keys(PLANS)) S.shadow.push(newOrder(sym, idea, k, p, F, i, t));
     if (shadowOnly) continue;
     for (const [bk, bot] of Object.entries(S.bots)) { if (!BOTS[bk].u.includes(sym)) continue; if (bot.orders.length >= MAXPOS || bot.orders.some(o => o.sym === sym)) continue;
       const evf = EVF[`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`] ?? 1; if (evf === 0 && !BT) { skip(S, bk, "EV muted"); continue; }   // EV governor: a muted idea is only shadow-traded (it keeps its score and can come back)
-      const g = gate(S, cls(sym), idea, bucket(m)); if (g) { skip(S, bk, g); continue; }
+      const g = gate(S, cls(sym), idea, bucket(m), et(t).d); if (g) { skip(S, bk, g); continue; }
       const ch = choose(S, cls(sym), idea, bucket(m), true); if (!ch) { skip(S, bk, "unproven"); continue; }
       // Nov 7 2026 review: "explore" trades (a version with little or a losing record) lost $236 over the three bots, the
       // proven picks made about +$50. The shadow trades already test every version on every signal, so the bots now trade
@@ -187,7 +204,7 @@ async function prep(S) {
   // day by day, all symbols minute by minute together: the bots trade the past as they would have (walk-forward: each
   // choice uses only what was learned before that minute), and every shadow trade feeds the memory
   const DAYS = {}; for (const [sym, d] of data) { if (!d || !d.B.length) continue; for (const [day, B] of byDay(d.B)) if (B.length >= 100) (DAYS[day] = DAYS[day] || {})[sym] = B; }
-  const marketOpenToday = !["Sat", "Sun"].includes(et(Date.now()).wd) && et(Date.now()).m < 961;
+  const marketOpenToday = tradeDay(et(Date.now())) && et(Date.now()).m < closeM(today) + 1;
   for (const day of Object.keys(DAYS).sort()) { if (S.seeded["D:" + day] || (day >= today && !MOCK && marketOpenToday)) continue;
     const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; }); for (const b of Object.values(S.bots)) b.orders = [];
     (S.dated || (S.dated = {}))[day] = {};   // the replay of the whole day replaces the live minutes' dated record (no double count)
@@ -232,9 +249,10 @@ function report(S, note) {
   for (const [sym, L] of Object.entries(S.swings)) L.forEach(w => { const hit = all.filter(x => x.sym === sym && x.tf >= w.t0 - 5 * 6e4 && x.tf <= w.t1 && x.r > 0), lv = hit.filter(x => !x.bt); R.swings.push({ sym, ...w, caught: lv.length, bt: hit.length - lv.length, usd: +lv.reduce((p, x) => p + x.usd, 0).toFixed(2), usdBt: +hit.filter(x => x.bt).reduce((p, x) => p + x.usd, 0).toFixed(2) }); });
   R.swings.sort((a, b) => b.pct - a.pct); R.swings = R.swings.slice(0, 30);
   // the gates as they stand now (what the bots will not trade), and today's skipped signals per bot
-  R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100)); }
+  R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b, today)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100));
+    const xs = timeRec(S, cl, today); R.gates.basis = R.gates.basis || {}; R.gates.basis[cl] = { ideas: tradable(cl), rows: xs.map((x, b) => ({ b, name: bname(b), n: x.n, m: x.n ? +(x.s / x.n).toFixed(5) : null, shut: badTime(S, cl, b, today) })).filter(x => x.n) }; }
   R.skips = S.skips && S.skips.d === today ? S.skips : {};
-  R.rules = "Bots trade only versions with 30+ paper trades and a positive record; no trades in a half hour or with an idea whose paper record clearly loses for that class (the gates reopen when the record turns).";
+  R.rules = "Bots trade only versions with 30+ paper trades and a positive record; no trades with an idea whose paper record clearly loses for that class, or in a half hour where the ideas the bot can trade (not muted) clearly lose, from the dated record of earlier days (200+ trades; the gates reopen when the record turns).";
   return R;
 }
 let lastPush = 0;
@@ -251,10 +269,10 @@ async function main() {
   for (const k of Object.keys(BOTS)) S.bots[k] = Object.assign({ orders: [], trades: [], days: {} }, S.bots[k] || {});
   await evRules(); await prep(S); save(S, "replayed the last 7 days", true);
   const t0 = Date.now(), maxMin = +(process.env.MAX_MIN || 340), today = et(Date.now()).d;
-  const open = () => { const e = et(Date.now()); return !["Sat", "Sun"].includes(e.wd) && e.m >= 570 && e.m < 963; };
+  const open = () => { const e = et(Date.now()); return tradeDay(e) && e.m >= 570 && e.m < closeM(e.d) + 3; };
   // started before the open (the morning run): wait for 9:30 ET
-  { const e = et(Date.now()); if (MODE !== "prep" && !MOCK && !["Sat", "Sun"].includes(e.wd) && e.m < 570 && e.m >= 570 - 150) { console.log(`waiting ${570 - e.m} min for the open`); await sleep((570 - e.m) * 6e4 - (Date.now() % 6e4) + 5000); } }
-  if (MODE === "prep" || ((!open() || et(Date.now()).m >= 961) && !MOCK)) { console.log("market closed: replay only"); save(S, "market closed: replay only", true); if (MODE === "auto" && !MOCK) await relay(t0, maxMin); return; }
+  { const e = et(Date.now()); if (MODE !== "prep" && !MOCK && tradeDay(e) && e.m < 570 && e.m >= 570 - 150) { console.log(`waiting ${570 - e.m} min for the open`); await sleep((570 - e.m) * 6e4 - (Date.now() % 6e4) + 5000); } }
+  if (MODE === "prep" || ((!open() || et(Date.now()).m >= closeM(today) + 1) && !MOCK)) { console.log("market closed: replay only"); save(S, "market closed: replay only", true); if (MODE === "auto" && !MOCK) await relay(t0, maxMin); return; }
   // a new day: orders from an earlier day are gone (all trades end at 15:59)
   for (const b of Object.values(S.bots)) b.orders = b.orders.filter(o => et(o.t0).d === today); if (S.day !== today) { S.swings = {}; S.last = {}; S.shadow = []; S.day = today; }
   const C = {};   // today's bars per symbol
@@ -263,11 +281,11 @@ async function main() {
     const got = await pool(ALL, 6, async s => [s, await chart(s, "1d")]);
     for (const [sym, d] of got) { if (!d || !d.B.length) continue; const B = d.B.filter(b => et(b[0]).d === today && (b[0] + 6e4 <= now || MOCK)); if (!B.length) continue; C[sym] = B;
       S.live[sym] = +B[B.length - 1][4].toFixed(4); const F = feats(B), from = S.last[sym] == null ? 0 : B.findIndex(b => b[0] > S.last[sym]); if (from < 0) continue;
-      const isLast = i => et(B[i][0]).m >= 959;
+      const isLast = i => et(B[i][0]).m >= closeM(today) - 1;
       for (let i = from; i < B.length; i++) onBar(S, sym, F, B, i, from === 0 && i < B.length - 3 && S.last[sym] == null && loop === 0 && !MOCK ? true : false, isLast(i));
       S.last[sym] = B[B.length - 1][0]; S.swings[sym] = swings(F, B); }
     save(S, `live · ${e.d} ${Math.floor(e.m / 60)}:${String(e.m % 60).padStart(2, "0")} ET`);
-    if (MOCK || e.m >= 961 || (now - t0) / 6e4 > maxMin) break;
+    if (MOCK || e.m >= closeM(e.d) + 1 || (now - t0) / 6e4 > maxMin) break;
     await sleep(Math.max(5000, 60000 - (Date.now() - now)));
   }
   save(S, "stopped", true);
@@ -282,7 +300,7 @@ async function main() {
 // until 20 minutes before the next open, then starts the next. The schedule stays as a back-up. Only one run works at
 // a time (the concurrency group), so extra runs wait or are cancelled; a failed dispatch only falls back to the schedule.
 function next(why) { if (!process.env.NEXT_FILE) return; try { fs.writeFileSync(process.env.NEXT_FILE, why + "\n"); console.log("next run: " + why); } catch (e) { } }
-function nextOpen(now) { for (let d = 0; d < 8; d++) { const t = now + d * 864e5, e = et(t), at = t + (570 - e.m) * 6e4 - (t % 6e4); if (!["Sat", "Sun"].includes(e.wd) && at > now) return at; } return now + 864e5; }
+function nextOpen(now) { for (let d = 0; d < 8; d++) { const t = now + d * 864e5, e = et(t), at = t + (570 - e.m) * 6e4 - (t % 6e4); if (tradeDay(e) && at > now) return at; } return now + 864e5; }
 async function relay(t0, maxMin) { if (!process.env.NEXT_FILE) return;
   const open0 = nextOpen(Date.now());
   const wake = open0 - 20 * 6e4, left = (maxMin - 15) * 6e4 - (Date.now() - t0), ms = Math.max(0, Math.min(wake - Date.now(), left));
