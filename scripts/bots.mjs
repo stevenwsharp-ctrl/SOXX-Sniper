@@ -159,9 +159,19 @@ const TG = {};
 function timeRec(S, cl, day) { const ids = tradable(cl), ck = cl + day + ids.join(",") + (S.dated ? Object.keys(S.dated).length : 0);
   if (TG[cl] && TG[cl].ck === ck) return TG[cl].xs;
   const xs = Array.from({ length: 13 }, () => ({ n: 0, s: 0, q: 0, w: 0 }));
-  for (const [d, z] of Object.entries(S.dated || {})) { if (d >= day) continue; for (const i of ids) for (let b = 0; b < 13; b++) { const v = z[`${cl}|${i}@${b}`]; if (v) { xs[b].n += v[0]; xs[b].s += v[1]; xs[b].q += v[2]; xs[b].w += v[3]; } } }
+  for (const [d, z] of Object.entries(S.dated || {})) { if (d >= day) continue; for (const i of ids) for (let b = 0; b < 13; b++) { const v = z[`${cl}|${i}@${b}`]; if (v && v[0] > 0) { xs[b].n += v[0]; xs[b].s += v[1]; xs[b].q += v[2]; xs[b].w += v[3]; const y = (xs[b].dd || (xs[b].dd = {}))[d] || (xs[b].dd[d] = [0, 0]); y[0] += v[0]; y[1] += v[1]; } } }
   TG[cl] = { ck, xs }; return xs; }
-function badTime(S, cl, b, day) { const xs = timeRec(S, cl, day), x = stat(xs[b]); if (x.n < 200 || x.m >= 0) return false; let n = 0, s = 0; for (const y of xs) { n += y.n; s += y.s; }
+// Nov 10 2026 EV review (council task): a half hour is also shut when the scorecard's own mute rule holds on the days
+// BEFORE the trade's day: 4+ days and 30+ trades, mean < 0 and z over the per-day means ≤ −2 (each day counts one time,
+// same as half.* in ev.mjs; no new threshold). The 200-trade rule kept funds 11:30–12:00 open (n 175, 5 losing days of 5).
+// Walk-forward (dated.json, fit on the days before each test day, test Oct 30 – Nov 10, sqz, $1,000 per signal): the
+// 200-trade rule alone let through spot +$43, funds +$210; with the day rule added spot +$77, funds +$233. It shut two
+// losing blocks (Nov 9 spot 12:00–12:30 −$34, funds 11:30–12:00 −$23) and no winning block. The cut level (z ≤ −1)
+// shut a winning block (funds 11:00–11:30 +$19), so it is not used.
+function dayZ(x) { const dm = Object.values(x.dd || {}).map(v => v[1] / v[0]), D = dm.length; if (D < 4 || x.n < 30) return null;
+  const m = dm.reduce((p, q) => p + q, 0) / D, sd = Math.sqrt(dm.reduce((p, q) => p + (q - m) ** 2, 0) / (D - 1)) || 1e-9; return { D, z: m / (sd / Math.sqrt(D)) }; }
+const dayMute = x => { const r = dayZ(x); return !!r && x.s < 0 && r.z <= -2; };
+function badTime(S, cl, b, day) { const xs = timeRec(S, cl, day), x = stat(xs[b]); if (dayMute(xs[b])) return true; if (x.n < 200 || x.m >= 0) return false; let n = 0, s = 0; for (const y of xs) { n += y.n; s += y.s; }
   return x.m + 1.28 * x.sd / Math.sqrt(x.n) < (n ? s / n : 0); }
 function gate(S, cl, idea, b, day) { if (badTime(S, cl, b, day)) return "time"; if (loses(stat(S.arms[`${cl}|${idea}|*`]), 100)) return "idea"; return null; }
 function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.skips || (S.skips = {}); if (k.d !== d) { for (const x of Object.keys(k)) delete k[x]; k.d = d; } const z = k[bk] || (k[bk] = { time: 0, idea: 0, unproven: 0 }); z[why]++; }
@@ -250,9 +260,9 @@ function report(S, note) {
   R.swings.sort((a, b) => b.pct - a.pct); R.swings = R.swings.slice(0, 30);
   // the gates as they stand now (what the bots will not trade), and today's skipped signals per bot
   R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b, today)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100));
-    const xs = timeRec(S, cl, today); R.gates.basis = R.gates.basis || {}; R.gates.basis[cl] = { ideas: tradable(cl), rows: xs.map((x, b) => ({ b, name: bname(b), n: x.n, m: x.n ? +(x.s / x.n).toFixed(5) : null, shut: badTime(S, cl, b, today) })).filter(x => x.n) }; }
+    const xs = timeRec(S, cl, today); R.gates.basis = R.gates.basis || {}; R.gates.basis[cl] = { ideas: tradable(cl), rows: xs.map((x, b) => { const r = dayZ(x); return { b, name: bname(b), n: x.n, m: x.n ? +(x.s / x.n).toFixed(5) : null, days: r ? r.D : null, dz: r ? +r.z.toFixed(2) : null, shut: badTime(S, cl, b, today) }; }).filter(x => x.n) }; }
   R.skips = S.skips && S.skips.d === today ? S.skips : {};
-  R.rules = "Bots trade only versions with 30+ paper trades and a positive record; no trades with an idea whose paper record clearly loses for that class, or in a half hour where the ideas the bot can trade (not muted) clearly lose, from the dated record of earlier days (200+ trades; the gates reopen when the record turns).";
+  R.rules = "Bots trade only versions with 30+ paper trades and a positive record; no trades with an idea whose paper record clearly loses for that class, or in a half hour where the ideas the bot can trade (not muted) clearly lose, from the dated record of earlier days (200+ trades, or 4+ days with a day z of −2 or lower, the scorecard's mute rule; the gates reopen when the record turns).";
   return R;
 }
 let lastPush = 0;
