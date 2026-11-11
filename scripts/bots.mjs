@@ -262,13 +262,26 @@ function report(S, note) {
   R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b, today)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100));
     const xs = timeRec(S, cl, today); R.gates.basis = R.gates.basis || {}; R.gates.basis[cl] = { ideas: tradable(cl), rows: xs.map((x, b) => { const r = dayZ(x); return { b, name: bname(b), n: x.n, m: x.n ? +(x.s / x.n).toFixed(5) : null, days: r ? r.D : null, dz: r ? +r.z.toFixed(2) : null, shut: badTime(S, cl, b, today) }; }).filter(x => x.n) }; }
   R.skips = S.skips && S.skips.d === today ? S.skips : {};
+  // the bots' LIVE trades by the time of the signal (all live trades in the memory): before 11:30 ET and from 11:30 on
+  R.liveTime = {}; for (const [bk, bot] of Object.entries(S.bots)) { const z = { early: { n: 0, usd: 0, days: [] }, late: { n: 0, usd: 0, days: [] } };
+    for (const x of bot.trades) { if (x.bt || !x.t0) continue; const e = et(x.t0), y = z[e.m < 690 ? "early" : "late"]; y.n++; y.usd += x.usd; if (!y.days.includes(e.d)) y.days.push(e.d); }
+    R.liveTime[bk] = Object.fromEntries(Object.entries(z).map(([k, y]) => [k, { n: y.n, usd: +y.usd.toFixed(2), days: y.days.length }])); }
   R.rules = "Bots trade only versions with 30+ paper trades and a positive record; no trades with an idea whose paper record clearly loses for that class, or in a half hour where the ideas the bot can trade (not muted) clearly lose, from the dated record of earlier days (200+ trades, or 4+ days with a day z of −2 or lower, the scorecard's mute rule; the gates reopen when the record turns).";
   return R;
 }
+// Nov 11 2026 EV review (council task): the LIVE bot trades per day and half hour of the signal, from all live trades in
+// the memory (state.json keeps 4,000 trades per bot; bots.json only the last 60, so the scorecard's live.* items rolled).
+// Keys in dated.json: "live|<bot>@<half hour>" → [n, sum r, sum r², wins], by the day the signal came (ET). Built again from
+// the trades at every save, so a replay of the day (which resets the shadow record) cannot remove or double them.
+function liveRec(S) { const out = {};
+  for (const [bk, bot] of Object.entries(S.bots)) for (const x of bot.trades) { if (x.bt || !x.t0 || !isFinite(x.r)) continue; const e = et(x.t0), z = out[e.d] || (out[e.d] = {}), kk = `live|${bk}@${bucket(e.m)}`, v = z[kk] || (z[kk] = [0, 0, 0, 0]);
+    v[0]++; v[1] = +(v[1] + x.r).toFixed(6); v[2] = +(v[2] + x.r * x.r).toFixed(8); if (x.r > 0) v[3]++; }
+  return out; }
+function datedOut(S) { const D = {}, L = liveRec(S); for (const [d, z] of Object.entries(S.dated || {})) D[d] = { ...z }; for (const [d, z] of Object.entries(L)) D[d] = { ...(D[d] || {}), ...z }; return D; }
 let lastPush = 0;
 function save(S, note, force) {
   for (const b of Object.values(S.bots)) if (b.trades.length > 4000) b.trades = b.trades.slice(-4000);
-  io.w("state.json", S); io.w("bots.json", report(S, note)); io.w("dated.json", { at: Date.now(), cols: ["n", "sum r", "sum r²", "wins"], keys: "class|idea@half hour (0 = 9:30–10:00 ET) and class|idea|limit ATR|plan; trades by the day they started", days: S.dated || {} });
+  io.w("state.json", S); io.w("bots.json", report(S, note)); io.w("dated.json", { at: Date.now(), cols: ["n", "sum r", "sum r²", "wins"], keys: "class|idea@half hour (0 = 9:30–10:00 ET) and class|idea|limit ATR|plan (paper trades); live|bot@half hour (the bots' LIVE trades, all of them); trades by the day they started", days: datedOut(S) });
   if (!process.env.REMOTE || (!force && Date.now() - lastPush < 110000)) return; lastPush = Date.now();
   try { execSync(`cd ${OUT} && git add -A && (git commit -q --amend -m "bots $(date -u +%FT%TZ)" 2>/dev/null || git commit -q -m "bots $(date -u +%FT%TZ)") && git push -f -q "$REMOTE" HEAD:bots`, { stdio: "inherit", shell: "/bin/bash" }); } catch (e) { console.error("push failed", e.message); }
 }
