@@ -205,7 +205,21 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   }
 }
 // big swings of the day: 8+ ATR up inside 30 minutes, low first (what a long-only bot could catch)
-function swings(F, B) { const out = []; let i = 0; while (i < F.n - 5) { let best = null; for (let j = i + 1; j < Math.min(F.n, i + 30); j++) { const up = F.h[j] - F.l[i]; if (up >= 8 * F.atr[i] && (!best || up > best.up)) best = { j, up }; } if (best) { out.push({ t0: B[i][0], t1: B[best.j][0], from: F.l[i], to: F.h[best.j], pct: +(F.h[best.j] / F.l[i] - 1).toFixed(4) }); i = best.j + 1; } else i++; } return out; }
+function swings(F, B) { const out = []; let i = 0; while (i < F.n - 5) { let best = null; for (let j = i + 1; j < Math.min(F.n, i + 30); j++) { const up = F.h[j] - F.l[i]; if (up >= 8 * F.atr[i] && (!best || up > best.up)) best = { j, up }; } if (best) { out.push({ t0: B[i][0], t1: B[best.j][0], from: F.l[i], to: F.h[best.j], pct: +(F.h[best.j] / F.l[i] - 1).toFixed(4), ...swingWhy(F, B, i) }); i = best.j + 1; } else i++; } return out; }
+// Nov 12 2026 EV review (backlog: the big swings the bots miss; Nov 11 and 12: 10 and 12 of 30 swings started 10:20–10:40
+// ET, none caught live). For each swing: "pre" = the signals of ALL ideas (also the muted ones) on that symbol from 10
+// minutes before the swing low to 5 minutes after it ("sqz@-3" = a squeeze break 3 minutes before the low), and "ctx" =
+// what was known at the low bar (bars up to the low only): distance from VWAP in σ, RSI, 5-minute volume against the day's
+// average, change from the open, and whether the low was the low of the day so far. Data only: no bot rule reads it.
+// swings.json keeps the 50 largest swings of each of the last 20 market days, so a swing signal can be fitted on older days and tested on newer days.
+function swingWhy(F, B, i) { const pre = [], cm = closeM(et(B[i][0]).d);
+  for (let j = Math.max(0, i - 10); j <= Math.min(F.n - 1, i + 5); j++) for (const idea of signals(F, j, et(B[j][0]).m, cm)) pre.push(`${idea}@${j - i}`);
+  const r = (x, d) => isFinite(x) ? +x.toFixed(d) : null;
+  return { pre, ctx: { m: et(B[i][0]).m, vz: r((F.c[i] - F.vw[i]) / F.vsd[i], 2), rsi: r(F.rsi[i], 1), rv: r(F.rv[i], 2), open: r(F.c[i] / F.o[0] - 1, 4), dayLow: F.l[i] <= Math.min(...F.l.slice(0, i + 1)) ? 1 : 0 } }; }
+// the swing log of one market day (all symbols), with "caught" = a LIVE bot trade filled in the swing and made money
+function swingLog(S, day, SW) { const all = Object.values(S.bots).flatMap(b => b.trades.filter(x => !x.bt)), L = [];
+  for (const [sym, W] of Object.entries(SW)) for (const w of W) L.push({ sym, ...w, caught: all.filter(x => x.sym === sym && x.tf >= w.t0 - 5 * 6e4 && x.tf <= w.t1 && x.r > 0).length });
+  const g = S.swingLog || (S.swingLog = {}); g[day] = L.sort((a, b) => b.pct - a.pct).slice(0, 50); Object.keys(g).sort().slice(0, -20).forEach(k => delete g[k]); }
 
 // ---------- replay of past days (seeds the memory) ----------
 async function prep(S) {
@@ -228,6 +242,7 @@ async function prep(S) {
     for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, true, i === B.length - 1); ptr[s]++; } }
     DATED = false; BT = false; S.shadow = []; S.dated[day]._full = 1; nd++; }
   S.shadow = keepShadow;
+  for (const day of Object.keys(DAYS).sort()) { if (day >= today) continue; const SW = {}; for (const [sym, B] of Object.entries(DAYS[day])) { const W = swings(feats(B), B); if (W.length) SW[sym] = W; } swingLog(S, day, SW); }
   if (S.dated) { const ks = Object.keys(S.dated).sort(); ks.slice(0, Math.max(0, ks.length - 30)).forEach(k => delete S.dated[k]); }
   if (nd) console.log(`dated record: ${nd} past days filled`);
   const keep = Object.keys(S.seeded).sort().slice(-40); S.seeded = Object.fromEntries(keep.map(k => [k, 1]));
@@ -281,7 +296,7 @@ function datedOut(S) { const D = {}, L = liveRec(S); for (const [d, z] of Object
 let lastPush = 0;
 function save(S, note, force) {
   for (const b of Object.values(S.bots)) if (b.trades.length > 4000) b.trades = b.trades.slice(-4000);
-  io.w("state.json", S); io.w("bots.json", report(S, note)); io.w("dated.json", { at: Date.now(), cols: ["n", "sum r", "sum r²", "wins"], keys: "class|idea@half hour (0 = 9:30–10:00 ET) and class|idea|limit ATR|plan (paper trades); live|bot@half hour (the bots' LIVE trades, all of them); trades by the day they started", days: datedOut(S) });
+  io.w("state.json", S); io.w("bots.json", report(S, note)); io.w("swings.json", { at: Date.now(), note: "the 50 largest big swings (8+ ATR up inside 30 minutes) per market day; pre = signals of all ideas from 10 min before the low to 5 min after (idea@minutes from the low); ctx = known at the low bar: m minute of the day (570 = 9:30 ET), vz distance from VWAP in sigma, rsi, rv 5-min volume vs the day, open change from the open, dayLow 1 = low of the day so far; caught = live bot trades that made money in the swing", days: S.swingLog || {} }); io.w("dated.json", { at: Date.now(), cols: ["n", "sum r", "sum r²", "wins"], keys: "class|idea@half hour (0 = 9:30–10:00 ET) and class|idea|limit ATR|plan (paper trades); live|bot@half hour (the bots' LIVE trades, all of them); trades by the day they started", days: datedOut(S) });
   if (!process.env.REMOTE || (!force && Date.now() - lastPush < 110000)) return; lastPush = Date.now();
   try { execSync(`cd ${OUT} && git add -A && (git commit -q --amend -m "bots $(date -u +%FT%TZ)" 2>/dev/null || git commit -q -m "bots $(date -u +%FT%TZ)") && git push -f -q "$REMOTE" HEAD:bots`, { stdio: "inherit", shell: "/bin/bash" }); } catch (e) { console.error("push failed", e.message); }
 }
@@ -307,6 +322,7 @@ async function main() {
       const isLast = i => et(B[i][0]).m >= closeM(today) - 1;
       for (let i = from; i < B.length; i++) onBar(S, sym, F, B, i, from === 0 && i < B.length - 3 && S.last[sym] == null && loop === 0 && !MOCK ? true : false, isLast(i));
       S.last[sym] = B[B.length - 1][0]; S.swings[sym] = swings(F, B); }
+    swingLog(S, today, S.swings);
     save(S, `live · ${e.d} ${Math.floor(e.m / 60)}:${String(e.m % 60).padStart(2, "0")} ET`);
     if (MOCK || e.m >= closeM(e.d) + 1 || (now - t0) / 6e4 > maxMin) break;
     await sleep(Math.max(5000, 60000 - (Date.now() - now)));
