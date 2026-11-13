@@ -14,8 +14,8 @@
 //      Stops and time exits are market orders (cost: half the spread). Every trade ends within 30 minutes, and all
 //      trades end at 15:59 ET.
 //   3. Each version keeps a score (mean return per filled trade, by market class and by half hour of the day).
-//      The bots choose by Thompson sampling: a version with a good record is chosen often, a new one is tried
-//      sometimes, a version that clearly loses (30+ trades, 90% upper bound < 0) is benched.
+//      The bots chose by Thompson sampling until Nov 13 2026; now they pick the version with the best score (see choose()).
+//      A version that clearly loses (30+ trades, 90% upper bound < 0) is benched.
 //      Since Nov 7 2026 the bots do not explore: new versions are tried only by the shadow trades, and a bot skips a
 //      signal in a half hour, or with an idea, whose paper record clearly loses for that class (see gate()).
 //      Since Nov 8 2026 each run starts the next one (see relay()), so the bots trade the whole day, not only the late
@@ -175,7 +175,14 @@ function badTime(S, cl, b, day) { const xs = timeRec(S, cl, day), x = stat(xs[b]
   return x.m + 1.28 * x.sd / Math.sqrt(x.n) < (n ? s / n : 0); }
 function gate(S, cl, idea, b, day) { if (badTime(S, cl, b, day)) return "time"; if (loses(stat(S.arms[`${cl}|${idea}|*`]), 100)) return "idea"; return null; }
 function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.skips || (S.skips = {}); if (k.d !== d) { for (const x of Object.keys(k)) delete k[x]; k.d = d; } const z = k[bk] || (k[bk] = { time: 0, idea: 0, unproven: 0 }); z[why]++; }
-function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && (strict || Math.random() > 0.05)) continue; const draw = s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
+// Nov 13 2026 EV review: the bots pick the version with the best score (no random draw). Every signal is already traded
+// by all 15 versions on paper (shadow trades), so a bot trade teaches the memory nothing new; the random draw of Thompson
+// sampling only made the bots trade worse versions (and the 3 bots disagree on the same signal: on 28 matched sqz signals
+// the "both" bot made +$46, the spot and funds bots +$74). Walk-forward (dated.json, pick on the days before each test
+// day, versions with 30+ trades and a mean > 0, sqz, sum per version and day = $ per signal): spot best score +$76.5
+// against the average random draw +$27.9 (6 test days, better on 4); funds +$263.2 against +$243.6 (7 days, better on 4).
+// strict = false keeps the old random draw (not used by the bots).
+function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && (strict || Math.random() > 0.05)) continue; const draw = strict ? s.m : s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
 
 // ---------- the engine over one symbol's day ----------
 let BT = false, EVF = {};
