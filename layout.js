@@ -9,12 +9,15 @@
   // the same file on LETF Sniper: the scanner, the movers and the watchlist first; the spider web and the hub after them
   const LETF = !!document.getElementById("scanCard");
   const M = LETF ? document.getElementById("scanCard").parentElement : document.getElementById("mainView"); if (!M) return;
-  const TOP = LETF ? ["#mStrip", "#edgeBar", "#mvCards", "#lessonCard", "#revCard", "#scanCard", ".grid2:not(#proofRow)", "#watchCard"] : ["#topRow", "#hlBar", "#extBar", ".hero", "#readCard", ".decision", "#agCard", "#stanceCard", "#radarCard", "#trioCard", "#volCard", "#freshCard", "#trapCard", "#whaleCard", "#painCard", "#botCard", "#moversCard", "#ndxCard"];
+  const TOP = LETF ? ["#mStrip", "#edgeBar", "#mvCards", "#lessonCard", "#revCard:not([data-muted])", "#scanCard", ".grid2:not(#proofRow)", "#watchCard", "#revCard[data-muted]"] : ["#topRow", "#hlBar", "#extBar", ".hero", "#readCard", ".decision", "#agCard", "#stanceCard", "#radarCard", "#trioCard", "#volCard", "#freshCard", "#trapCard", "#whaleCard", "#painCard", "#botCard", "#moversCard", "#ndxCard"];
   const LOW = LETF ? ["#webCard", "#hubCard", "#postKit", "#proofRow"] : ["#hubCard", "#capexCard", "#meshCard", "#intelCard", "#psyCard", "#gameCard", "#postKit", "#socialCard", "#callersCard", "#proofRow"];
   const rank = (el, i) => { for (let k = 0; k < TOP.length; k++) if (el.matches(TOP[k])) return k; for (let k = 0; k < LOW.length; k++) if (el.matches(LOW[k])) return 5000 + k; return 1000 + i; };
   let busy = false;
   function apply() { if (busy) return; const C = [...M.children], want = C.map((el, i) => ({ el, r: rank(el, i) })).sort((a, b) => a.r - b.r).map(x => x.el);
     if (want.every((el, i) => el === C[i])) return; busy = true; const y = scrollY; want.forEach(el => M.appendChild(el)); if (y < 50) scrollTo(0, y); busy = false; }
-  let t = null; new MutationObserver(() => { if (busy) return; clearTimeout(t); t = setTimeout(apply, 250); }).observe(M, { childList: true });
+  // Council, Nov 13 2026 (LETF request of Nov 8): a muted reversal card (rev.js sets data-muted) goes below the scanner and
+  // the watchlist; the order is checked again when the flag changes.
+  let t = null; const ob = () => { if (busy) return; clearTimeout(t); t = setTimeout(apply, 250); };
+  new MutationObserver(ob).observe(M, { childList: true }); new MutationObserver(ob).observe(M, { subtree: true, attributeFilter: ["data-muted"] });
   [300, 1500, 4000, 9000].forEach(ms => setTimeout(apply, ms));
 })();
