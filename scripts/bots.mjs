@@ -182,7 +182,12 @@ function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.sk
 // day, versions with 30+ trades and a mean > 0, sqz, sum per version and day = $ per signal): spot best score +$76.5
 // against the average random draw +$27.9 (6 test days, better on 4); funds +$263.2 against +$243.6 (7 days, better on 4).
 // strict = false keeps the old random draw (not used by the bots).
-function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && (strict || Math.random() > 0.05)) continue; const draw = strict ? s.m : s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
+// Nov 14 2026 EV review (council task): strict picks the best score only among versions with 30+ paper trades and a
+// score above 0, the same pool as the walk-forward above. Before, it took the best of ALL versions and then skipped the
+// signal ("unproven") when that one had fewer than 30 trades, even when a proven version was there. Replay on dated.json
+// (version scores from the days before each day, sqz): Nov 9 – Nov 13 the old and new pick agree on all days; on Nov 4
+// and Nov 5 the old rule skipped funds (best version n 22 and 27) while 0.25 ATR t3s (n 39, 47) made +$20.3 and +$12.2.
+function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) for (const p of Object.keys(PLANS)) { const s = score(S, cl, idea, k, p, b); if (s.benched && (strict || Math.random() > 0.05)) continue; if (strict && (s.n < 30 || s.m <= 0)) continue; const draw = strict ? s.m : s.m + s.se * randn(); if (!best || draw > best.draw) best = { k, p, draw, s }; } return best; }
 
 // ---------- the engine over one symbol's day ----------
 let BT = false, EVF = {};
