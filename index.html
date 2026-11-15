@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
+<script src="cal.js?v=1"></script>
 <script>try{var pw=localStorage.getItem("site_width")||"fit";document.documentElement.style.setProperty("--pagew",pw==="fit"?"100%":pw+"px")}catch(e){}</script>
 <script>try{var t=localStorage.getItem("soxx_theme")||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="dark"}</script>
 <meta property="og:type" content="website">
@@ -1653,7 +1654,8 @@ function isDST(ms){
 }
 function etInfo(ms){const l=new Date(ms-(isDST(ms)?4:5)*3600000);return{d:l.toISOString().slice(0,10),min:l.getUTCHours()*60+l.getUTCMinutes(),wd:l.getUTCDay()}}
 function etEpochMin(d,min){const base=Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))+min*60000;return Math.floor((base+(isDST(base+5*3600000)?4:5)*3600000)/60000)}
-function phaseAt(ms){const e=etInfo(ms);if(e.wd===0||e.wd===6)return"closed";return e.min<240?"closed":e.min<570?"pre":e.min<960?"regular":e.min<1200?"post":"closed"}
+/* NYSE holidays are closed and early-close days end the regular session at 13:00 ET (shared cal.js; council, Nov 15 2026) */
+function phaseAt(ms){const e=etInfo(ms),C=window.NYSE;if(e.wd===0||e.wd===6||(C&&C.isHol(e.d)))return"closed";const end=C?C.sessEnd(e.d):960;return e.min<240?"closed":e.min<570?"pre":e.min<end?"regular":e.min<end+240?"post":"closed"}
 function addDays(d,n){const x=new Date(d+"T12:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)}
 
 function buildSessions(bars,prevLast){
