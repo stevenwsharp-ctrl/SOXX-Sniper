@@ -135,7 +135,16 @@ const key = (cl, idea, k, plan) => `${cl}|${idea}|${k}|${plan}`;
 // is already in the memory is replayed once more with DATED on: it fills only the dated record, not the scores.
 let DATED = false;
 function dated(S, o) { const D = S.dated || (S.dated = {}), z = D[et(o.t0).d] || (D[et(o.t0).d] = {});
-  for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan)]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
+  for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan), ...(o.gh || []).map(g => `skip|${g}@${o.b}`)]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
+// The dated skip record (Nov 15 2026 EV review, council task): what each gate blocked, per bot and half hour, by the day of
+// the signal. "skipn|<bot>|<why>@<half hour>" → [signals skipped]; "skip|<bot>|<why>@<half hour>" → [n, sum r, sum r², wins]
+// of the version the bot would have picked (the best proven version at that minute), from its shadow trade (the same order,
+// so the result counts only when price touched the limit). why: muted (EV governor), time, idea (the gates), unproven (no
+// proven version: count only), full (MAXPOS open orders). Record only: no bot rule and no scorecard item reads these keys
+// (ev.mjs reads only "S|", "L|" and "live|"). The replay of a day rebuilds them with the rulings of the replay day.
+function skipRec(S, sym, idea, t, bk, why, ch) { const z = (S.dated || (S.dated = {}))[et(t).d] || (S.dated[et(t).d] = {}), kk = `skipn|${bk}|${why}@${bucket(et(t).m)}`;
+  (z[kk] || (z[kk] = [0]))[0]++; if (!ch) return;
+  for (let j = S.shadow.length - 1, c = 0; j >= 0 && c < 400; j--, c++) { const o = S.shadow[j]; if (o.t0 === t && o.sym === sym && o.idea === idea && o.k === ch.k && o.plan === ch.p) { (o.gh || (o.gh = [])).push(`${bk}|${why}`); return; } } }
 function rec(S, o) { dated(S, o); if (DATED) return; const r = o.r; for (const kk of [key(o.cl, o.idea, o.k, o.plan), key(o.cl, o.idea, o.k, o.plan) + "@" + o.b, `${o.cl}|*@${o.b}`, `${o.cl}|${o.idea}|*`]) { const x = S.arms[kk] || (S.arms[kk] = { n: 0, s: 0, q: 0, w: 0 }); x.n++; x.s += r; x.q += r * r; if (r > 0) x.w++; if (x.n > 3000) { const f = 3000 / x.n; x.n = 3000; x.s *= f; x.q *= f; x.w *= f; } } }
 function tries(S, o) { if (DATED) return; const kk = key(o.cl, o.idea, o.k, o.plan), x = S.tr[kk] || (S.tr[kk] = [0, 0]); x[0]++; if (o.fill != null) x[1]++; }
 const stat = x => { if (!x || !x.n) return { n: 0, m: 0, sd: 0.003 }; const m = x.s / x.n, sd = Math.sqrt(Math.max(1e-8, x.q / x.n - m * m)); return { n: x.n, m, sd: Math.max(sd, 1e-4), w: x.w / x.n }; };
@@ -205,14 +214,18 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   const sg = signals(F, i, m, closeM(et(t).d)); if (!sg.length) return;
   for (const idea of sg) { for (const k of KS) for (const p of Object.keys(PLANS)) S.shadow.push(newOrder(sym, idea, k, p, F, i, t));
     if (shadowOnly) continue;
-    for (const [bk, bot] of Object.entries(S.bots)) { if (!BOTS[bk].u.includes(sym)) continue; if (bot.orders.length >= MAXPOS || bot.orders.some(o => o.sym === sym)) continue;
-      const evf = EVF[`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`] ?? 1; if (evf === 0 && !BT) { skip(S, bk, "EV muted"); continue; }   // EV governor: a muted idea is only shadow-traded (it keeps its score and can come back)
-      const g = gate(S, cls(sym), idea, bucket(m), et(t).d); if (g) { skip(S, bk, g); continue; }
-      const ch = choose(S, cls(sym), idea, bucket(m), true); if (!ch) { skip(S, bk, "unproven"); continue; }
+    for (const [bk, bot] of Object.entries(S.bots)) { if (!BOTS[bk].u.includes(sym)) continue; if (bot.orders.some(o => o.sym === sym)) continue;
+      // Nov 15 2026 EV review: the checks run in the same order as before (muted, gate, proven version, open orders); the
+      // result is the same, but each skipped signal now goes into the dated skip record (skipRec, see above). "full" (the
+      // bot already has MAXPOS open orders) is checked last, so it counts only signals that the bot would have traded.
+      const evf = EVF[`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`] ?? 1, ch = choose(S, cls(sym), idea, bucket(m), true);
+      if (evf === 0) { skipRec(S, sym, idea, t, bk, "muted", ch); if (!BT) { skip(S, bk, "EV muted"); continue; } }   // EV governor: a muted idea is only shadow-traded (it keeps its score and can come back)
+      const g = gate(S, cls(sym), idea, bucket(m), et(t).d); if (g) { if (evf !== 0) skipRec(S, sym, idea, t, bk, g, ch); skip(S, bk, g); continue; }
       // Nov 7 2026 review: "explore" trades (a version with little or a losing record) lost $236 over the three bots, the
       // proven picks made about +$50. The shadow trades already test every version on every signal, so the bots now trade
       // only a version with 30+ paper trades, a positive mean and a good draw.
-      if (ch.s.n < 30 || ch.s.m <= 0 || ch.draw <= 0) { skip(S, bk, "unproven"); continue; }
+      if (!ch || ch.s.n < 30 || ch.s.m <= 0 || ch.draw <= 0) { if (evf !== 0) skipRec(S, sym, idea, t, bk, "unproven", null); skip(S, bk, "unproven"); continue; }
+      if (bot.orders.length >= MAXPOS) { if (evf !== 0) skipRec(S, sym, idea, t, bk, "full", ch); continue; }
       bot.orders.push(newOrder(sym, idea, ch.k, ch.p, F, i, t, { sig: +F.c[i].toFixed(4), explore: 0, exp: +ch.s.m.toFixed(5) })); }
   }
 }
@@ -289,6 +302,11 @@ function report(S, note) {
   R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b, today)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100));
     const xs = timeRec(S, cl, today); R.gates.basis = R.gates.basis || {}; R.gates.basis[cl] = { ideas: tradable(cl), rows: xs.map((x, b) => { const r = dayZ(x); return { b, name: bname(b), n: x.n, m: x.n ? +(x.s / x.n).toFixed(5) : null, days: r ? r.D : null, dz: r ? +r.z.toFixed(2) : null, shut: badTime(S, cl, b, today) }; }).filter(x => x.n) }; }
   R.skips = S.skips && S.skips.d === today ? S.skips : {};
+  // what each gate blocked (the dated skip record, all days that have it): per bot and reason, signals skipped, and the
+  // filled shadow trades of the version the bot would have picked ($ per $1,000 bet)
+  R.blocked = {}; const bd = new Set(); for (const [d, z] of Object.entries(S.dated || {})) for (const [kk, v] of Object.entries(z)) { const mm = /^skip(n?)\|([a-z]+)\|([a-z]+)@\d+$/.exec(kk); if (!mm || !Array.isArray(v)) continue; bd.add(d);
+    const x = ((R.blocked[mm[2]] || (R.blocked[mm[2]] = {}))[mm[3]] || (R.blocked[mm[2]][mm[3]] = { sig: 0, n: 0, usd: 0, w: 0 })); if (mm[1]) x.sig += v[0]; else { x.n += v[0]; x.usd = +(x.usd + UNIT * v[1]).toFixed(2); x.w += v[3]; } }
+  R.blockedDays = [...bd].sort();
   // the bots' LIVE trades by the time of the signal (all live trades in the memory): before 11:30 ET and from 11:30 on
   R.liveTime = {}; for (const [bk, bot] of Object.entries(S.bots)) { const z = { early: { n: 0, usd: 0, days: [] }, late: { n: 0, usd: 0, days: [] } };
     for (const x of bot.trades) { if (x.bt || !x.t0) continue; const e = et(x.t0), y = z[e.m < 690 ? "early" : "late"]; y.n++; y.usd += x.usd; if (!y.days.includes(e.d)) y.days.push(e.d); }
