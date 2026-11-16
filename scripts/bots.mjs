@@ -27,6 +27,7 @@
 // Usage: node scripts/bots.mjs <outDir> [auto|prep|mock]
 import fs from "fs";
 import { execSync } from "child_process";
+import { createRequire } from "module";
 
 const OUT = process.argv[2] || "out", MODE = process.argv[3] || "auto", MOCK = MODE === "mock" || !!process.env.BOTS_MOCK;
 const UNIT = 1000, MAXPOS = 3, CLS_COST = { S: 0.0003, L: 0.0006 };
@@ -46,7 +47,11 @@ const ETF = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", yea
 const et = t => { const p = Object.fromEntries(ETF.formatToParts(new Date(t)).map(x => [x.type, x.value])); return { d: `${p.year}-${p.month}-${p.day}`, m: +p.hour * 60 + +p.minute, wd: p.weekday }; };
 // US market holidays and early closes (NYSE; Nov 9 2026 review): on a holiday the bots stay idle and the relay skips the
 // day; on an early close (1:00 PM ET) the last signal is 30 minutes before the close and every trade ends at 12:59.
-const HOLI = new Set(["2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18", "2027-02-15"]), HALF = new Set(["2026-11-27", "2026-12-24"]);
+// Since Nov 16 2026 the dates come from the shared calendar cal.js (the same file as the pages, 2026–2028), so the bots
+// and the page clock agree; the short list below is only a fallback if cal.js cannot be read.
+let CAL = null; try { CAL = createRequire(import.meta.url)("../cal.js"); } catch (e) { console.log("cal.js not read: fallback holiday list"); }
+const HOLI = CAL && CAL.hol && CAL.hol.size ? CAL.hol : new Set(["2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26"]),
+  HALF = CAL && CAL.half ? CAL.half : new Set(["2026-11-27", "2026-12-24"]);
 const closeM = d => HALF.has(d) ? 780 : 960, tradeDay = e => !["Sat", "Sun"].includes(e.wd) && !HOLI.has(e.d);
 const bucket = m => Math.max(0, Math.min(12, Math.floor((m - 570) / 30)));   // 0 = 9:30–10:00 … 12 = 15:30–16:00
 const bname = b => { const m = 570 + b * 30, f = x => `${Math.floor(x / 60) > 12 ? Math.floor(x / 60) - 12 : Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; return `${f(m)}–${f(m + 30)}`; };
