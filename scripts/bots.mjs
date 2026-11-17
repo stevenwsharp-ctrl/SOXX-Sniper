@@ -108,8 +108,13 @@ function signals(F, i, m, cm = 960) {
 // ---------- one order / trade, step by step (the same code for shadow trades, bot trades and the replay) ----------
 function newOrder(sym, idea, k, plan, F, i, t, extra) {
   const a = F.atr[i], lim = F.c[i] - k * a, swing = Math.min(...F.l.slice(Math.max(0, i - 9), i + 1)) - 0.1 * a;
-  return { sym, idea, k, plan, cl: cls(sym), t0: t, lim, a, swing, ap: a / F.c[i], st: "open", age: 0, b: bucket(et(t).m), ...extra };
+  return { sym, idea, k, plan, cl: cls(sym), t0: t, lim, a, swing, ap: a / F.c[i], st: "open", age: 0, b: bucket(et(t).m), cx: ctxTag(F, i), ...extra };
 }
+// Nov 17 2026 EV review: the market state at the signal bar (known at that minute). d1 = deep: price 2σ or more under VWAP
+// and RSI 30 or lower (the rule in the SOXX agent backlog of Nov 16, written before the Nov 17 sell-off: no fit on the
+// result). o1 = the day is down 3 % or more from the 9:30 open. Record only (dated.json "ctx|" keys): it gives a base rate
+// for "buy the capitulation" over ALL signals in that state, so a walk-forward test can use it later. No bot rule reads it.
+function ctxTag(F, i) { const vz = (F.c[i] - F.vw[i]) / F.vsd[i], dn = F.c[i] / F.o[0] - 1; return (vz <= -2 && F.rsi[i] <= 30 ? "d1" : "d0") + (dn <= -0.03 ? "o1" : "o0"); }
 function step(o, bar, last) {   // bar = [t, o, h, l, c, v]; returns true when the order or trade is finished
   const [t, op, hi, lo, cl] = bar;
   if (o.st === "open") { o.age++; if (lo <= o.lim) { o.fill = Math.min(op, o.lim); o.tf = t; o.st = "in"; o.hold = 0; o.mx = hi; o.mn = lo;
@@ -138,9 +143,12 @@ const key = (cl, idea, k, plan) => `${cl}|${idea}|${k}|${plan}`;
 // on older days and checked on newer days. dated(): per day, per class × idea × half hour and per version, [n, sum,
 // sum of squares, wins] of the paper trades that started that day (file dated.json, the last 30 days). A past day that
 // is already in the memory is replayed once more with DATED on: it fills only the dated record, not the scores.
-let DATED = false;
+let DATED = false; const DV = 2;   // DV: version of the dated record (2 = with the ctx| keys, Nov 17 2026)
 function dated(S, o) { const D = S.dated || (S.dated = {}), z = D[et(o.t0).d] || (D[et(o.t0).d] = {});
-  for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan), ...(o.gh || []).map(g => `skip|${g}@${o.b}`)]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
+  // ctx keys (Nov 17 2026): "ctx|class|idea|state" (all versions) for every state, and "ctx|class|idea|state|limit|plan"
+  // (per version) for the rare states only (not d0o0), so the file stays small. ev.mjs reads only "S|", "L|" and "live|".
+  const cx = o.cx ? [`ctx|${o.cl}|${o.idea}|${o.cx}`, ...(o.cx !== "d0o0" ? [`ctx|${o.cl}|${o.idea}|${o.cx}|${o.k}|${o.plan}`] : [])] : [];
+  for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan), ...(o.gh || []).map(g => `skip|${g}@${o.b}`), ...cx]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
 // The dated skip record (Nov 15 2026 EV review, council task): what each gate blocked, per bot and half hour, by the day of
 // the signal. "skipn|<bot>|<why>@<half hour>" → [signals skipped]; "skip|<bot>|<why>@<half hour>" → [n, sum r, sum r², wins]
 // of the version the bot would have picked (the best proven version at that minute), from its shadow trade (the same order,
@@ -264,13 +272,16 @@ async function prep(S) {
     (S.dated || (S.dated = {}))[day] = {};   // the replay of the whole day replaces the live minutes' dated record (no double count)
     const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); BT = true;
     for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, false, i === B.length - 1); ptr[s]++; } }
-    BT = false; S.shadow = []; for (const b of Object.values(S.bots)) b.orders = []; S.seeded["D:" + day] = 1; S.dated[day]._full = 1; n += syms.length; }
+    BT = false; S.shadow = []; for (const b of Object.values(S.bots)) b.orders = []; S.seeded["D:" + day] = 1; S.dated[day]._full = DV; n += syms.length; }
   // the dated record of past days that were replayed before it existed (shadow trades only; the scores do not change)
-  let nd = 0; const keepShadow = S.shadow; for (const day of Object.keys(DAYS).sort()) { if (!S.seeded["D:" + day] || (S.dated && S.dated[day] && S.dated[day]._full)) continue;
-    const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; }); (S.dated || (S.dated = {}))[day] = {};
+  // Nov 17 2026: _full is the version of the dated record (DV). A past day with an older version that still has bars is
+  // replayed once more to add the new keys (ctx|); its skip record ("skip" keys, made only by the bot replay) is kept.
+  let nd = 0; const keepShadow = S.shadow; for (const day of Object.keys(DAYS).sort()) { if (!S.seeded["D:" + day] || (S.dated && S.dated[day] && S.dated[day]._full >= DV)) continue;
+    const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; });
+    const old = (S.dated && S.dated[day]) || {}; (S.dated || (S.dated = {}))[day] = Object.fromEntries(Object.entries(old).filter(([k]) => k.startsWith("skip")));
     const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); DATED = true; BT = true; S.shadow = [];
     for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, true, i === B.length - 1); ptr[s]++; } }
-    DATED = false; BT = false; S.shadow = []; S.dated[day]._full = 1; nd++; }
+    DATED = false; BT = false; S.shadow = []; S.dated[day]._full = DV; nd++; }
   S.shadow = keepShadow;
   for (const day of Object.keys(DAYS).sort()) { if (day >= today) continue; const SW = {}; for (const [sym, B] of Object.entries(DAYS[day])) { const W = swings(feats(B), B); if (W.length) SW[sym] = W; } swingLog(S, day, SW); }
   if (S.dated) { const ks = Object.keys(S.dated).sort(); ks.slice(0, Math.max(0, ks.length - 30)).forEach(k => delete S.dated[k]); }
@@ -331,7 +342,7 @@ function datedOut(S) { const D = {}, L = liveRec(S); for (const [d, z] of Object
 let lastPush = 0;
 function save(S, note, force) {
   for (const b of Object.values(S.bots)) if (b.trades.length > 4000) b.trades = b.trades.slice(-4000);
-  io.w("state.json", S); io.w("bots.json", report(S, note)); io.w("swings.json", { at: Date.now(), note: "the 50 largest big swings (8+ ATR up inside 30 minutes) per market day; pre = signals of all ideas from 10 min before the low to 5 min after (idea@minutes from the low); ctx = known at the low bar: m minute of the day (570 = 9:30 ET), vz distance from VWAP in sigma, rsi, rv 5-min volume vs the day, open change from the open, dayLow 1 = low of the day so far; caught = live bot trades that made money in the swing", days: S.swingLog || {} }); io.w("dated.json", { at: Date.now(), cols: ["n", "sum r", "sum r²", "wins"], keys: "class|idea@half hour (0 = 9:30–10:00 ET) and class|idea|limit ATR|plan (paper trades); live|bot@half hour (the bots' LIVE trades, all of them); trades by the day they started", days: datedOut(S) });
+  io.w("state.json", S); io.w("bots.json", report(S, note)); io.w("swings.json", { at: Date.now(), note: "the 50 largest big swings (8+ ATR up inside 30 minutes) per market day; pre = signals of all ideas from 10 min before the low to 5 min after (idea@minutes from the low); ctx = known at the low bar: m minute of the day (570 = 9:30 ET), vz distance from VWAP in sigma, rsi, rv 5-min volume vs the day, open change from the open, dayLow 1 = low of the day so far; caught = live bot trades that made money in the swing", days: S.swingLog || {} }); io.w("dated.json", { at: Date.now(), cols: ["n", "sum r", "sum r²", "wins"], keys: "class|idea@half hour (0 = 9:30–10:00 ET) and class|idea|limit ATR|plan (paper trades); live|bot@half hour (the bots' LIVE trades, all of them); ctx|class|idea|state and ctx|class|idea|state|limit ATR|plan (paper trades by the market state at the signal: d1 = 2σ+ under VWAP and RSI ≤ 30, o1 = day down 3 %+ from the open; record only); trades by the day they started", days: datedOut(S) });
   if (!process.env.REMOTE || (!force && Date.now() - lastPush < 110000)) return; lastPush = Date.now();
   try { execSync(`cd ${OUT} && git add -A && (git commit -q --amend -m "bots $(date -u +%FT%TZ)" 2>/dev/null || git commit -q -m "bots $(date -u +%FT%TZ)") && git push -f -q "$REMOTE" HEAD:bots`, { stdio: "inherit", shell: "/bin/bash" }); } catch (e) { console.error("push failed", e.message); }
 }
