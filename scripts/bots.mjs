@@ -113,7 +113,8 @@ function newOrder(sym, idea, k, plan, F, i, t, extra) {
 // Nov 17 2026 EV review: the market state at the signal bar (known at that minute). d1 = deep: price 2σ or more under VWAP
 // and RSI 30 or lower (the rule in the SOXX agent backlog of Nov 16, written before the Nov 17 sell-off: no fit on the
 // result). o1 = the day is down 3 % or more from the 9:30 open. Record only (dated.json "ctx|" keys): it gives a base rate
-// for "buy the capitulation" over ALL signals in that state, so a walk-forward test can use it later. No bot rule reads it.
+// for "buy the capitulation" over ALL signals in that state, so a walk-forward test can use it later. Since Nov 18 2026 the
+// gate() reads it for funds vrev only (see gate).
 function ctxTag(F, i) { const vz = (F.c[i] - F.vw[i]) / F.vsd[i], dn = F.c[i] / F.o[0] - 1; return (vz <= -2 && F.rsi[i] <= 30 ? "d1" : "d0") + (dn <= -0.03 ? "o1" : "o0"); }
 function step(o, bar, last) {   // bar = [t, o, h, l, c, v]; returns true when the order or trade is finished
   const [t, op, hi, lo, cl] = bar;
@@ -195,8 +196,15 @@ function dayZ(x) { const dm = Object.values(x.dd || {}).map(v => v[1] / v[0]), D
 const dayMute = x => { const r = dayZ(x); return !!r && x.s < 0 && r.z <= -2; };
 function badTime(S, cl, b, day) { const xs = timeRec(S, cl, day), x = stat(xs[b]); if (dayMute(xs[b])) return true; if (x.n < 200 || x.m >= 0) return false; let n = 0, s = 0; for (const y of xs) { n += y.n; s += y.s; }
   return x.m + 1.28 * x.sd / Math.sqrt(x.n) < (n ? s / n : 0); }
-function gate(S, cl, idea, b, day) { if (badTime(S, cl, b, day)) return "time"; if (loses(stat(S.arms[`${cl}|${idea}|*`]), 100)) return "idea"; return null; }
-function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.skips || (S.skips = {}); if (k.d !== d) { for (const x of Object.keys(k)) delete k[x]; k.d = d; } const z = k[bk] || (k[bk] = { time: 0, idea: 0, unproven: 0 }); z[why]++; }
+// Nov 18 2026 EV review (council task: vrev came off MUTE after one big day). The funds VWAP snap-back (vrev) loses when
+// the signal is NOT at a capitulation: state d0o0 (not 2σ+ under VWAP with RSI ≤ 30, and the day not down 3 %+; ctxTag,
+// limits written Nov 16 before the test days). Walk-forward on the dated ctx record, versions the bots pick: fit on the
+// older days (Nov 9–13): d0o0 1 ATR tim −0.10 %, 0.5 ATR tim −0.24 % per trade vs the other states +0.31 %, +0.27 %;
+// check on the newer days (Nov 16–18): d0o0 −0.68 %, −0.97 % vs +1.36 %, +1.18 %. All 5 funds vrev versions: d0o0 below
+// the other states in both halves. Spot fails the fit (older half: d0o0 −0.08 % vs −0.21 %), so spot is not gated.
+// The skipped signals go into the dated skip record ("state"), so the gate keeps its own score.
+function gate(S, cl, idea, b, day, cx) { if (badTime(S, cl, b, day)) return "time"; if (loses(stat(S.arms[`${cl}|${idea}|*`]), 100)) return "idea"; if (cl === "L" && idea === "vrev" && cx === "d0o0") return "state"; return null; }
+function skip(S, bk, why) { if (BT) return; const d = et(Date.now()).d, k = S.skips || (S.skips = {}); if (k.d !== d) { for (const x of Object.keys(k)) delete k[x]; k.d = d; } const z = k[bk] || (k[bk] = { time: 0, idea: 0, unproven: 0 }); z[why] = (z[why] || 0) + 1; }
 // Nov 13 2026 EV review: the bots pick the version with the best score (no random draw). Every signal is already traded
 // by all 15 versions on paper (shadow trades), so a bot trade teaches the memory nothing new; the random draw of Thompson
 // sampling only made the bots trade worse versions (and the 3 bots disagree on the same signal: on 28 matched sqz signals
@@ -233,7 +241,7 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
       // bot already has MAXPOS open orders) is checked last, so it counts only signals that the bot would have traded.
       const evf = EVF[`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`] ?? 1, ch = choose(S, cls(sym), idea, bucket(m), true);
       if (evf === 0) { skipRec(S, sym, idea, t, bk, "muted", ch); if (!BT) { skip(S, bk, "EV muted"); continue; } }   // EV governor: a muted idea is only shadow-traded (it keeps its score and can come back)
-      const g = gate(S, cls(sym), idea, bucket(m), et(t).d); if (g) { if (evf !== 0) skipRec(S, sym, idea, t, bk, g, ch); skip(S, bk, g); continue; }
+      const g = gate(S, cls(sym), idea, bucket(m), et(t).d, ctxTag(F, i)); if (g) { if (evf !== 0) skipRec(S, sym, idea, t, bk, g, ch); skip(S, bk, g); continue; }
       // Nov 7 2026 review: "explore" trades (a version with little or a losing record) lost $236 over the three bots, the
       // proven picks made about +$50. The shadow trades already test every version on every signal, so the bots now trade
       // only a version with 30+ paper trades, a positive mean and a good draw.
