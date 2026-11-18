@@ -177,7 +177,7 @@ const loses = (x, nMin) => x.n >= nMin && x.m + 1.28 * x.sd / Math.sqrt(x.n) < 0
 // sqz +42 bps). Walk-forward (dated.json, fit on the days before each test day, test Nov 4, 5, 6, 9): sqz trades the
 // old all-idea gate let through made spot +$8 and funds +$71 (summed per signal); with the gate on sqz only (same rule,
 // n ≥ 200, which closed no half hour then) spot +$43 and funds +$154. A half hour with fewer than 200 such trades stays open.
-const tradable = cl => Object.keys(IDEAS).filter(i => BT || (EVF[`idea.${cl === "L" ? "funds" : "spot"}.${i}`] ?? 1) !== 0);
+const tradable = cl => Object.keys(IDEAS).filter(i => BT || evfOf(`idea.${cl === "L" ? "funds" : "spot"}.${i}`) !== 0);
 const TG = {};
 function timeRec(S, cl, day) { const ids = tradable(cl), ck = cl + day + ids.join(",") + (S.dated ? Object.keys(S.dated).length : 0);
   if (TG[cl] && TG[cl].ck === ck) return TG[cl].xs;
@@ -222,7 +222,17 @@ function choose(S, cl, idea, b, strict) { let best = null; for (const k of KS) f
 // ---------- the engine over one symbol's day ----------
 let BT = false, EVF = {};
 // the EV governor's rulings (Cohort Sniper's ev branch, after each close): 0 = mute, 0.5 = cut, 1.25 = back
-async function evRules() { try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/ev/ev.json?t=" + Date.now()); if (!r.ok) return; const j = await r.json(), T = j.trackers && j.trackers.soxx; if (T && T.rules) EVF = T.rules; console.log(`EV rules: ${Object.keys(EVF).length} (${Object.entries(EVF).map(([k, v]) => k + "=" + v).join(", ")})`); } catch (e) { } }
+// Council, Nov 18 2026 (lesson from the LETF agent: a part that trades must default to OFF when the scorecard is not loaded).
+// Before, a failed fetch left EVF = {}, so every muted idea (z −7 to −27) traded at factor 1 for the whole run. Now the last
+// good rules are kept in state.json (S.evf) and used when the fetch fails; with no fetch and no saved rules, the live bots
+// trade no idea (EVOFF; shadow and replay trades go on, so the memory still learns).
+let EVOFF = false;
+const evfOf = key => EVOFF ? 0 : (EVF[key] ?? 1);
+async function evRules(S) { let ok = false;
+  try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/ev/ev.json?t=" + Date.now()); if (r.ok) { const j = await r.json(), T = j.trackers && j.trackers.soxx; if (T && T.rules) { EVF = T.rules; ok = true; if (S) S.evf = { at: Date.now(), t: j.t || null, rules: EVF }; } } } catch (e) { }
+  if (!ok && S && S.evf && S.evf.rules) { EVF = S.evf.rules; ok = true; console.log(`EV rules: fetch failed, using the last good rules (scorecard ${S.evf.t || "?"})`); }
+  if (!ok) { EVOFF = true; console.log("EV rules: fetch failed and no saved rules: the live bots trade no idea in this run (shadow and replay go on)"); return; }
+  console.log(`EV rules: ${Object.keys(EVF).length} (${Object.entries(EVF).map(([k, v]) => k + "=" + v).join(", ")})`); }
 function emptyState() { return { v: 2, arms: {}, tr: {}, seeded: {}, bots: Object.fromEntries(Object.keys(BOTS).map(k => [k, { orders: [], trades: [], days: {} }])), shadow: [], swings: {}, last: {}, live: {} }; }
 // process bar i of the day (bars 0..i known). shadowOnly: the replay of past days (no bot trades).
 function onBar(S, sym, F, B, i, shadowOnly, last) {
@@ -239,7 +249,7 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
       // Nov 15 2026 EV review: the checks run in the same order as before (muted, gate, proven version, open orders); the
       // result is the same, but each skipped signal now goes into the dated skip record (skipRec, see above). "full" (the
       // bot already has MAXPOS open orders) is checked last, so it counts only signals that the bot would have traded.
-      const evf = EVF[`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`] ?? 1, ch = choose(S, cls(sym), idea, bucket(m), true);
+      const evf = evfOf(`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`), ch = choose(S, cls(sym), idea, bucket(m), true);
       if (evf === 0) { skipRec(S, sym, idea, t, bk, "muted", ch); if (!BT) { skip(S, bk, "EV muted"); continue; } }   // EV governor: a muted idea is only shadow-traded (it keeps its score and can come back)
       const g = gate(S, cls(sym), idea, bucket(m), et(t).d, ctxTag(F, i)); if (g) { if (evf !== 0) skipRec(S, sym, idea, t, bk, g, ch); skip(S, bk, g); continue; }
       // Nov 7 2026 review: "explore" trades (a version with little or a losing record) lost $236 over the three bots, the
@@ -359,7 +369,7 @@ function save(S, note, force) {
 async function main() {
   const S0 = io.r("state.json", {}), S = Object.assign(emptyState(), S0.v === 2 ? S0 : {});   // v2: the bots also trade the replay (a new memory) S.shadow = S.shadow || []; S.live = S.live || {};
   for (const k of Object.keys(BOTS)) S.bots[k] = Object.assign({ orders: [], trades: [], days: {} }, S.bots[k] || {});
-  await evRules(); await prep(S); save(S, "replayed the last 7 days", true);
+  await evRules(S); await prep(S); save(S, "replayed the last 7 days", true);
   const t0 = Date.now(), maxMin = +(process.env.MAX_MIN || 340), today = et(Date.now()).d;
   const open = () => { const e = et(Date.now()); return tradeDay(e) && e.m >= 570 && e.m < closeM(e.d) + 3; };
   // started before the open (the morning run): wait for 9:30 ET
