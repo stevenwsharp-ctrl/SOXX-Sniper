@@ -23,6 +23,16 @@
   let R = null, tab = "both", view = "trades";
   const spark = cv => { if (!cv || cv.length < 2) return ""; let s = 0; const a = cv.map(x => s += x[1]), lo = Math.min(0, ...a), hi = Math.max(0, ...a), k = hi - lo || 1, w = 100, h = 26;
     return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:26px"><line x1="0" x2="${w}" y1="${h - 2 - (0 - lo) / k * (h - 4)}" y2="${h - 2 - (0 - lo) / k * (h - 4)}" stroke="var(--line)" stroke-width="1"/><polyline points="${a.map((v, i) => `${(i / (a.length - 1) * w).toFixed(1)},${(h - 2 - (v - lo) / k * (h - 4)).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--${a[a.length - 1] >= 0 ? "up" : "down"})" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`; };
+  // Nov 19 2026 EV review (council task): the EV governor's ruling of each bot's live and backtest record (ev.json via the
+  // shared evrules.js). Before, the card showed the $ only, so a bot with a proven edge (BACK) and a bot with no proven edge
+  // looked the same. Read only: no bot rule changes. The scorecard is written after each US close, so today's trades
+  // count from the next scorecard.
+  const RUL = { back: ["BACK", "L", "proven positive EV (z ≥ 2)"], watch: ["WATCH", "", "not proven"], cut: ["CUT", "A", "negative or decaying"], mute: ["MUTE", "S", "proven negative EV"] };
+  function evLine(k) { const E = window.EVR; if (!E || !E.ready) return ""; const it = w => E.item("soxx", `bot.${k}.${w}`), a = it("live"), b = it("bt"); if (!a && !b) return "";
+    const one = (x, l) => { if (!x) return ""; const r = RUL[x.status] || [String(x.status).toUpperCase(), "", ""];
+      return `${l} <b class="${r[1]}" title="${esc(r[2])}">${r[0]}</b> ${x.ev != null ? pc(x.ev) + " per trade" : ""} (n ${x.n}${x.z != null ? ", z " + x.z.toFixed(1) : ""}${x.recent != null ? ", newer half " + pc(x.recent) : ""})`; };
+    const T = E.data.trackers && E.data.trackers.soxx, at = T && T.at ? new Date(T.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+    return `<div style="font:12px var(--mono)" title="EV governor scorecard${at ? " of " + esc(at) : ""} (written after each US close; today's trades count from the next one). BACK = proven positive EV, WATCH = not proven, CUT = negative or decaying, MUTE = proven negative EV.">Scorecard${at ? " (" + esc(at) + ")" : ""}: ${[one(a, "live"), one(b, "backtest")].filter(Boolean).join(" · ")}</div>`; }
   function botBox(k, b) {
     const g = b.grades || {}, gt = Object.values(g).reduce((p, q) => p + q, 0) || 1;
     return `<div class="bx"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(b.name)}</b><span class="note" style="margin:0">${b.u.length} symbols</span></div>
@@ -32,6 +42,7 @@
         ${b.bt.best ? `<div class="note" style="margin:2px 0 0">Best ${esc(b.bt.best.sym)} <span class="L">${usd(b.bt.best.usd)}</span> (${esc(b.bt.best.idea)}) · worst ${esc(b.bt.worst.sym)} <span class="S">${usd(b.bt.worst.usd)}</span> (${esc(b.bt.worst.idea)})</div>` : ""}</div>` : ""}
       <div style="margin-top:6px;font:12.5px var(--mono)">Live today: <b class="${cl(b.today.usd)}">${usd(b.today.usd)}</b> · ${b.today.n} trades${b.today.win != null ? ` · ${Math.round(b.today.win * 100)}% won` : ""}</div>
       <div style="font:12.5px var(--mono)">Live all: <b class="${cl(b.all.usd)}">${usd(b.all.usd)}</b> = ${b.all.units >= 0 ? "+" : ""}${b.all.units} units · ${b.all.n} trades${b.all.win != null ? ` · ${Math.round(b.all.win * 100)}% won` : ""}</div>
+      ${evLine(k)}
       ${R.liveTime && R.liveTime[k] ? (() => { const z = R.liveTime[k], f = (y, l) => `${l} <b class="${cl(y.usd)}">${usd(y.usd)}</b> (${y.n} trades, ${y.days} d)`; return `<div style="font:12px var(--mono)" title="All live trades of this bot, by the time of the signal (ET)">Live by time: ${f(z.early, "before 11:30")} · ${f(z.late, "11:30 on")}</div>`; })() : ""}
       <div style="font:12px var(--mono);color:var(--dim)">Last 50 (live + backtest): <span class="${cl(b.last50.usd)}">${usd(b.last50.usd)}</span>${b.last50.win != null ? ` · ${Math.round(b.last50.win * 100)}% won` : ""} (is it getting better?)</div>
       ${spark(b.curve)}<div class="gr">${"ABCDF".split("").map(L => g[L] ? `<i style="width:${g[L] / gt * 100}%;background:${GC[L]}" title="${L}: ${g[L]}"></i>` : "").join("")}</div>
@@ -81,5 +92,6 @@
     c.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { view = b.dataset.v; draw(); }); c.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
   }
   async function load() { try { const r = await fetch(URL0 + "?t=" + Math.floor(Date.now() / 6e4)); if (r.ok) { R = await r.json(); draw(); return; } } catch (e) { } if (!R) draw(); }
+  if (window.EVR) window.EVR.on.push(() => { if (R) draw(); });
   draw(); load(); setInterval(() => { if (!document.hidden) load(); }, 60000);
 })();
