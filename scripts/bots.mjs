@@ -156,9 +156,12 @@ function dated(S, o) { const D = S.dated || (S.dated = {}), z = D[et(o.t0).d] ||
 // so the result counts only when price touched the limit). why: muted (EV governor), time, idea (the gates), unproven (no
 // proven version: count only), full (MAXPOS open orders). Record only: no bot rule and no scorecard item reads these keys
 // (ev.mjs reads only "S|", "L|" and "live|"). The replay of a day rebuilds them with the rulings of the replay day.
-function skipRec(S, sym, idea, t, bk, why, ch) { const z = (S.dated || (S.dated = {}))[et(t).d] || (S.dated[et(t).d] = {}), kk = `skipn|${bk}|${why}@${bucket(et(t).m)}`;
-  (z[kk] || (z[kk] = [0]))[0]++; if (!ch) return;
-  for (let j = S.shadow.length - 1, c = 0; j >= 0 && c < 400; j--, c++) { const o = S.shadow[j]; if (o.t0 === t && o.sym === sym && o.idea === idea && o.k === ch.k && o.plan === ch.p) { (o.gh || (o.gh = [])).push(`${bk}|${why}`); return; } } }
+// Nov 20 2026 EV review (council task): a "muted" skip is also written per idea ("muted.<idea>", e.g. skip|letf|muted.rsi),
+// so the scorecard can score what the mute of each idea blocked (skip.<bot>.muted.<idea>). The "muted" total keys stay the
+// same (the bot card and skip.<bot>.muted read them). Record only: no bot rule reads the new keys.
+function skipRec(S, sym, idea, t, bk, why, ch) { const z = (S.dated || (S.dated = {}))[et(t).d] || (S.dated[et(t).d] = {}), b = bucket(et(t).m), ws = why === "muted" ? [why, `muted.${idea}`] : [why];
+  for (const w of ws) { const kk = `skipn|${bk}|${w}@${b}`; (z[kk] || (z[kk] = [0]))[0]++; } if (!ch) return;
+  for (let j = S.shadow.length - 1, c = 0; j >= 0 && c < 400; j--, c++) { const o = S.shadow[j]; if (o.t0 === t && o.sym === sym && o.idea === idea && o.k === ch.k && o.plan === ch.p) { (o.gh || (o.gh = [])).push(...ws.map(w => `${bk}|${w}`)); return; } } }
 function rec(S, o) { dated(S, o); if (DATED) return; const r = o.r; for (const kk of [key(o.cl, o.idea, o.k, o.plan), key(o.cl, o.idea, o.k, o.plan) + "@" + o.b, `${o.cl}|*@${o.b}`, `${o.cl}|${o.idea}|*`]) { const x = S.arms[kk] || (S.arms[kk] = { n: 0, s: 0, q: 0, w: 0 }); x.n++; x.s += r; x.q += r * r; if (r > 0) x.w++; if (x.n > 3000) { const f = 3000 / x.n; x.n = 3000; x.s *= f; x.q *= f; x.w *= f; } } }
 function tries(S, o) { if (DATED) return; const kk = key(o.cl, o.idea, o.k, o.plan), x = S.tr[kk] || (S.tr[kk] = [0, 0]); x[0]++; if (o.fill != null) x[1]++; }
 const stat = x => { if (!x || !x.n) return { n: 0, m: 0, sd: 0.003 }; const m = x.s / x.n, sd = Math.sqrt(Math.max(1e-8, x.q / x.n - m * m)); return { n: x.n, m, sd: Math.max(sd, 1e-4), w: x.w / x.n }; };
@@ -341,6 +344,9 @@ function report(S, note) {
   R.blocked = {}; const bd = new Set(); for (const [d, z] of Object.entries(S.dated || {})) for (const [kk, v] of Object.entries(z)) { const mm = /^skip(n?)\|([a-z]+)\|([a-z]+)@\d+$/.exec(kk); if (!mm || !Array.isArray(v)) continue; bd.add(d);
     const x = ((R.blocked[mm[2]] || (R.blocked[mm[2]] = {}))[mm[3]] || (R.blocked[mm[2]][mm[3]] = { sig: 0, n: 0, usd: 0, w: 0 })); if (mm[1]) x.sig += v[0]; else { x.n += v[0]; x.usd = +(x.usd + UNIT * v[1]).toFixed(2); x.w += v[3]; } }
   R.blockedDays = [...bd].sort();
+  // Nov 20 2026: the "EV muted" fills split by idea (keys muted.<idea>, from Nov 20 on): which muted idea blocked winners or losers
+  R.blockedIdea = {}; for (const z of Object.values(S.dated || {})) for (const [kk, v] of Object.entries(z)) { const mm = /^skip(n?)\|([a-z]+)\|muted\.([a-z]+)@\d+$/.exec(kk); if (!mm || !Array.isArray(v)) continue;
+    const x = ((R.blockedIdea[mm[2]] || (R.blockedIdea[mm[2]] = {}))[mm[3]] || (R.blockedIdea[mm[2]][mm[3]] = { sig: 0, n: 0, usd: 0 })); if (mm[1]) x.sig += v[0]; else { x.n += v[0]; x.usd = +(x.usd + UNIT * v[1]).toFixed(2); } }
   // the bots' LIVE trades by the time of the signal (all live trades in the memory): before 11:30 ET and from 11:30 on
   R.liveTime = {}; for (const [bk, bot] of Object.entries(S.bots)) { const z = { early: { n: 0, usd: 0, days: [] }, late: { n: 0, usd: 0, days: [] } };
     for (const x of bot.trades) { if (x.bt || !x.t0) continue; const e = et(x.t0), y = z[e.m < 690 ? "early" : "late"]; y.n++; y.usd += x.usd; if (!y.days.includes(e.d)) y.days.push(e.d); }
