@@ -149,7 +149,7 @@ function dated(S, o) { const D = S.dated || (S.dated = {}), z = D[et(o.t0).d] ||
   // ctx keys (Nov 17 2026): "ctx|class|idea|state" (all versions) for every state, and "ctx|class|idea|state|limit|plan"
   // (per version) for the rare states only (not d0o0), so the file stays small. ev.mjs reads only "S|", "L|" and "live|".
   const cx = o.cx ? [`ctx|${o.cl}|${o.idea}|${o.cx}`, ...(o.cx !== "d0o0" ? [`ctx|${o.cl}|${o.idea}|${o.cx}|${o.k}|${o.plan}`] : [])] : [];
-  for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan), ...(o.gh || []).map(g => `skip|${g}@${o.b}`), ...cx]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
+  for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan), ...(o.gh || []).map(g => `skip|${g}@${o.b}`), ...(o.pk || []).map(g => `pick|${g}@${o.b}`), ...cx]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
 // The dated skip record (Nov 15 2026 EV review, council task): what each gate blocked, per bot and half hour, by the day of
 // the signal. "skipn|<bot>|<why>@<half hour>" → [signals skipped]; "skip|<bot>|<why>@<half hour>" → [n, sum r, sum r², wins]
 // of the version the bot would have picked (the best proven version at that minute), from its shadow trade (the same order,
@@ -162,6 +162,15 @@ function dated(S, o) { const D = S.dated || (S.dated = {}), z = D[et(o.t0).d] ||
 function skipRec(S, sym, idea, t, bk, why, ch) { const z = (S.dated || (S.dated = {}))[et(t).d] || (S.dated[et(t).d] = {}), b = bucket(et(t).m), ws = why === "muted" ? [why, `muted.${idea}`] : [why];
   for (const w of ws) { const kk = `skipn|${bk}|${w}@${b}`; (z[kk] || (z[kk] = [0]))[0]++; } if (!ch) return;
   for (let j = S.shadow.length - 1, c = 0; j >= 0 && c < 400; j--, c++) { const o = S.shadow[j]; if (o.t0 === t && o.sym === sym && o.idea === idea && o.k === ch.k && o.plan === ch.p) { (o.gh || (o.gh = [])).push(...ws.map(w => `${bk}|${w}`)); return; } } }
+// Nov 21 2026 EV review (council task): the bot's pick at each signal, before any gate (muted, time, idea, state, full,
+// open symbol). "pickn|<bot>|<spot|funds>.<idea>|<limit>|<plan>@<half hour>" → [signals] (which version the bot picked) and
+// "pick|<bot>|<spot|funds>.<idea>@<half hour>" → [n, sum r, sum r², wins] of the shadow trade of that version (the same
+// limit order, so it counts only when price touched the limit). This is the "picked-version record" of each idea: the
+// scorecard can now test a mute by the version the bot trades against the mute by the mean of all 15 versions.
+// Record only: no bot rule reads these keys. choose() with strict has no random draw, so the pick is the same for all bots.
+function pickRec(S, sym, idea, t, ch) { if (!ch) return; const z = (S.dated || (S.dated = {}))[et(t).d] || (S.dated[et(t).d] = {}), b = bucket(et(t).m), nm = `${cls(sym) === "L" ? "funds" : "spot"}.${idea}`, bks = Object.keys(BOTS).filter(bk => BOTS[bk].u.includes(sym));
+  if (!bks.length) return; for (const bk of bks) { const kk = `pickn|${bk}|${nm}|${ch.k}|${ch.p}@${b}`; (z[kk] || (z[kk] = [0]))[0]++; }
+  for (let j = S.shadow.length - 1, c = 0; j >= 0 && c < 400; j--, c++) { const o = S.shadow[j]; if (o.t0 === t && o.sym === sym && o.idea === idea && o.k === ch.k && o.plan === ch.p) { (o.pk || (o.pk = [])).push(...bks.map(bk => `${bk}|${nm}`)); return; } } }
 function rec(S, o) { dated(S, o); if (DATED) return; const r = o.r; for (const kk of [key(o.cl, o.idea, o.k, o.plan), key(o.cl, o.idea, o.k, o.plan) + "@" + o.b, `${o.cl}|*@${o.b}`, `${o.cl}|${o.idea}|*`]) { const x = S.arms[kk] || (S.arms[kk] = { n: 0, s: 0, q: 0, w: 0 }); x.n++; x.s += r; x.q += r * r; if (r > 0) x.w++; if (x.n > 3000) { const f = 3000 / x.n; x.n = 3000; x.s *= f; x.q *= f; x.w *= f; } } }
 function tries(S, o) { if (DATED) return; const kk = key(o.cl, o.idea, o.k, o.plan), x = S.tr[kk] || (S.tr[kk] = [0, 0]); x[0]++; if (o.fill != null) x[1]++; }
 const stat = x => { if (!x || !x.n) return { n: 0, m: 0, sd: 0.003 }; const m = x.s / x.n, sd = Math.sqrt(Math.max(1e-8, x.q / x.n - m * m)); return { n: x.n, m, sd: Math.max(sd, 1e-4), w: x.w / x.n }; };
@@ -248,11 +257,12 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   const sg = signals(F, i, m, closeM(et(t).d)); if (!sg.length) return;
   for (const idea of sg) { for (const k of KS) for (const p of Object.keys(PLANS)) S.shadow.push(newOrder(sym, idea, k, p, F, i, t));
     if (shadowOnly) continue;
+    const chI = choose(S, cls(sym), idea, bucket(m), true); pickRec(S, sym, idea, t, chI);
     for (const [bk, bot] of Object.entries(S.bots)) { if (!BOTS[bk].u.includes(sym)) continue; if (bot.orders.some(o => o.sym === sym)) continue;
       // Nov 15 2026 EV review: the checks run in the same order as before (muted, gate, proven version, open orders); the
       // result is the same, but each skipped signal now goes into the dated skip record (skipRec, see above). "full" (the
       // bot already has MAXPOS open orders) is checked last, so it counts only signals that the bot would have traded.
-      const evf = evfOf(`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`), ch = choose(S, cls(sym), idea, bucket(m), true);
+      const evf = evfOf(`idea.${cls(sym) === "L" ? "funds" : "spot"}.${idea}`), ch = chI;
       if (evf === 0) { skipRec(S, sym, idea, t, bk, "muted", ch); if (!BT) { skip(S, bk, "EV muted"); continue; } }   // EV governor: a muted idea is only shadow-traded (it keeps its score and can come back)
       const g = gate(S, cls(sym), idea, bucket(m), et(t).d, ctxTag(F, i)); if (g) { if (evf !== 0) skipRec(S, sym, idea, t, bk, g, ch); skip(S, bk, g); continue; }
       // Nov 7 2026 review: "explore" trades (a version with little or a losing record) lost $236 over the three bots, the
@@ -299,7 +309,7 @@ async function prep(S) {
   // replayed once more to add the new keys (ctx|); its skip record ("skip" keys, made only by the bot replay) is kept.
   let nd = 0; const keepShadow = S.shadow; for (const day of Object.keys(DAYS).sort()) { if (!S.seeded["D:" + day] || (S.dated && S.dated[day] && S.dated[day]._full >= DV)) continue;
     const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; });
-    const old = (S.dated && S.dated[day]) || {}; (S.dated || (S.dated = {}))[day] = Object.fromEntries(Object.entries(old).filter(([k]) => k.startsWith("skip")));
+    const old = (S.dated && S.dated[day]) || {}; (S.dated || (S.dated = {}))[day] = Object.fromEntries(Object.entries(old).filter(([k]) => k.startsWith("skip") || k.startsWith("pick")));
     const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); DATED = true; BT = true; S.shadow = [];
     for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, true, i === B.length - 1); ptr[s]++; } }
     DATED = false; BT = false; S.shadow = []; S.dated[day]._full = DV; nd++; }
@@ -347,6 +357,10 @@ function report(S, note) {
   // Nov 20 2026: the "EV muted" fills split by idea (keys muted.<idea>, from Nov 20 on): which muted idea blocked winners or losers
   R.blockedIdea = {}; for (const z of Object.values(S.dated || {})) for (const [kk, v] of Object.entries(z)) { const mm = /^skip(n?)\|([a-z]+)\|muted\.([a-z]+)@\d+$/.exec(kk); if (!mm || !Array.isArray(v)) continue;
     const x = ((R.blockedIdea[mm[2]] || (R.blockedIdea[mm[2]] = {}))[mm[3]] || (R.blockedIdea[mm[2]][mm[3]] = { sig: 0, n: 0, usd: 0 })); if (mm[1]) x.sig += v[0]; else { x.n += v[0]; x.usd = +(x.usd + UNIT * v[1]).toFixed(2); } }
+  // Nov 21 2026: the picked-version record by idea (keys pick|<bot>|<spot|funds>.<idea>, from Nov 23 on): what the version
+  // the bot picks made on every signal, before any gate (also for muted ideas)
+  R.picked = {}; for (const z of Object.values(S.dated || {})) for (const [kk, v] of Object.entries(z)) { const mm = /^pick(n?)\|([a-z]+)\|([a-z]+\.[a-z]+)(?:\|[^@]*)?@\d+$/.exec(kk); if (!mm || !Array.isArray(v)) continue;
+    const x = ((R.picked[mm[2]] || (R.picked[mm[2]] = {}))[mm[3]] || (R.picked[mm[2]][mm[3]] = { sig: 0, n: 0, usd: 0 })); if (mm[1]) x.sig += v[0]; else { x.n += v[0]; x.usd = +(x.usd + UNIT * v[1]).toFixed(2); } }
   // the bots' LIVE trades by the time of the signal (all live trades in the memory): before 11:30 ET and from 11:30 on
   R.liveTime = {}; for (const [bk, bot] of Object.entries(S.bots)) { const z = { early: { n: 0, usd: 0, days: [] }, late: { n: 0, usd: 0, days: [] } };
     for (const x of bot.trades) { if (x.bt || !x.t0) continue; const e = et(x.t0), y = z[e.m < 690 ? "early" : "late"]; y.n++; y.usd += x.usd; if (!y.days.includes(e.d)) y.days.push(e.d); }
