@@ -1,0 +1,34 @@
+// Human Factor test: robustness, and that the flow score finds the place money goes into and the place it leaves.
+// Usage: node tests/hf.test.mjs   (from the soxx-sniper folder)
+import fs from "node:fs"; import vm from "node:vm"; import path from "node:path";
+const DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ctx = { console, Math, Date, JSON, Intl, Promise, setTimeout: () => 0, setInterval: () => 0 }; ctx.window = ctx; vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(DIR, "hf.js"), "utf8"), ctx, { filename: "hf.js" });
+const HF = ctx.HF; let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log("  FAIL", m); } else console.log("  ok  ", m); };
+let seed = 7; const R = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }, g = () => Math.sqrt(-2 * Math.log(R())) * Math.cos(2 * Math.PI * R());
+const DAY = 864e5, t0 = Date.UTC(2026, 4, 1, 13, 30);
+// daily bars; drift d per day for the last k days, with closes near the high (buyers) or low (sellers), and volume × vm
+function daily(n, d = 0, k = 0, vm = 1) { let p = 100; return Array.from({ length: n }, (_, i) => { const late = i >= n - k, o = p, e = g() * 0.012 + (late ? d : 0); p *= Math.exp(e);
+  const h = Math.max(o, p) * (1 + Math.abs(g()) * 0.004), l = Math.min(o, p) * (1 - Math.abs(g()) * 0.004), c = late && d ? (d > 0 ? h - (h - l) * 0.1 : l + (h - l) * 0.1) : p;
+  return [t0 + i * DAY, o, h, l, c, 1e6 * (late ? vm : 1) * (1 + Math.abs(g()) * 0.3)]; }); }
+const P = HF.places.map(p => p.t), D = { SPY: { bars: daily(130) }, "^VIX": { bars: daily(130).map(b => [b[0], 18, 19, 17, 18 + g(), 0]) } };
+P.forEach(t => D[t] = { bars: daily(130) });
+D.SMH = { bars: daily(130, 0.02, 6, 2.2) };   // money pours into semis for 6 days, on loud volume
+D.XLU = { bars: daily(130, -0.02, 6, 2.0) };  // and leaves utilities
+console.log("1. Robustness");
+for (const x of [{}, { SPY: { bars: [] } }, { SPY: { bars: daily(130) } }, { ...D, SMH: { bars: daily(130).map((b, i) => i === 60 ? [b[0], NaN, NaN, NaN, NaN, 0] : b) } }]) { try { HF.compute(x, {}); HF.backtest(x); } catch (e) { ok(false, "threw: " + e.message); } }
+ok(HF.compute({}, {}) === null, "no SPY data: no result");
+console.log("2. Finds the flow");
+const X = HF.compute(D, {}); ok(!!X && X.rows.length === 20, "20 places scored");
+const by = {}; X.rows.forEach(r => by[r.t] = r);
+ok(by.SMH.med > 0.5 && by.SMH.low > 0.3, `semis inflow seen (week ${Math.round(by.SMH.med * 100)}, today ${Math.round(by.SMH.low * 100)})`);
+ok(by.XLU.med < -0.5, `utilities outflow seen (week ${Math.round(by.XLU.med * 100)})`);
+ok(X.byB[0].t === "SMH", "semis are #1 on the blend (the bull)"); ok(X.byB[X.byB.length - 1].t === "XLU", "utilities are last");
+ok(by.SMH.lab === "Pouring in" || by.SMH.lab === "Fresh money", "semis label: " + by.SMH.lab);
+ok(X.rows.every(r => r.low >= -1 && r.low <= 1 && r.med >= -1 && r.med <= 1 && r.high >= -1 && r.high <= 1), "scores stay in −1…1");
+ok(X.mood >= -100 && X.mood <= 100 && typeof X.moodLab === "string", `mood ${X.mood} (${X.moodLab})`);
+console.log("3. Random data: no strong flow");
+const N = { SPY: { bars: daily(130) } }; P.forEach(t => N[t] = { bars: daily(130) }); const Y = HF.compute(N, {});
+const strong = Y.rows.filter(r => Math.abs(r.med) > 0.85).length; ok(strong <= 2, `few extreme week scores on random data (${strong} of 20)`);
+const bt = HF.backtest(N); ok(!bt || (bt.d1[0] >= 20 && bt.d1[1] / bt.d1[0] > 0.25 && bt.d1[1] / bt.d1[0] < 0.75), "backtest on random data near chance" + (bt ? ` (${Math.round(bt.d1[1] / bt.d1[0] * 100)}% of ${bt.d1[0]})` : ""));
+console.log(fails ? `${fails} FAILED` : "all passed"); process.exit(fails ? 1 : 0);
