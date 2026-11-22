@@ -37,6 +37,22 @@ const LEV = Object.keys(LEVX);
 const BOTS = { spot: { name: "Spot only", u: SPOT }, letf: { name: "2× and 3× funds only", u: LEV }, both: { name: "Spot + 2×/3× funds", u: [...SPOT, ...LEV] } };
 const ALL = [...new Set([...SPOT, ...LEV])], cls = s => LEVX[s] ? "L" : "S";
 const IDEAS = { brk: "Breakout (opening range or day high, with volume)", pull: "Trend pull-back to EMA 21", vrev: "VWAP snap-back from −2σ", rsi: "RSI turn up from 25", mom: "Volume burst (ride the move)", sqz: "Squeeze break" };
+// Nov 22 2026 EV review (council task, SOXX backlog 8): a SHADOW-ONLY idea "twin". On down days the big swings are up moves
+// in the inverse funds, and almost none had a signal of the six ideas before the low. twin = a signal on an inverse fund
+// when its long twin (the same index or stock, long side) turns down from a stretch up: the twin is 2σ+ ABOVE its session
+// VWAP with RSI 70 or higher (the mirror of the d1 state, limits written Nov 21 before any test) and its bar closes red,
+// on the first bar of that state (the bar before was not in it). Bars up to the signal minute only (no look-ahead).
+// It is traded on paper by all 15 versions and writes ONLY the dated record (keys "L|twin…", "S|twin…", "ctx|…|twin…").
+// It never changes the scores (S.arms), the time gate or the bot card, and NO bot trades it: it is not in IDEAS.
+// The bots can trade it only after a walk-forward test on 5+ market days and a scorecard item (backlog 8, steps 2–3).
+const SHADOW_IDEAS = { twin: "Inverse fund when its long twin turns down from a stretch up (shadow only)" };
+const TWIN = { SOXS: "SOXL", SQQQ: "TQQQ", SPXS: "SPXL", TZA: "TNA", TECS: "TECL", FAZ: "FAS", LABD: "LABU", NVD: "NVDL", TSLQ: "TSLL", MSTZ: "MSTU", SH: "SPY", PSQ: "QQQ" };
+let TWF = () => null;   // sym → { F, B } of that symbol's bars of the same day, as known now (set by prep() and the live loop)
+function twinSig(F, B, i, m, cm, sym) { const tw = TWIN[sym]; if (!tw || i < 20 || m < 575 || m > cm - 30) return false; const X = TWF(tw); if (!X || !X.F) return false;
+  const j = X.B.findIndex(b => b[0] === B[i][0]); if (j < 21 || j >= G_len(X)) return false; const G = X.F, up = q => (G.c[q] - G.vw[q]) / G.vsd[q] >= 2 && G.rsi[q] >= 70, red = q => G.c[q] < G.o[q];
+  // the turn: this twin bar is red and the twin was stretched up on this bar or the bar before; only the first such bar
+  const turn = q => red(q) && (up(q) || up(q - 1)); return turn(j) && !turn(j - 1); }
+const G_len = X => Math.min(X.B.length, X.F.n);
 const KS = [0.25, 0.5, 1], PLANS = { t3s: "target 3 ATR · stop past swing low", t6s: "target 6 ATR · stop past swing low", t6a: "target 6 ATR · 4-ATR stop", run: "runner: trail 3 ATR · stop past swing low", tim: "no stop, no target · time exit" };
 const MAXHOLD = 30, ALIVE = 5;
 const io = { r: (f, d) => { try { return JSON.parse(fs.readFileSync(`${OUT}/${f}`, "utf8")); } catch (e) { return d; } }, w: (f, v) => { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(`${OUT}/${f}`, JSON.stringify(v)); } };
@@ -171,8 +187,9 @@ function skipRec(S, sym, idea, t, bk, why, ch) { const z = (S.dated || (S.dated 
 function pickRec(S, sym, idea, t, ch) { if (!ch) return; const z = (S.dated || (S.dated = {}))[et(t).d] || (S.dated[et(t).d] = {}), b = bucket(et(t).m), nm = `${cls(sym) === "L" ? "funds" : "spot"}.${idea}`, bks = Object.keys(BOTS).filter(bk => BOTS[bk].u.includes(sym));
   if (!bks.length) return; for (const bk of bks) { const kk = `pickn|${bk}|${nm}|${ch.k}|${ch.p}@${b}`; (z[kk] || (z[kk] = [0]))[0]++; }
   for (let j = S.shadow.length - 1, c = 0; j >= 0 && c < 400; j--, c++) { const o = S.shadow[j]; if (o.t0 === t && o.sym === sym && o.idea === idea && o.k === ch.k && o.plan === ch.p) { (o.pk || (o.pk = [])).push(...bks.map(bk => `${bk}|${nm}`)); return; } } }
-function rec(S, o) { dated(S, o); if (DATED) return; const r = o.r; for (const kk of [key(o.cl, o.idea, o.k, o.plan), key(o.cl, o.idea, o.k, o.plan) + "@" + o.b, `${o.cl}|*@${o.b}`, `${o.cl}|${o.idea}|*`]) { const x = S.arms[kk] || (S.arms[kk] = { n: 0, s: 0, q: 0, w: 0 }); x.n++; x.s += r; x.q += r * r; if (r > 0) x.w++; if (x.n > 3000) { const f = 3000 / x.n; x.n = 3000; x.s *= f; x.q *= f; x.w *= f; } } }
-function tries(S, o) { if (DATED) return; const kk = key(o.cl, o.idea, o.k, o.plan), x = S.tr[kk] || (S.tr[kk] = [0, 0]); x[0]++; if (o.fill != null) x[1]++; }
+function rec(S, o) { dated(S, o); if (DATED || !IDEAS[o.idea]) return; const r = o.r;   // a shadow-only idea (SHADOW_IDEAS) writes only the dated record, never the scores
+ for (const kk of [key(o.cl, o.idea, o.k, o.plan), key(o.cl, o.idea, o.k, o.plan) + "@" + o.b, `${o.cl}|*@${o.b}`, `${o.cl}|${o.idea}|*`]) { const x = S.arms[kk] || (S.arms[kk] = { n: 0, s: 0, q: 0, w: 0 }); x.n++; x.s += r; x.q += r * r; if (r > 0) x.w++; if (x.n > 3000) { const f = 3000 / x.n; x.n = 3000; x.s *= f; x.q *= f; x.w *= f; } } }
+function tries(S, o) { if (DATED || !IDEAS[o.idea]) return; const kk = key(o.cl, o.idea, o.k, o.plan), x = S.tr[kk] || (S.tr[kk] = [0, 0]); x[0]++; if (o.fill != null) x[1]++; }
 const stat = x => { if (!x || !x.n) return { n: 0, m: 0, sd: 0.003 }; const m = x.s / x.n, sd = Math.sqrt(Math.max(1e-8, x.q / x.n - m * m)); return { n: x.n, m, sd: Math.max(sd, 1e-4), w: x.w / x.n }; };
 function score(S, cl, idea, k, plan, b) { const A = stat(S.arms[key(cl, idea, k, plan)]), B = stat(S.arms[key(cl, idea, k, plan) + "@" + b]), n0 = 15;
   const m = (A.n * A.m + B.n * B.m * 1.5) / (A.n + B.n * 1.5 + n0); const n = A.n + n0; return { m, se: A.sd / Math.sqrt(n), n: A.n, benched: A.n >= 30 && A.m + 1.28 * A.sd / Math.sqrt(A.n) < 0 }; }
@@ -240,10 +257,20 @@ let BT = false, EVF = {};
 // trade no idea (EVOFF; shadow and replay trades go on, so the memory still learns).
 let EVOFF = false;
 const evfOf = key => EVOFF ? 0 : (EVF[key] ?? 1);
+// Nov 22 2026 EV review (council task, SOXX backlog 9): an age limit on the rules. The saved rules (S.evf) had no age, and
+// the fetched ev.json can also be old when the EV governor stops (it writes after each US close). Rules are stale when 3 or
+// more market days (cal.js) closed after the scorecard's day (ET) and before today with no new scorecard. Stale rules count
+// as "no scorecard": EVOFF, the live bots trade no idea (default OFF, the council rule of Nov 18), so an idea that turned
+// to a loss in that time cannot trade at full size. Shadow and replay trades go on. 3 days is a fixed limit, not fitted.
+const EVMAXAGE = 3;
+function evAge(t, now = Date.now()) { const d0 = et(typeof t === "number" ? t : Date.parse(t)).d, today = et(now).d; if (!/^\d{4}-/.test(d0)) return Infinity; let n = 0;
+  for (let k = 1; k < 40; k++) { const e = et(Date.parse(d0 + "T12:00:00Z") + k * 864e5); if (e.d >= today) break; if (tradeDay(e)) n++; } return n; }
 async function evRules(S) { let ok = false;
   try { const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/ev/ev.json?t=" + Date.now()); if (r.ok) { const j = await r.json(), T = j.trackers && j.trackers.soxx; if (T && T.rules) { EVF = T.rules; ok = true; if (S) S.evf = { at: Date.now(), t: j.t || null, rules: EVF }; } } } catch (e) { }
   if (!ok && S && S.evf && S.evf.rules) { EVF = S.evf.rules; ok = true; console.log(`EV rules: fetch failed, using the last good rules (scorecard ${S.evf.t || "?"})`); }
   if (!ok) { EVOFF = true; console.log("EV rules: fetch failed and no saved rules: the live bots trade no idea in this run (shadow and replay go on)"); return; }
+  const tS = S && S.evf ? (S.evf.t || S.evf.at) : null, age = tS ? evAge(tS) : 0;
+  if (age >= EVMAXAGE) { EVOFF = true; console.log(`EV rules: STALE (scorecard ${tS}, ${age} market days with no new scorecard, limit ${EVMAXAGE}): the live bots trade no idea in this run (shadow and replay go on)`); return; }
   console.log(`EV rules: ${Object.keys(EVF).length} (${Object.entries(EVF).map(([k, v]) => k + "=" + v).join(", ")})`); }
 function emptyState() { return { v: 2, arms: {}, tr: {}, seeded: {}, bots: Object.fromEntries(Object.keys(BOTS).map(k => [k, { orders: [], trades: [], days: {} }])), shadow: [], swings: {}, last: {}, live: {} }; }
 // process bar i of the day (bars 0..i known). shadowOnly: the replay of past days (no bot trades).
@@ -254,7 +281,9 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   if (!shadowOnly) for (const [bk, bot] of Object.entries(S.bots)) bot.orders = bot.orders.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done && o.st === "done") { const g = grade(o); bot.trades.push({ sym, idea: o.idea, k: o.k, plan: o.plan, t0: o.t0, tf: o.tf, tx: o.tx, fill: +o.fill.toFixed(4), px: +o.px.toFixed(4), r: +o.r.toFixed(5), usd: +(UNIT * o.r).toFixed(2), why: o.why, min: o.min, mfe: +o.mfe.toFixed(5), mae: +o.mae.toFixed(5), g, sig: o.sig, explore: o.explore || 0, bt: BT ? 1 : 0 }); } return !done; });
   if (last) return;
   // 2. new signals on this closed bar
-  const sg = signals(F, i, m, closeM(et(t).d)); if (!sg.length) return;
+  const sg = signals(F, i, m, closeM(et(t).d));
+  if (TWIN[sym] && twinSig(F, B, i, m, closeM(et(t).d), sym)) for (const k of KS) for (const p of Object.keys(PLANS)) S.shadow.push(newOrder(sym, "twin", k, p, F, i, t));   // shadow only (see SHADOW_IDEAS)
+  if (!sg.length) return;
   for (const idea of sg) { for (const k of KS) for (const p of Object.keys(PLANS)) S.shadow.push(newOrder(sym, idea, k, p, F, i, t));
     if (shadowOnly) continue;
     const chI = choose(S, cls(sym), idea, bucket(m), true); pickRec(S, sym, idea, t, chI);
@@ -300,6 +329,7 @@ async function prep(S) {
   const marketOpenToday = tradeDay(et(Date.now())) && et(Date.now()).m < closeM(today) + 1;
   for (const day of Object.keys(DAYS).sort()) { if (S.seeded["D:" + day] || (day >= today && !MOCK && marketOpenToday)) continue;
     const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; }); for (const b of Object.values(S.bots)) b.orders = [];
+    TWF = s => DAYS[day][s] ? { F: FF[s], B: DAYS[day][s] } : null;
     (S.dated || (S.dated = {}))[day] = {};   // the replay of the whole day replaces the live minutes' dated record (no double count)
     const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); BT = true;
     for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, false, i === B.length - 1); ptr[s]++; } }
@@ -309,6 +339,7 @@ async function prep(S) {
   // replayed once more to add the new keys (ctx|); its skip record ("skip" keys, made only by the bot replay) is kept.
   let nd = 0; const keepShadow = S.shadow; for (const day of Object.keys(DAYS).sort()) { if (!S.seeded["D:" + day] || (S.dated && S.dated[day] && S.dated[day]._full >= DV)) continue;
     const syms = Object.keys(DAYS[day]), FF = {}, ptr = {}; syms.forEach(s => { FF[s] = feats(DAYS[day][s]); ptr[s] = 0; });
+    TWF = s => DAYS[day][s] ? { F: FF[s], B: DAYS[day][s] } : null;
     const old = (S.dated && S.dated[day]) || {}; (S.dated || (S.dated = {}))[day] = Object.fromEntries(Object.entries(old).filter(([k]) => k.startsWith("skip") || k.startsWith("pick")));
     const ts = [...new Set(syms.flatMap(s => DAYS[day][s].map(b => b[0])))].sort((a, b) => a - b); DATED = true; BT = true; S.shadow = [];
     for (const t of ts) for (const s of syms) { const B = DAYS[day][s], i = ptr[s]; if (i < B.length && B[i][0] === t) { onBar(S, s, FF[s], B, i, true, i === B.length - 1); ptr[s]++; } }
@@ -365,6 +396,11 @@ function report(S, note) {
   R.liveTime = {}; for (const [bk, bot] of Object.entries(S.bots)) { const z = { early: { n: 0, usd: 0, days: [] }, late: { n: 0, usd: 0, days: [] } };
     for (const x of bot.trades) { if (x.bt || !x.t0) continue; const e = et(x.t0), y = z[e.m < 690 ? "early" : "late"]; y.n++; y.usd += x.usd; if (!y.days.includes(e.d)) y.days.push(e.d); }
     R.liveTime[bk] = Object.fromEntries(Object.entries(z).map(([k, y]) => [k, { n: y.n, usd: +y.usd.toFixed(2), days: y.days.length }])); }
+  // Nov 22 2026: the shadow-only idea "twin" (record only, no bot trades it): per class, all 15 versions, from the dated record
+  R.twin = {}; for (const [d, z] of Object.entries(S.dated || {})) for (const [kk, v] of Object.entries(z)) { const mm = /^([SL])\|twin\|([0-9.]+)\|([a-z0-9]+)$/.exec(kk); if (!mm || !Array.isArray(v) || !v[0]) continue;
+    const x = R.twin[mm[1]] || (R.twin[mm[1]] = { n: 0, s: 0, w: 0, days: [], v: {} }); x.n += v[0]; x.s = +(x.s + v[1]).toFixed(6); x.w += v[3]; if (!x.days.includes(d)) x.days.push(d); const y = x.v[mm[2] + " " + mm[3]] || (x.v[mm[2] + " " + mm[3]] = [0, 0]); y[0] += v[0]; y[1] = +(y[1] + v[1]).toFixed(6); }
+  for (const x of Object.values(R.twin)) x.days = x.days.length;
+  R.evOff = EVOFF ? 1 : 0;   // 1 = no fresh scorecard (none loaded, or stale: 3+ market days old): the live bots trade no idea
   R.rules = "Bots trade only versions with 30+ paper trades and a positive record; no trades with an idea whose paper record clearly loses for that class, or in a half hour where the ideas the bot can trade (not muted) clearly lose, from the dated record of earlier days (200+ trades, or 4+ days with a day z of −2 or lower, the scorecard's mute rule; the gates reopen when the record turns).";
   return R;
 }
@@ -398,11 +434,12 @@ async function main() {
   // a new day: orders from an earlier day are gone (all trades end at 15:59)
   for (const b of Object.values(S.bots)) b.orders = b.orders.filter(o => et(o.t0).d === today); if (S.day !== today) { S.swings = {}; S.last = {}; S.shadow = []; S.day = today; }
   const C = {};   // today's bars per symbol
+  const LF = {}; TWF = s => LF[s] || null;   // the twin's bars and features as known in this loop (twins come first in ALL)
   for (let loop = 0; ; loop++) {
     const now = Date.now(), e = et(now);
     const got = await pool(ALL, 6, async s => [s, await chart(s, "1d")]);
     for (const [sym, d] of got) { if (!d || !d.B.length) continue; const B = d.B.filter(b => et(b[0]).d === today && (b[0] + 6e4 <= now || MOCK)); if (!B.length) continue; C[sym] = B;
-      S.live[sym] = +B[B.length - 1][4].toFixed(4); const F = feats(B), from = S.last[sym] == null ? 0 : B.findIndex(b => b[0] > S.last[sym]); if (from < 0) continue;
+      S.live[sym] = +B[B.length - 1][4].toFixed(4); const F = feats(B); LF[sym] = { F, B }; const from = S.last[sym] == null ? 0 : B.findIndex(b => b[0] > S.last[sym]); if (from < 0) continue;
       const isLast = i => et(B[i][0]).m >= closeM(today) - 1;
       for (let i = from; i < B.length; i++) onBar(S, sym, F, B, i, from === 0 && i < B.length - 3 && S.last[sym] == null && loop === 0 && !MOCK ? true : false, isLast(i));
       S.last[sym] = B[B.length - 1][0]; S.swings[sym] = swings(F, B); }
