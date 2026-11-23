@@ -33,6 +33,24 @@
       return `${l} <b class="${r[1]}" title="${esc(r[2])}">${r[0]}</b> ${x.ev != null ? pc(x.ev) + " per trade" : ""} (n ${x.n}${x.z != null ? ", z " + x.z.toFixed(1) : ""}${x.recent != null ? ", newer half " + pc(x.recent) : ""})`; };
     const T = E.data.trackers && E.data.trackers.soxx, at = T && T.at ? new Date(T.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
     return `<div style="font:12px var(--mono)" title="EV governor scorecard${at ? " of " + esc(at) : ""} (written after each US close; today's trades count from the next one). BACK = proven positive EV, WATCH = not proven, CUT = negative or decaying, MUTE = proven negative EV.">Scorecard${at ? " (" + esc(at) + ")" : ""}: ${[one(a, "live"), one(b, "backtest")].filter(Boolean).join(" · ")}</div>`; }
+  // Nov 23 2026 EV review: which ideas the live bots may trade in the next session, at the top of the card. The scorecard
+  // turns ideas on and off after each close (Nov 23: funds vrev MUTE → CUT and funds rsi MUTE → WATCH came back, funds sqz
+  // WATCH → CUT), and before this line the card showed that only inside "What they learned". Read only: no bot rule changes.
+  // An idea is off when the scorecard MUTEs it (factor 0) or the bots' own idea gate shuts it (R.gates.ideas). CUT does not
+  // change the bet size (every bet is 1 unit), so a CUT idea still trades; the card says so.
+  const IDN = { vrev: "VWAP snap-back", sqz: "squeeze", rsi: "RSI turn", pull: "pull-back", brk: "breakout", mom: "burst" };
+  function nextLine() { const E = window.EVR; if (R.evOff) return ""; if (!E || !E.ready) return "";
+    const T = E.data.trackers && E.data.trackers.soxx; if (!T || !T.items) return "";
+    const at = T.at ? new Date(T.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+    const part = (cl, nm) => { const on = [], off = []; for (const i of Object.keys(IDN)) { const x = E.item("soxx", `idea.${nm}.${i}`); if (!x) continue;
+        const r = RUL[x.status] || [String(x.status).toUpperCase(), "", ""], own = R.gates && R.gates.ideas && (R.gates.ideas[cl] || []).includes(i);
+        const ch = x.changed && x.prev ? ` <span class="A" title="the ruling changed at this scorecard">was ${esc(String(x.prev).toUpperCase())}</span>` : "";
+        const t = `<span title="${esc(IDN[i])}: ${esc(r[2])}; ${x.ev != null ? pc(x.ev, 3) + " per paper trade" : ""}, n ${x.n}${x.z != null ? ", z " + x.z.toFixed(1) : ""}${x.recent != null ? ", newer half " + pc(x.recent, 3) : ""}">${esc(i)} <b class="${r[1]}">${r[0]}</b>${x.status !== "mute" && x.ev != null ? " " + pc(x.ev, 3) : ""}${ch}</span>`;
+        (x.status === "mute" || own ? off : on).push(own && x.status !== "mute" ? t + " (bot idea gate)" : t); }
+      return `${cl === "L" ? "2×/3× funds" : "Spot"}: ${on.join(", ") || "no idea"}${off.length ? ` <span style="color:var(--dim)">· off: ${off.join(", ")}</span>` : ""}`; };
+    const cutNeg = ["spot", "funds"].flatMap(nm => Object.keys(IDN).map(i => E.item("soxx", `idea.${nm}.${i}`)).filter(x => x && x.status === "cut" && x.ev < 0).map(x => x.id.replace("idea.", "").replace(".", " ")));
+    return `<div style="font:12px var(--mono);margin:4px 0;padding:6px 8px;border:1px solid var(--line);border-radius:8px" title="From the EV scorecard${at ? " of " + esc(at) : ""}: per idea, the mean of all 15 paper versions. MUTE = proven negative EV (off). The bots trade only the version with the best record (30+ paper trades, mean > 0).">
+      <b>Next session, ideas on</b>${at ? ` (scorecard ${esc(at)})` : ""} · ${part("S", "spot")} · ${part("L", "funds")}${cutNeg.length ? `<div class="note" style="margin:2px 0 0">CUT with EV below 0 still trades at the same size (1 unit; the size never changes): ${cutNeg.map(esc).join(", ")}. Not gated: in a walk-forward test (Nov 5–23, the record of the days before each day) such ideas lost on the older days (−0.08 % per fill) but won on the newer days (+0.04 %).</div>` : ""}</div>`; }
   function botBox(k, b) {
     const g = b.grades || {}, gt = Object.values(g).reduce((p, q) => p + q, 0) || 1;
     return `<div class="bx"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(b.name)}</b><span class="note" style="margin:0">${b.u.length} symbols</span></div>
@@ -92,7 +110,7 @@
     const age = Math.round((Date.now() - R.at) / 6e4), was = c.querySelector("details"), op = !was || was.open;
     c.innerHTML = `<details ${op ? "open" : ""}><summary class="label" style="cursor:pointer">🤖 Paper trading bots · Schwab-tradable only · limit entries · 5–30 min · 1 unit = $${R.unit.toLocaleString()} every bet</summary>
       ${R.evOff ? `<div class="note" style="color:var(--down)"><b>No fresh EV scorecard</b> (not loaded, or 3+ market days old): the live bots trade no idea in this run. Paper and replay trades go on.</div>` : ""}<div class="note">${esc(R.note || "")} · updated ${age < 1 ? "just now" : age + " min ago"}. Paper only: no real orders. Long only, as in a cash account: bearish ideas go through inverse funds. Losing is allowed while they learn; the score that matters is "Last 50" getting better.</div>
-      <div class="b3">${["spot", "letf", "both"].filter(k => R.bots[k]).map(k => botBox(k, R.bots[k])).join("")}</div>
+      ${nextLine()}<div class="b3">${["spot", "letf", "both"].filter(k => R.bots[k]).map(k => botBox(k, R.bots[k])).join("")}</div>
       <div class="tabs" style="margin-top:10px">${[["trades", "Trades"], ["learned", "What they learned"], ["swings", "Big swings"]].map(([k, l]) => `<button data-v="${k}" class="${view === k ? "on" : ""}">${l}</button>`).join("")}
         ${view === "trades" ? ` · ${[["both", "Spot + funds"], ["spot", "Spot"], ["letf", "Funds"], ["all", "All bots"]].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? "on" : ""}">${l}</button>`).join("")}` : ""}</div>
       ${view === "trades" ? trades() : view === "learned" ? learned() : swings()}
