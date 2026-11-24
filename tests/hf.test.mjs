@@ -64,4 +64,14 @@ const bt = HF.backtest(N); ok(!bt || (bt.d1[0] >= 20 && bt.d1[1] / bt.d1[0] > 0.
   const X = HF.compute(D4, I, pmT + 20 * 3e5), by = {}; X.rows.forEach(r => by[r.t] = r);
   ok(Math.abs(by.XLC.retT + 0.01) < 0.002, `2 trades today: XLC ${(by.XLC.retT * 100).toFixed(2)}% (want -1%, not yesterday's +4%)`);
   ok(by.XLB.none && by.XLB.retT === 0 && by.XLB.low === 0, `no trade today: XLB ${by.XLB.none ? "no trades yet" : (by.XLB.retT * 100).toFixed(2) + "%"}`); }
+// 7. A live trade newer than the 5-minute bars is used (quiet ETF, Yahoo bars lag)
+{ console.log("7. Live trade");
+  const D5 = { SPY: { bars: daily(130) }, "^VIX": D["^VIX"] }; P.forEach(t => D5[t] = { bars: daily(130) });
+  const lastSpy = D5.SPY.bars[129], pmT = lastSpy[0] + DAY - 4 * 36e5, xc = D5.XLC.bars[129][4], uu = D5.UUP.bars[129][4];
+  const bars = (t, px0, n) => Array.from({ length: n }, (_, i) => [t + i * 3e5, px0, px0 * 1.001, px0 * 0.999, px0, 1e4]);
+  const I = { SPY: { bars: bars(pmT, lastSpy[4], 20), meta: {} }, XLC: { bars: bars(pmT, xc, 2), meta: {}, live: { p: xc * 0.99, t: pmT + 30 * 6e4 } },
+    UUP: { bars: [], meta: {}, live: { p: uu * 0.995, t: pmT + 40 * 6e4 } } };
+  const X = HF.compute(D5, I, pmT + 45 * 6e4), by = {}; X.rows.forEach(r => by[r.t] = r);
+  ok(Math.abs(by.XLC.retT + 0.01) < 0.001, `XLC uses the newer live trade: ${(by.XLC.retT * 100).toFixed(2)}%`);
+  ok(!by.UUP.none && Math.abs(by.UUP.retT + 0.005) < 0.001, `UUP with only a live trade: ${(by.UUP.retT * 100).toFixed(2)}%`); }
 console.log(fails ? `${fails} FAILED` : "all passed"); process.exit(fails ? 1 : 0);
