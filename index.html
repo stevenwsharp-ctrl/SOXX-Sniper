@@ -1655,6 +1655,13 @@ function isDST(ms){
 function etInfo(ms){const l=new Date(ms-(isDST(ms)?4:5)*3600000);return{d:l.toISOString().slice(0,10),min:l.getUTCHours()*60+l.getUTCMinutes(),wd:l.getUTCDay()}}
 function etEpochMin(d,min){const base=Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))+min*60000;return Math.floor((base+(isDST(base+5*3600000)?4:5)*3600000)/60000)}
 /* NYSE holidays are closed and early-close days end the regular session at 13:00 ET (shared cal.js; council, Nov 15 2026) */
+/* Day-change base (Nov 24 2026 fix). Finnhub /quote, Yahoo and StockTwits keep the last session's numbers until 9:30 am ET:
+   in pre-market c = the last regular close and pc = the close BEFORE it. AMD showed +2.69% vs Friday's close while it was
+   -3.91% vs Monday's close. When a new trading day has started (4:00 am ET or later) and the quote's last close is from an
+   earlier day, the base is that last close. Weekends, holidays and 0:00-4:00 am keep pc (the last session's move). */
+function rolledBase(pc,lastC,lastMs){const e=etInfo(Date.now()),C=window.NYSE;if(!(lastC>0)||!(lastMs>0)||e.wd===0||e.wd===6||(C&&C.isHol(e.d))||e.min<240)return pc;return etInfo(lastMs).d<e.d?lastC:pc}
+/* the same for a Worker /ext quote: roll only when its price is from today (an index that does not trade before the open keeps yesterday's move) */
+function extBase(x){const pc=x.prevClose||x.regularClose;return x.time>0&&etInfo(x.time).d===etInfo(Date.now()).d?rolledBase(pc,x.regularClose,x.regTime):pc}
 function phaseAt(ms){const e=etInfo(ms),C=window.NYSE;if(e.wd===0||e.wd===6||(C&&C.isHol(e.d)))return"closed";const end=C?C.sessEnd(e.d):960;return e.min<240?"closed":e.min<570?"pre":e.min<end?"regular":e.min<end+240?"post":"closed"}
 function addDays(d,n){const x=new Date(d+"T12:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)}
 
@@ -2708,8 +2715,8 @@ function onTick(s,p,v){
   updBar(s,p,v);dirty=true;
 }
 let qcT=0;
-function saveQuoteCache(){if(demo||Date.now()-qcT<15000)return;qcT=Date.now();const q={};FH_SYMS.forEach(s=>{const x=Q[s];if(x.pc>0)q[s]={pc:x.pc,o:x.o,h:x.h,l:x.l,c:x.c}});lsSet("soxx_quotes",JSON.stringify({d:etDate(),q}))}
-function loadQuoteCache(){try{const c=JSON.parse(lsGet("soxx_quotes")||"null");if(!c||c.d!==etDate())return;for(const s in c.q)if(Q[s])Object.assign(Q[s],c.q[s]);dirty=true}catch(e){}}
+function saveQuoteCache(){if(demo||Date.now()-qcT<15000)return;qcT=Date.now();const q={};FH_SYMS.forEach(s=>{const x=Q[s];if(x.pc>0)q[s]={pc:x.pc,o:x.o,h:x.h,l:x.l,c:x.c}});lsSet("soxx_quotes2",JSON.stringify({d:etDate(),q}))}
+function loadQuoteCache(){try{const c=JSON.parse(lsGet("soxx_quotes2")||"null");if(!c||c.d!==etDate())return;for(const s in c.q)if(Q[s])Object.assign(Q[s],c.q[s]);dirty=true}catch(e){}}
 /* Finnhub scheduler: one call each 1.1 s at most, max 55 calls per minute (free limit is 60) */
 const fhQ={calls:[],backoff:0,rr:0,jobs:{},off:{},busy:0,n:0};
 function fhUsed(){const t=Date.now();fhQ.calls=fhQ.calls.filter(x=>t-x<60000);return fhQ.calls.length}
@@ -2737,8 +2744,11 @@ function fhTick(){
 }
 async function fetchQuote(s){
   const j=await fhGet(`quote?symbol=${encodeURIComponent(s)}`,"quote");
-  if(j&&j.pc>0){const q=Q[s];q.pc=j.pc;if(j.o>0)q.o=j.o;saveQuoteCache();{const dd=etDate();if(q.hlDay!==dd){q.h=0;q.l=0;q.hlDay=dd}}   // day high / low start fresh each day (the cache kept yesterday's)
-    if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l;
+  if(j&&j.pc>0){const q=Q[s];
+    // pre-market: Finnhub still holds the last session (c = last close, pc = the close before it, o/h/l = that day): base = c, no o/h/l yet
+    const base=rolledBase(j.pc,j.c,j.t>0?j.t*1000:0),rolled=base!==j.pc;
+    q.pc=base;if(rolled)q.o=0;else if(j.o>0)q.o=j.o;saveQuoteCache();{const dd=etDate();if(q.hlDay!==dd){q.h=0;q.l=0;q.hlDay=dd}}   // day high / low start fresh each day (the cache kept yesterday's)
+    if(!rolled){if(j.h>0)q.h=Math.max(q.h,j.h);if(j.l>0)q.l=q.l>0?Math.min(q.l,j.l):j.l}
     if(j.c>0){q.qc=j.c;q.qt=j.t>0?j.t*1000:Date.now()}
     const ph=phaseAt(Date.now()),ext=ph==="pre"||ph==="post"||ph==="closed";
     const fresh=ws&&ws.readyState===1&&Date.now()-q.flash<60000;
@@ -2837,7 +2847,7 @@ async function pollIdx(){
   if(demo){IDX_LIST.forEach(([k],i)=>{const base=[6123,22650,6735,46820,16.4,4.12][i];const q=IDXQ[k]||(IDXQ[k]={pc:base,p:base});q.p=+(q.p*(1+(Math.random()-0.5)*0.0012)).toFixed(2)});return}
   const p=fredProxy();if(!p)return;
   try{const j=await(await fetch(`${p}/ext?t=${IDX_LIST.map(x=>x[0]).join(",")}`)).json();
-    for(const k in j.quotes){const x=j.quotes[k];IDXQ[k]={p:x.price,pc:x.prevClose||x.regularClose,t:x.time}}if(Object.keys(j.quotes||{}).length)health.idxAt=Date.now()}catch(e){}
+    for(const k in j.quotes){const x=j.quotes[k];IDXQ[k]={p:x.price,pc:extBase(x),t:x.time}}if(Object.keys(j.quotes||{}).length)health.idxAt=Date.now()}catch(e){}
 }
 function startIdx(){clearInterval(idxTimer);pollIdx();idxTimer=setInterval(pollIdx,20000)}
 const fmtNum=(x,d=2)=>isFinite(x)?x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}):"--";
@@ -3333,7 +3343,7 @@ async function ixLoad(){
   if(demo){syms.forEach(s=>{if(IDXQ&&IDXQ[s]){IX.q[s]={p:IDXQ[s].p,pc:IDXQ[s].pc};return}const q=IX.q[s]||(IX.q[s]={pc:/^\^(VIX|IRX|FVX|TNX|TYX)/.test(s)?[16.4,4.0,3.9,4.12,4.6][["^VIX","^IRX","^FVX","^TNX","^TYX"].indexOf(s)]||17:100+Math.random()*400});q.pc=q.pc||100;q.p=(q.p||q.pc*(1+(Math.random()-0.5)*0.02))*(1+(Math.random()-0.5)*0.002)});if(!IX.chart)IX.chart=demoIxChart(k);ixRender();return}
   const p=fredProxy();if(!p){ixRender();return}
   const chunks=[];for(let i=0;i<syms.length;i+=12)chunks.push(syms.slice(i,i+12));
-  await Promise.all(chunks.map(c=>fetch(`${p}/ext?t=${c.map(encodeURIComponent).join(",")}`).then(r=>r.json()).then(j=>{for(const s in j.quotes||{}){const x=j.quotes[s];IX.q[s]={p:x.price,pc:x.prevClose||x.regularClose,t:x.time,sess:x.session}}}).catch(()=>{})));
+  await Promise.all(chunks.map(c=>fetch(`${p}/ext?t=${c.map(encodeURIComponent).join(",")}`).then(r=>r.json()).then(j=>{for(const s in j.quotes||{}){const x=j.quotes[s];IX.q[s]={p:x.price,pc:extBase(x),t:x.time,sess:x.session}}}).catch(()=>{})));
   const cs=IXDEF[k].chart;
   if(cs&&(!IX.chart||IX.chart.k!==k+IX.range||Date.now()-IX.chart.at>60000)){
     try{const j=await(await fetch(`${p}/chart?t=${encodeURIComponent(cs)}&range=${IX.range}&interval=${IX.range==="1d"?"5m":"15m"}`)).json();if(j.status==="ok")IX.chart={k:k+IX.range,at:Date.now(),bars:j.bars,meta:j.meta}}catch(e){}
