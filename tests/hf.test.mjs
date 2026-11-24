@@ -31,4 +31,13 @@ console.log("3. Random data: no strong flow");
 const N = { SPY: { bars: daily(130) } }; P.forEach(t => N[t] = { bars: daily(130) }); const Y = HF.compute(N, {});
 const strong = Y.rows.filter(r => Math.abs(r.med) > 0.85).length; ok(strong <= 2, `few extreme week scores on random data (${strong} of 20)`);
 const bt = HF.backtest(N); ok(!bt || (bt.d1[0] >= 20 && bt.d1[1] / bt.d1[0] > 0.25 && bt.d1[1] / bt.d1[0] < 0.75), "backtest on random data near chance" + (bt ? ` (${Math.round(bt.d1[1] / bt.d1[0] * 100)}% of ${bt.d1[0]})` : ""));
+// 4. Pre-market base (Nov 24 2026 fix): the chart meta holds the close BEFORE the last session; the move must use the last close
+{ console.log("4. Pre-market base");
+  const D2 = { SPY: { bars: daily(130) }, "^VIX": D["^VIX"] }; P.forEach(t => D2[t] = { bars: daily(130) });
+  const lastS = D2.SMH.bars[129], lastSpy = D2.SPY.bars[129], pmT = lastS[0] + DAY - 4 * 36e5;   // next day, 5:30 am ET
+  const bars = (px0, k) => Array.from({ length: 20 }, (_, i) => { const p = px0 * (1 + k * i / 19); return [pmT + i * 3e5, p, p * 1.001, p * 0.999, p, 1e4]; });
+  const I = { SMH: { bars: bars(lastS[4], -0.04), meta: { prevClose: lastS[4] * 0.9 } }, SPY: { bars: bars(lastSpy[4], 0), meta: { prevClose: lastSpy[4] * 0.95 } } };
+  const r = HF.compute(D2, I, pmT + 20 * 3e5).rows.find(x => x.t === "SMH");
+  ok(r.retT < -0.03 && r.retT > -0.05, `semis down 4% in pre-market read as ${(r.retT * 100).toFixed(2)}% (not a gain vs the older close)`);
+  ok(r.low < 0, `today score is negative (${Math.round(r.low * 100)})`); }
 console.log(fails ? `${fails} FAILED` : "all passed"); process.exit(fails ? 1 : 0);
