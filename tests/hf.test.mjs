@@ -50,4 +50,18 @@ const bt = HF.backtest(N); ok(!bt || (bt.d1[0] >= 20 && bt.d1[1] / bt.d1[0] > 0.
   const I = { "BTC-USD": { bars: bars(100, -0.03), meta: { prevClose: 100 } }, SPY: { bars: bars(lastSpy[4], 0), meta: { prevClose: lastSpy[4] } } };
   const r = HF.compute(D3, I, pmT + 20 * 3e5).rows.find(x => x.t === "BTC-USD");
   ok(r.retT < -0.025, `bitcoin down 3% today read as ${(r.retT * 100).toFixed(2)}%`); }
+// 6. Quiet ETFs in pre-market (Nov 24 2026): 1-2 trades still count; no trade today = 0, never yesterday's move
+{ console.log("6. Quiet ETFs");
+  const D4 = { SPY: { bars: daily(130) }, "^VIX": D["^VIX"] }; P.forEach(t => D4[t] = { bars: daily(130) });
+  D4.XLC.bars[129][4] = D4.XLC.bars[128][4] * 1.04;   // yesterday +4%
+  D4.XLB.bars[129][4] = D4.XLB.bars[128][4] * 1.04;
+  const lastSpy = D4.SPY.bars[129], pmT = lastSpy[0] + DAY - 4 * 36e5, yT = lastSpy[0] + 2 * 36e5;
+  const bars = (t, px0, k, n) => Array.from({ length: n }, (_, i) => { const p = px0 * (1 + k * i / Math.max(1, n - 1)); return [t + i * 3e5, p, p * 1.001, p * 0.999, p, 1e4]; });
+  const xc = D4.XLC.bars[129][4], xb = D4.XLB.bars[129][4];
+  const I = { SPY: { bars: bars(pmT, lastSpy[4], -0.01, 20), meta: {} },
+    XLC: { bars: bars(pmT, xc * 0.99, 0, 2), meta: { prevClose: xc / 1.04 } },          // 2 trades today, -1%
+    XLB: { bars: bars(yT, xb / 1.04, 0.04, 20), meta: { prevClose: xb / 1.04 / 1.04 } } }; // only yesterday's bars
+  const X = HF.compute(D4, I, pmT + 20 * 3e5), by = {}; X.rows.forEach(r => by[r.t] = r);
+  ok(Math.abs(by.XLC.retT + 0.01) < 0.002, `2 trades today: XLC ${(by.XLC.retT * 100).toFixed(2)}% (want -1%, not yesterday's +4%)`);
+  ok(by.XLB.none && by.XLB.retT === 0 && by.XLB.low === 0, `no trade today: XLB ${by.XLB.none ? "no trades yet" : (by.XLB.retT * 100).toFixed(2) + "%"}`); }
 console.log(fails ? `${fails} FAILED` : "all passed"); process.exit(fails ? 1 : 0);
