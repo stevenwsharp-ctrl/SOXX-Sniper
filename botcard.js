@@ -51,6 +51,31 @@
     const cutNeg = ["spot", "funds"].flatMap(nm => Object.keys(IDN).map(i => E.item("soxx", `idea.${nm}.${i}`)).filter(x => x && x.status === "cut" && x.ev < 0).map(x => x.id.replace("idea.", "").replace(".", " ")));
     return `<div style="font:12px var(--mono);margin:4px 0;padding:6px 8px;border:1px solid var(--line);border-radius:8px" title="From the EV scorecard${at ? " of " + esc(at) : ""}: per idea, the mean of all 15 paper versions. MUTE = proven negative EV (off). The bots trade only the version with the best record (30+ paper trades, mean > 0).">
       <b>Next session, ideas on</b>${at ? ` (scorecard ${esc(at)})` : ""} · ${part("S", "spot")} · ${part("L", "funds")}${cutNeg.length ? `<div class="note" style="margin:2px 0 0">CUT with EV below 0 still trades at the same size (1 unit; the size never changes): ${cutNeg.map(esc).join(", ")}. Not gated: in a walk-forward test (Nov 5–23, the record of the days before each day) such ideas lost on the older days (−0.08 % per fill) but won on the newer days (+0.04 %).</div>` : ""}</div>`; }
+  // Nov 24 2026 EV review: the proven parts at the top of the card. Before, the top line showed only the idea mean of all
+  // 15 paper versions (spot vrev WATCH +0.038 %), and the proven versions (arm.* BACK, spot vrev with the time exit:
+  // +0.10 % to +0.13 % per trade, z 4.3 to 4.8) were not on the card at all. The line also shows the version the bots pick
+  // (the best record: 30+ paper trades, mean > 0; R.arms), so a pick that is not a BACK version is easy to see, and the
+  // half-hour MUTEs of the scorecard with the bots' own time gate for that half hour. The bots read only the idea rulings,
+  // not half.* (walk-forward Nov 24, dated.json Nov 2–24, the record of the days before each day: the idea × half-hour
+  // mute blocked trades that made +0.31 % (older days) and +0.53 % (newer days) per paper trade, so it is not a bot gate).
+  // Read only: no bot rule changes.
+  const HHN = b => { const m = 570 + 30 * b, f = x => `${(Math.floor(x / 60) + 11) % 12 + 1}:${String(x % 60).padStart(2, "0")}`; return `${f(m)}–${f(m + 30)}`; };
+  function provenLine() { const E = window.EVR; if (R.evOff) return ""; if (!E || !E.ready) return "";
+    const T = E.data.trackers && E.data.trackers.soxx; if (!T || !T.items) return "";
+    const tradable = (cl, i) => { const x = E.item("soxx", `idea.${cl === "L" ? "funds" : "spot"}.${i}`); return !(x && x.status === "mute") && !(R.gates && R.gates.ideas && (R.gates.ideas[cl] || []).includes(i)); };
+    const back = T.items.filter(x => /^arm\./.test(x.id) && x.status === "back").map(x => { const [, cl, idea, ...r] = x.id.split("."), plan = r.pop(); return { cl, idea, k: r.join("."), plan, x }; });
+    const nm = cl => cl === "L" ? "funds" : "spot";
+    const pick = {}; for (const a of R.arms || []) { if (a.n < 30 || !(a.m > 0) || a.benched) continue; const kk = a.cl + "|" + a.idea; if (!pick[kk] || a.m > pick[kk].m) pick[kk] = a; }
+    const picks = Object.values(pick).filter(a => tradable(a.cl, a.idea)).map(a => { const ok = back.some(b => b.cl === a.cl && b.idea === a.idea && +b.k === +a.k && b.plan === a.plan);
+      return `<span title="the version with the best paper record (n ${a.n}, ${pc(a.m, 3)} per trade, z ${a.t})">${nm(a.cl)} ${esc(a.idea)} ${a.k} ATR ${esc(a.plan)} ${ok ? '<b class="L">BACK</b>' : '<span class="A">not proven</span>'}</span>`; });
+    const bk = back.map(b => `<span title="${esc(b.x.desc || "")}: n ${b.x.n}, z ${b.x.z != null ? b.x.z.toFixed(1) : "–"}">${nm(b.cl)} ${esc(b.idea)} ${esc(b.k)} ATR ${esc(b.plan)} <span class="L">${pc(b.x.ev, 3)}</span></span>`);
+    const rows = R.gates && R.gates.basis || {};
+    const hm = T.items.filter(x => /^half\.(spot|funds)\.[a-z]+\.\d+$/.test(x.id) && x.status === "mute").map(x => { const [, c, idea, b] = x.id.split("."), cl = c === "funds" ? "L" : "S";
+      if (!tradable(cl, idea)) return ""; const row = rows[cl] && (rows[cl].rows || []).find(r => r.b === +b), shut = row && row.shut;
+      return `<span title="${esc(x.desc || "")}: ${pc(x.ev, 3)} per paper trade, z ${x.z != null ? x.z.toFixed(1) : "–"}">${c} ${esc(idea)} ${HHN(+b)} (bot time gate: ${shut ? "shut" : '<b class="A">open</b>'})</span>`; }).filter(Boolean);
+    if (!bk.length && !hm.length) return "";
+    return `<div style="font:12px var(--mono);margin:4px 0;padding:6px 8px;border:1px solid var(--line);border-radius:8px" title="Read only. BACK = proven positive EV per paper trade (z ≥ 2). The bots pick the version with the best record (blended with its half-hour record), not by the BACK ruling. The bots do not read the half-hour MUTEs: in a walk-forward test (Nov 2–24) that mute blocked winning trades (+0.31 % older days, +0.53 % newer days); the bots' own time gate decides.">
+      <b>Proven</b> ${bk.length ? bk.join(", ") : "no BACK version"}${picks.length ? `<div style="margin-top:2px">Best record per idea (the bots' base pick; the half-hour record can change it): ${picks.join(", ")}</div>` : ""}${hm.length ? `<div style="margin-top:2px;color:var(--dim)">Half-hour MUTE: ${hm.join(", ")}</div>` : ""}</div>`; }
   function botBox(k, b) {
     const g = b.grades || {}, gt = Object.values(g).reduce((p, q) => p + q, 0) || 1;
     return `<div class="bx"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(b.name)}</b><span class="note" style="margin:0">${b.u.length} symbols</span></div>
@@ -110,7 +135,7 @@
     const age = Math.round((Date.now() - R.at) / 6e4), was = c.querySelector("details"), op = !was || was.open;
     c.innerHTML = `<details ${op ? "open" : ""}><summary class="label" style="cursor:pointer">🤖 Paper trading bots · Schwab-tradable only · limit entries · 5–30 min · 1 unit = $${R.unit.toLocaleString()} every bet</summary>
       ${R.evOff ? `<div class="note" style="color:var(--down)"><b>No fresh EV scorecard</b> (not loaded, or 3+ market days old): the live bots trade no idea in this run. Paper and replay trades go on.</div>` : ""}<div class="note">${esc(R.note || "")} · updated ${age < 1 ? "just now" : age + " min ago"}. Paper only: no real orders. Long only, as in a cash account: bearish ideas go through inverse funds. Losing is allowed while they learn; the score that matters is "Last 50" getting better.</div>
-      ${nextLine()}<div class="b3">${["spot", "letf", "both"].filter(k => R.bots[k]).map(k => botBox(k, R.bots[k])).join("")}</div>
+      ${nextLine()}${provenLine()}<div class="b3">${["spot", "letf", "both"].filter(k => R.bots[k]).map(k => botBox(k, R.bots[k])).join("")}</div>
       <div class="tabs" style="margin-top:10px">${[["trades", "Trades"], ["learned", "What they learned"], ["swings", "Big swings"]].map(([k, l]) => `<button data-v="${k}" class="${view === k ? "on" : ""}">${l}</button>`).join("")}
         ${view === "trades" ? ` · ${[["both", "Spot + funds"], ["spot", "Spot"], ["letf", "Funds"], ["all", "All bots"]].map(([k, l]) => `<button data-t="${k}" class="${tab === k ? "on" : ""}">${l}</button>`).join("")}` : ""}</div>
       ${view === "trades" ? trades() : view === "learned" ? learned() : swings()}
