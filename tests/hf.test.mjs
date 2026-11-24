@@ -40,4 +40,14 @@ const bt = HF.backtest(N); ok(!bt || (bt.d1[0] >= 20 && bt.d1[1] / bt.d1[0] > 0.
   const r = HF.compute(D2, I, pmT + 20 * 3e5).rows.find(x => x.t === "SMH");
   ok(r.retT < -0.03 && r.retT > -0.05, `semis down 4% in pre-market read as ${(r.retT * 100).toFixed(2)}% (not a gain vs the older close)`);
   ok(r.low < 0, `today score is negative (${Math.round(r.low * 100)})`); }
+// 5. Crypto: daily bars at 00:00 UTC with a live last bar; the base must not be that live bar
+{ console.log("5. Crypto base");
+  const D3 = { SPY: { bars: daily(130) }, "^VIX": D["^VIX"] }; P.forEach(t => D3[t] = { bars: daily(130) });
+  const lastSpy = D3.SPY.bars[129], pmT = Date.UTC(2026, 10, 24, 11), day0 = Date.UTC(2026, 10, 24);
+  const live = 100 * 0.97, B = D3["BTC-USD"].bars.map((b, i) => [day0 - (129 - i) * DAY, b[1], b[2], b[3], i === 129 ? live : 100, b[5]]);
+  B[129][2] = 101; B[129][3] = 96; D3["BTC-USD"] = { bars: B };
+  const bars = (px0, k) => Array.from({ length: 20 }, (_, i) => { const p = px0 * (1 + k * i / 19); return [pmT + i * 3e5, p, p * 1.001, p * 0.999, p, 1e4]; });
+  const I = { "BTC-USD": { bars: bars(100, -0.03), meta: { prevClose: 100 } }, SPY: { bars: bars(lastSpy[4], 0), meta: { prevClose: lastSpy[4] } } };
+  const r = HF.compute(D3, I, pmT + 20 * 3e5).rows.find(x => x.t === "BTC-USD");
+  ok(r.retT < -0.025, `bitcoin down 3% today read as ${(r.retT * 100).toFixed(2)}%`); }
 console.log(fails ? `${fails} FAILED` : "all passed"); process.exit(fails ? 1 : 0);
