@@ -416,16 +416,34 @@ function letfParse(sym, name) {
   return { s: sym, n: n.replace(/\s+/g, " ").slice(0, 90), L: neg ? -L : L, u, kind, lab: lab || n.replace(/^(Direxion Daily|ProShares|GraniteShares|Leverage Shares|Defiance Daily Target|T-REX|T-Rex|Tradr|Corgi|MicroSectors)\s*/i, "").slice(0, 40), iss: issuer };
 }
 let letfU = null;
+// Fund list. Main source: the Nasdaq ETF screener. On Nov 24 2026 it answered 200 with 0 rows, the Worker kept that empty
+// list for 12 h, and the LETF scanner was empty for every visitor. Now an empty or short answer is never kept long: the
+// second source is Cohort Sniper's instruments.json (about 500 leveraged ETFs), and Nasdaq is tried again in 30 min.
+async function letfFromInstruments() {
+  const r = await fetch("https://raw.githubusercontent.com/stevenwsharp-ctrl/Hyperdash-Cohort-Tracker/data/instruments.json", { cf: { cacheTtl: 900 } });
+  if (!r.ok) return [];
+  const I = await r.json(), out = [], seen = new Set();
+  for (const [k, v] of Object.entries((I && I.m) || {})) for (const x of v.lev || []) {
+    if (!x || !x.s || seen.has(x.s)) continue; seen.add(x.s);
+    let f = letfParse(x.s, x.n);
+    if (!f && x.x && x.d) { const u = v.u && v.u.s ? v.u.s : null; f = { s: x.s, n: String(x.n || x.s).slice(0, 90), L: x.x * x.d, u, kind: u ? "stock" : "index", lab: u || k.split(":").pop(), iss: String(x.n || "").split(" ")[0] }; }
+    if (f) out.push(f);
+  }
+  return out;
+}
 async function letfUniverse() {
-  if (letfU && Date.now() - letfU.at < 12 * 3600000) return letfU;
-  const r = await fetch("https://api.nasdaq.com/api/screener/etf?tableonly=true&download=true", { headers: NQ, cf: { cacheTtl: 3600, cacheEverything: true } });
-  if (!r.ok) { if (letfU) return letfU; throw new Error("Nasdaq screener answered " + r.status); }
-  const j = await r.json(), rows = (j && j.data && j.data.data && j.data.data.rows) || [];
-  const funds = rows.map(x => letfParse(x.symbol, x.companyName)).filter(Boolean);
+  if (letfU && Date.now() - letfU.at < (letfU.src === "nasdaq" && letfU.funds.length >= 300 ? 12 * 3600000 : 30 * 60000)) return letfU;   // second-source list: try Nasdaq again in 30 min
+  let funds = [], asOf = null, src = "nasdaq";
+  try {
+    const r = await fetch("https://api.nasdaq.com/api/screener/etf?tableonly=true&download=true", { headers: NQ });
+    if (r.ok) { const j = await r.json(), rows = (j && j.data && j.data.data && j.data.data.rows) || []; asOf = j && j.data && j.data.dataAsOf; funds = rows.map(x => letfParse(x.symbol, x.companyName)).filter(Boolean); }
+  } catch (e) { }
+  if (funds.length < 300) { try { const alt = await letfFromInstruments(); if (alt.length > funds.length) { funds = alt; src = "instruments"; asOf = null; } } catch (e) { } }
+  if (!funds.length) { if (letfU && letfU.funds.length) return letfU; throw new Error("no fund list (Nasdaq screener and instruments.json both empty)"); }
   // a name shared by 3+ funds is a data error at the source: do not trust its underlying
   const cnt = {}; funds.forEach(f => cnt[f.n] = (cnt[f.n] || 0) + 1);
   funds.forEach(f => { if (cnt[f.n] >= 3 && f.kind === "stock") { f.u = null; f.kind = "unknown"; f.lab = "?"; } });
-  letfU = { at: Date.now(), asOf: j && j.data && j.data.dataAsOf, funds };
+  letfU = { at: Date.now(), asOf, src, funds };
   return letfU;
 }
 let letfQ = null;
@@ -567,7 +585,7 @@ export default {
     if (url.pathname === "/letf/list" || url.pathname === "/letf/quotes") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       try {
-        if (url.pathname === "/letf/list") { const U = await letfUniverse(); return json({ status: "ok", at: U.at, asOf: U.asOf, n: U.funds.length, funds: U.funds }); }
+        if (url.pathname === "/letf/list") { const U = await letfUniverse(); return json({ status: "ok", at: U.at, asOf: U.asOf, src: U.src, n: U.funds.length, funds: U.funds }); }
         return json(await letfQuotes());
       } catch (e) { return json({ status: "error", error: String(e.message || e) }, 502); }
     }
