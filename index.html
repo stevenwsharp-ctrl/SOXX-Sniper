@@ -1017,7 +1017,7 @@ async function extTick(force){
       const key=s+"|"+x.time,prev=extVol[s]&&extVol[s].k===key?extVol[s].v:0,dv=Math.max(0,(x.vol||0)-prev);extVol[s]={k:key,v:x.vol||0};
       if(x.session==="pre"||x.session==="post"||x.price!==q.c)onTick(s,x.price,dv);
     }
-    if(n>0)health.extAt=Date.now();extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
+    if(n>0){health.extAt=Date.now();if(!apiKey)setFeed("live","Feed: live (site Worker)")}extInfo.ok=n>0;extInfo.src=j.quotes[FUND]?j.quotes[FUND].src:"";extInfo.err=n?"":"no quotes";srcOk.ext=n>0;
   }catch(e){extInfo.ok=false;extInfo.err="Worker /ext did not answer (update the Worker code)";srcOk.ext=false}
 }
 function startExt(){startIdx();startFunds();startSocial();startFresh();startTA();setTimeout(()=>{try{clBackfill()}catch(e){}},20000);clearInterval(extTimer);extTick(true);extTimer=setInterval(()=>extTick(false),5000)}
@@ -2758,6 +2758,10 @@ async function fetchQuote(s){
 }
 async function marketStatus(){
   if(demo){$("mktDot").className="dot warn";$("mktTxt").textContent="Demo data";memStatus();return}
+  if(!apiKey){   // no Finnhub key: the session comes from the clock and the NYSE calendar
+    const ph=phaseAt(Date.now()),e=etInfo(Date.now()),C=window.NYSE,hol=e.wd===0||e.wd===6||(C&&C.isHol(e.d));
+    const lab=hol?"closed":ph==="regular"?"regular":ph==="pre"?"pre-market":ph==="post"?"post-market":"closed";
+    mktState=ph==="regular"&&!hol;$("mktDot").className="dot "+(lab==="closed"?"":"live");$("mktTxt").textContent="Market: "+lab;memStatus();return}
   try{const j=await fhGet("stock/market-status?exchange=US","status");
     mktState=j.session?j.session==="regular":!!j.isOpen;
     $("mktDot").className="dot "+(j.isOpen?"live":"");
@@ -2795,6 +2799,7 @@ async function startLive(){
   fhQ.jobs={};fhQ.rr=0;
   connectWS();
   pollTimer=setInterval(fhTick,1100);
+  if(!apiKey){marketStatus();clearInterval(window.mkTimer);window.mkTimer=setInterval(()=>{if(!apiKey&&!demo)marketStatus()},60000)}
 }
 async function startDemo(){
   resetLive();demo=true;apiKey=null;loadSeries();
