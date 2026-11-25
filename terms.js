@@ -1,7 +1,7 @@
 /* Terms of use, disclaimer and privacy page (#/terms), shared by SOXX Sniper and LETF Sniper. */
 (function () {
   "use strict";
-  const NAME = /LETF/i.test(document.title) ? "LETF Sniper" : "SOXX Sniper", MAIL = "sniperdesk.tribunal635@passmail.net", UPDATED = "October 30, 2026";
+  const NAME = /LETF/i.test(document.title) ? "LETF Sniper" : "SOXX Sniper", MAIL = "steven.w.sharp@gmail.com", UPDATED = "October 30, 2026";
   const wrap = document.querySelector(".wrap"); if (!wrap) return;
   const v = document.createElement("div"); v.id = "termsView"; v.style.display = "none";
   v.innerHTML = `<div class="sv-top"><button id="tmBack">← Back</button></div>
@@ -20,13 +20,11 @@
   <p>${NAME} is independent. It is not affiliated with, sponsored or endorsed by Direxion, BlackRock/iShares, Nasdaq, Cboe, StockTwits, X, Hyperliquid, Hyperdash, TradingView, Yahoo or any company shown. All trademarks and fund names belong to their owners and are used only to identify them.</p>
   <h3>7. Your responsibility; no warranty; limit of liability</h3>
   <p>You alone are responsible for your trades and their results. The site is provided "as is" and "as available", without any warranty, including accuracy, availability, merchantability or fitness for a purpose. To the maximum extent allowed by law, the operator is not liable for any direct, indirect, incidental or consequential loss, including trading losses or lost profits, that comes from using or not being able to use the site. If a law does not allow this limit, the operator's total liability is limited to the amount you paid for the site in the last 3 months.</p>
-  <h3>8. Subscriptions</h3>
-  <p>Paid plans (when offered) renew until you cancel. You can cancel at any time; access continues until the end of the paid period. A paid plan buys access to the tool, not advice or results. Features can change. Payments are handled by the payment provider; the site never sees or stores your card details.</p>
-  <h3>9. Privacy</h3>
+  <h3>8. Privacy</h3>
   <p>The site has no accounts and no tracking cookies. Your settings, stars, alerts and learned data are kept only in your own browser (local storage). Your browser connects directly to the data sources listed above and to a proxy (Cloudflare Worker) that only passes data requests; it does not store personal data. The contact form opens your own email app; the site does not send or keep your message. You can clear everything with your browser's "clear site data".</p>
-  <h3>10. Acceptable use</h3>
+  <h3>9. Acceptable use</h3>
   <p>Do not use the site to break the law, to manipulate markets, or to harass anyone. Do not copy or resell the site's content or code without permission. Shared screenshots must keep the site name.</p>
-  <h3>11. Changes and contact</h3>
+  <h3>10. Changes and contact</h3>
   <p>These terms can change; the date at the top shows the last change. Questions: <a href="mailto:${MAIL}">${MAIL}</a>.</p>
   </section>`;
   const foot = wrap.querySelector("footer"); wrap.insertBefore(v, foot || null);

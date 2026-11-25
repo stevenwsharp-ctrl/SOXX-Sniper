@@ -45,9 +45,7 @@ Select any item in the market strip (Semis 30, SOX, Nasdaq, S&P 500, Dow, VIX, 1
 - **Trend chart:** SOXL with the crowd state as a background, the predicted 30-minute move, the real 30-minute move, and the crowd score (1 day, 5 days, 30 days).
 - **Track record and learning:** every minute the page records its read, and 30 minutes later it checks the result. It shows the hit rate of strong calls, the correlation of predicted and real moves, and the average result after Cooperation, Defection and Standoff. The "expected next 30 min" uses the slope the page measured, scaled by how much data it has. If the read works backwards, the page says to fade it. The record stays in your browser (30 days).
 
-### Selling it: pricing, founding offer and share tools
-- `sell.js` adds a dismissible top ribbon and turns the Pro card into a Free vs Pro pricing card (founding price $5/month or $49/year, "$12/month after the beta").
-- **To start charging:** create a checkout link (Stripe Payment Link, Gumroad, Lemon Squeezy or Ko-fi) and paste it into `SELL.pay` at the top of `sell.js`. Until then, the buttons open the contact page with "Subscription / paid access" selected.
+### Share tools
 - Link previews: `og.png` and Open Graph / Twitter card tags, so a link posted on X shows a large branded card.
 - Pro chart snapshots carry the site address and are also copied to the clipboard, ready to paste into a post.
 
@@ -103,7 +101,6 @@ In the Track record card, each rule that passed its out-of-sample test shows its
 ### The Sniper read, track record and Pro
 - **The Sniper read** (under the market strip): SOXL, the current read, the next level with its odds, the crowd game and run/squeeze risk, with a Post button.
 - **Track record:** how many forecasts the page graded, its calibration score, direction hit rate, sessions studied and rules that passed out-of-sample tests.
-- **SOXX Sniper Pro (early access):** what is live now and what is planned, with a button to the Contact page (topic set to paid access).
 
 ### Main page order (most useful first)
 1. **Market strip:** $SOXL, the 30-stock index, the real **SOX, Nasdaq, S&P 500 and Dow levels with point changes**, VIX, the 10-year yield (in basis points) and Bitcoin.

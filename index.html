@@ -676,25 +676,8 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </div>
   <section class="tiles" id="tiles"></section>
 
-  <section class="grid2" id="proofRow">
+  <section id="proofRow" style="margin-bottom:12px">
     <div class="card"><div class="toolbar" style="margin:0 0 8px"><div class="label" style="margin:0">Track record · the page grades itself</div><span class="sub" id="trSince"></span></div><div class="stiles" id="trTiles"></div><div id="tr100"></div><div class="sub" style="margin-top:8px">Every minute the page gives odds that SOXL touches its nearest levels, then scores them. These numbers come from those scores in this browser, not from a back-test.</div></div>
-    <div class="card pro" id="proCard">
-      <div class="label">SOXX Sniper Pro · early access</div>
-      <h3>Trade SOXL with the whole board in view</h3>
-      <ul class="prol">
-        <li><span class="live">Live now</span> Real-time levels with corrected touch odds, in all sessions including overnight</li>
-        <li><span class="live">Live now</span> Game theory: crowd defection, run and squeeze risk, tested follow-or-fade edges</li>
-        <li><span class="live">Live now</span> Funds, insiders and analysts for all 30 stocks; StockTwits mood</li>
-        <li><span class="live">Live now</span> Post kit and alerts for X and StockTwits</li>
-        <li><span class="live">Live now</span> Live candle chart with auto VWAP bands, Fibonacci, EMA, key levels and relative volume, plus a big-move radar</li>
-        <li><span class="live">Live now</span> Caller tracker: which StockTwits posters call $SOXL right, scored on every call, with alerts when a top caller posts</li>
-        <li><span class="live">Live now</span> Fresh news for every stock, searched every minute, with your own alerts per stock</li>
-        <li><span class="soon">Planned</span> Alerts to your phone and email, even with the page closed</li>
-        <li><span class="soon">Planned</span> Pre-market game plan every morning at 8:30 ET</li>
-        <li><span class="soon">Planned</span> Cloud memory that learns 24/7 and syncs to all your devices</li>
-      </ul>
-      <div class="row" style="margin-top:12px"><a class="cta" href="#/contact?pro">Get early access</a><span class="sub">Founding members get the best price. Everything you see now stays free.</span></div>
-    </div>
   </section>
 
   <section class="card" id="fundCard" style="margin-bottom:12px">
@@ -746,11 +729,11 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
     <div class="sv-top"><button id="ctBack">← Dashboard</button></div>
     <section class="card contact">
       <div class="label">Contact</div>
-      <h2>Questions, feedback or paid access?</h2>
+      <h2>Questions or feedback?</h2>
       <p class="sub" style="font-size:13px">Write directly. Every message is read.</p>
-      <div class="ctmail"><a href="mailto:sniperdesk.tribunal635@passmail.net?subject=SOXX%20Sniper" id="ctMail">sniperdesk.tribunal635@passmail.net</a><button id="ctCopy">Copy email</button></div>
+      <div class="ctmail"><a href="mailto:steven.w.sharp@gmail.com?subject=SOXX%20Sniper" id="ctMail">steven.w.sharp@gmail.com</a><button id="ctCopy">Copy email</button></div>
       <form id="ctForm" class="ctform">
-        <label>Topic<select id="ctTopic"><option>Feedback</option><option>Subscription / paid access</option><option>Bug report</option><option>Feature request</option><option>Partnership or press</option><option>Other</option></select></label>
+        <label>Topic<select id="ctTopic"><option>Feedback</option><option>Bug report</option><option>Feature request</option><option>Partnership or press</option><option>Other</option></select></label>
         <label>Your name<input id="ctName" maxlength="80" autocomplete="name"></label>
         <label class="full">Message<textarea id="ctMsg" rows="6" maxlength="4000" required></textarea></label>
         <div class="full row"><button type="submit" class="x">Write email</button><span class="sub">This opens your email app with the message filled in. The site does not send or store anything.</span></div>
@@ -768,7 +751,7 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
   </div>
 
   <footer>
-    <div class="ftc">Contact: <a href="#/contact">sniperdesk.tribunal635@passmail.net</a> · <a href="#/contact">Contact page</a></div>
+    <div class="ftc">Contact: <a href="#/contact">steven.w.sharp@gmail.com</a> · <a href="#/contact">Contact page</a></div>
     Weights use share counts from the iShares SOXX holdings file (Oct 19, 2026). SOXX tracks the same index as SOXL. Weight = shares × previous close. Update the HOLDINGS list after each quarterly rebalance.<br>
     Data: Finnhub (free tier). Thresholds and probabilities are statistical estimates from past price action. They are not predictions or investment advice.
   </footer>
@@ -4010,15 +3993,15 @@ Object.assign(NAMES,{SOXL:"Direxion Daily Semiconductor Bull 3X",SOXS:"Direxion 
 const ySym=s=>s==="BTC"?"BTC-USD":s==="ETH"?"ETH-USD":s;
 let curSym=null,svRange="1d",svT=0;const svData={};
 function route(){
-  if(/^#\/contact/.test(location.hash)){if(/pro/.test(location.hash))$("ctTopic").value="Subscription / paid access";closeStock();$("mainView").style.display="none";$("contactView").style.display="block";document.title="Contact · SOXX Sniper";window.scrollTo(0,0);return}
+  if(/^#\/contact/.test(location.hash)){closeStock();$("mainView").style.display="none";$("contactView").style.display="block";document.title="Contact · SOXX Sniper";window.scrollTo(0,0);return}
   const m=location.hash.match(/^#\/s\/([A-Za-z.\-]+)/),s=m?m[1].toUpperCase():null;
   if(s&&SYMS.includes(s))openStock(s);else closeStock();
 }
 $("themeBtn").onclick=()=>setTheme(document.documentElement.dataset.theme==="light"?"dark":"light");setTheme(document.documentElement.dataset.theme||"dark");
 $("ctBack").onclick=()=>{location.hash=""};
-$("ctCopy").onclick=e=>copyText("sniperdesk.tribunal635@passmail.net",e.target);
+$("ctCopy").onclick=e=>copyText("steven.w.sharp@gmail.com",e.target);
 $("ctForm").onsubmit=e=>{e.preventDefault();const t=$("ctTopic").value,n=$("ctName").value.trim(),m=$("ctMsg").value.trim();if(!m)return;
-  location.href="mailto:sniperdesk.tribunal635@passmail.net?subject="+encodeURIComponent("SOXX Sniper · "+t)+"&body="+encodeURIComponent(m+(n?"\n\n— "+n:""))};
+  location.href="mailto:steven.w.sharp@gmail.com?subject="+encodeURIComponent("SOXX Sniper · "+t)+"&body="+encodeURIComponent(m+(n?"\n\n— "+n:""))};
 function openStock(s){
   const first=curSym!==s;curSym=s;
   $("mainView").style.display="none";$("stockView").style.display="block";
@@ -4324,8 +4307,7 @@ render();renderAnalysis();drawChart();
 <script src="gtlog.js?v=1"></script>
 <script>(function(){const el=document.getElementById("widthSel");if(!el)return;let v="fit";try{v=localStorage.getItem("site_width")||"fit"}catch(e){}el.value=v;
 el.onchange=()=>{const x=el.value;try{localStorage.setItem("site_width",x)}catch(e){}document.documentElement.style.setProperty("--pagew",x==="fit"?"100%":x+"px");window.dispatchEvent(new Event("resize"))}})();</script>
-<script src="sell.js?v=2"></script>
-<script src="terms.js?v=2"></script>
+<script src="terms.js?v=3"></script>
 <script src="layout.js?v=5"></script>
 <script src="visits.js?v=1" data-site="soxx"></script>
 </body>
