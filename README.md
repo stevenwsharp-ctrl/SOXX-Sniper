@@ -219,9 +219,10 @@ To test it on your computer first, run this command in the folder that has `inde
 python3 -m http.server 8000
 ```
 
-### 2. Finnhub key (live prices, news, fundamentals)
+### 2. Finnhub key (optional: faster regular-session prices, company news, earnings)
+The site works for every visitor with no key: live prices come from the site's Worker.
 1. Get a free key at https://finnhub.io/register.
-2. On the site, select **API key**, paste the key, and select **Save and connect**.
+2. On the site, select **API key**, paste the key, and select **Save**.
 
 The key stays in your browser only (localStorage). It is not in the repository.
 
@@ -240,7 +241,7 @@ The key stays in your browser only (localStorage). It is not in the repository.
 
 6. Open `https://<your-worker>.workers.dev/health`. It must show `{"ok":true,"key":true,"hist":true}`.
 7. When you get a new `worker.js`, open the Worker, select **Edit code**, replace all the code, and select **Deploy** again. You do not need to change the variables.
-8. On the site, select **API key** and paste the Worker URL (without `/health`) into the FRED proxy field.
+8. The site uses `https://soxx-sniper-fred.sharpventures.workers.dev` by default (in `index.html`, `hf.js`, `fb.js`, `capex.js`, `idx.js`, `agree.js` and on LETF Sniper and Cohort Sniper). To use another Worker, select **API key** and paste its URL (without `/health`).
 
 On the first visit, the site loads about 2 years of 5-minute SOXL bars. This takes about 3 minutes; keep the tab in front during that time.
 
