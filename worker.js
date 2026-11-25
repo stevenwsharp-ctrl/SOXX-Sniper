@@ -500,6 +500,20 @@ async function ghRef(repo, branch) {
   return body;
 }
 
+/* Shared cache for many visitors (Nov 24 2026). The Cache API does not work on *.workers.dev, so this is a per-isolate memory
+   cache: visitors who reach the same isolate share one upstream request. Also joins requests that are in flight at the same time.
+   Errors are not kept. */
+const EMEMO = new Map();
+function shared(key, ttlMs, fn) {
+  const now = Date.now(), h = EMEMO.get(key);
+  if (h && now - h.t < ttlMs) return h.p;
+  const pr = Promise.resolve().then(fn);
+  EMEMO.set(key, { t: now, p: pr });
+  pr.then(v => { if (!v || v.status === "error") EMEMO.delete(key); }, () => EMEMO.delete(key));
+  if (EMEMO.size > 1500) { for (const k of EMEMO.keys()) { EMEMO.delete(k); if (EMEMO.size < 1000) break; } }
+  return pr;
+}
+
 export default {
   async fetch(req, env) {
     const cors = corsHeaders(req, env);
@@ -531,8 +545,14 @@ export default {
     }
     if (url.pathname === "/ext") {
       const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^\^?[A-Z][A-Z0-9.\-]{0,8}$/.test(s)).slice(0, 24);
-      const quotes = {}, st = await stAll(list);
-      await Promise.all(list.map(async (t, i) => { const q = await extQuote(t, st, i < 14 || !st[t]); if (q) quotes[t] = q; }));
+      // each ticker is kept 4 s: only the tickers no other visitor asked for just now go upstream
+      const quotes = {}, miss = [], wait = [];
+      for (const t of list) { const h = EMEMO.get("x|" + t); if (h && Date.now() - h.t < 4000) wait.push(h.p.then(q => { if (q) quotes[t] = q; }).catch(() => {})); else miss.push(t); }
+      if (miss.length) {
+        const all = stAll(miss);
+        miss.forEach((t, i) => { const pr = all.then(st => extQuote(t, st, i < 14 || !st[t])); EMEMO.set("x|" + t, { t: Date.now(), p: pr }); pr.then(q => { if (!q) EMEMO.delete("x|" + t); }, () => EMEMO.delete("x|" + t)); wait.push(pr.then(q => { if (q) quotes[t] = q; }).catch(() => {})); });
+      }
+      await Promise.all(wait);
       return new Response(JSON.stringify({ t: Date.now(), quotes }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/chart") {
@@ -541,7 +561,8 @@ export default {
       const interval = ["1m", "2m", "5m", "15m", "30m", "60m", "1d", "1wk", "1mo"].includes(url.searchParams.get("interval")) ? url.searchParams.get("interval") : "1m";
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       if (!/^\^?[A-Z][A-Z0-9.\-=]{0,8}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);   // "=" for futures (NQ=F) and currencies
-      return json(await yahooChart(t, range, interval));
+      const daily = ["1d", "1wk", "1mo"].includes(interval);
+      return json(await shared(`c|${t}|${range}|${interval}`, daily ? 600000 : range === "1d" ? 20000 : 120000, () => yahooChart(t, range, interval)));
     }
     if (url.pathname === "/letf/list" || url.pathname === "/letf/quotes") {
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -568,13 +589,14 @@ export default {
       const tickers = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^[A-Z][A-Z.\-]{0,7}$/.test(s)).slice(0, 12);
       const terms = (url.searchParams.get("q") || "").split("|").map(s => s.trim()).filter(s => /^[A-Za-z0-9 &.\-]{1,40}$/.test(s)).slice(0, 14);
       if (!tickers.length) return json({ status: "error", error: "bad ticker" }, 400);
-      return json(await getNews(tickers, terms.length ? terms : [tickers[0]]));
+      return json(await shared(`n|${tickers.join(",")}|${terms.join("|")}`, 60000, () => getNews(tickers, terms.length ? terms : [tickers[0]])));
     }
     if (url.pathname === "/holders" || url.pathname === "/social") {
       const t = (url.searchParams.get("t") || "").toUpperCase();
       const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       if (!/^[A-Z][A-Z.\-]{0,7}$/.test(t)) return json({ status: "error", error: "bad ticker" }, 400);
-      return json(url.pathname === "/holders" ? await getHolders(t, url.searchParams.get("lite") === "1") : await getSocial(t, /^\d{1,15}$/.test(url.searchParams.get("max") || "") ? url.searchParams.get("max") : null));
+      const lite = url.searchParams.get("lite") === "1", mx = /^\d{1,15}$/.test(url.searchParams.get("max") || "") ? url.searchParams.get("max") : null;
+      return json(url.pathname === "/holders" ? await shared(`h|${t}|${lite}`, 3600000, () => getHolders(t, lite)) : await shared(`s|${t}|${mx}`, 30000, () => getSocial(t, mx)));
     }
     if (url.pathname === "/econ") {
       // US economic calendar for this week and next (Forex Factory public feed): time in ET, impact, forecast, previous, actual

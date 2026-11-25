@@ -23,7 +23,7 @@
   const K = "capex_v1", lsG = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }, lsS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
   const DEF = { at: "2026-11-03", sox: 12.16, nvda: 10, note: "SOX ≈12.2× and NVDA ≈10× blended 24-month forward P/E: SOX near 2022 levels, NVDA lowest since 2013. Bond issues raise cost-of-capital worries." };
   let V = Object.assign({}, DEF, lsG(K, {}));
-  const proxy = () => { try { return (localStorage.getItem("soxx_fred_proxy") || "").trim().replace(/\/+$/, ""); } catch (e) { return ""; } };
+  const WORKER0 = "https://soxx-sniper-fred.sharpventures.workers.dev", proxy = () => { try { return (localStorage.getItem("soxx_fred_proxy") || "").trim().replace(/\/+$/, "") || WORKER0; } catch (e) { return WORKER0; } };
   const c1 = v => Math.max(-1, Math.min(1, v)), pc = (v, d) => v == null || !isFinite(v) ? "–" : (v >= 0 ? "+" : "") + (v * 100).toFixed(d == null ? 1 : d) + "%", esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, x => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[x]));
   const card = document.createElement("section"); card.className = "card"; card.id = "capexCard"; card.style.margin = "0 0 12px";
   const place = () => { const a = document.getElementById("hubCard") || document.getElementById("agCard") || document.getElementById("botCard") || document.getElementById("stanceCard"); if (a && !card.isConnected) a.after(card); return !!a; };

@@ -776,18 +776,15 @@ footer{margin-top:24px;font-size:12px;color:var(--mute);line-height:1.7}
 
 <div class="modal" id="modal">
   <div class="box">
-    <h2>Connect live data</h2>
-    <p>This page uses a free Finnhub API key. The key stays in this browser only (localStorage). It does not go into your GitHub repo.</p>
-    <ol>
-      <li>Get a free key at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a>.</li>
-      <li>Paste it below.</li>
-    </ol>
-    <input type="text" id="keyIn" placeholder="Your Finnhub API key" autocomplete="off" spellcheck="false">
-    <p style="margin:4px 0 0">Optional: your Cloudflare Worker URL. It supplies FRED data (macro, bonds, funding, consumer credit) and, with POLYGON_KEY set, 2 years of SOXL history with extended hours.</p>
+    <h2>Live data settings</h2>
+    <p>The page shows live data with no setup. These settings are optional.</p>
+    <p style="margin:4px 0 0">Optional: a free Finnhub API key gives faster regular-session prices, company news and the earnings calendar. Get one at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a>. The key stays in this browser only. Leave the box empty to use the page without a key.</p>
+    <input type="text" id="keyIn" placeholder="Your Finnhub API key (optional)" autocomplete="off" spellcheck="false">
+    <p style="margin:4px 0 0">Optional: your own Cloudflare Worker URL. Leave it empty to use the site's Worker.</p>
     <input type="text" id="proxyIn" placeholder="https://soxx-sniper-fred.yourname.workers.dev" autocomplete="off" spellcheck="false">
     <div class="err" id="keyErr"></div>
     <div class="row">
-      <button id="saveKey">Save and connect</button>
+      <button id="saveKey">Save</button>
       <button id="demoBtn">Demo mode (fake data)</button>
       <button id="closeModal">Close</button>
     </div>
@@ -1000,7 +997,7 @@ let extTimer=null,extN=0;const extVol={},extInfo={ok:null,src:"",err:""};
 var extRot=0;
 async function extTick(force){
   if(demo)return;const p=fredProxy();if(!p)return;
-  const ph=phaseAt(Date.now());if(!force&&ph==="regular")return;
+  const ph=phaseAt(Date.now());if(!force&&ph==="regular"&&apiKey)return;   // with no Finnhub key the Worker also supplies regular-session prices
   // every 5 s: SOXL + the next 8 holdings (all 30 in about 25 s); every 4th call: the ETFs instead
   const H=ORDER.filter(s=>HOLDINGS.some(h=>h[0]===s)),k=extN++;let lists;
   if(force)lists=[[...EXT_MAIN,...H.slice(0,10)],H.slice(10,20),H.slice(20),EXT_MORE.filter(s=>s!=="BTC-USD"&&!H.includes(s))];
@@ -1013,6 +1010,7 @@ async function extTick(force){
     for(const s in j.quotes){const x=j.quotes[s],q=Q[s];if(!q||!(x.price>0))continue;n++;
       if(x.time&&q.xt&&x.time<q.xt-500)continue; // never replace a newer trade with an older one
       if(x.regularClose>0)q.regClose=x.regularClose;
+      if(!apiKey||!(q.pc>0)){const b=extBase(x);if(b>0)q.pc=b}   // no Finnhub key: the day-change base comes from the Worker too
       // the regular close must come from a trade at or after 3:55 pm ET today: Finnhub's quote is right; an old Worker can pass Yahoo's value, which can lag by an hour
       {const e=etInfo(Date.now()),qe=q.qt?etInfo(q.qt):null;if(q.qc>0&&qe&&qe.d===e.d&&qe.min>=955&&e.min>=960)q.regClose=q.qc}
       q.xsess=x.session;q.xt=x.time;q.xsrc=x.src;q.xalt=x.alt||null;
@@ -1417,7 +1415,9 @@ function stopExternal(){
 /* ---------- FRED (through your Cloudflare Worker) ---------- */
 let FRED={}, fredT=0, fredTimer=null, fredState=null;
 try{const c=JSON.parse(lsGet("soxx_fred")||"null");if(c&&c.series){FRED=c.series;fredT=c.t}}catch(e){}
-const fredProxy=()=>(lsGet(PROXY_STORE)||"").trim().replace(/\/+$/,"");
+// the site's own Worker is the default, so a new visitor gets live data with no setup (a saved URL still wins)
+const WORKER0="https://soxx-sniper-fred.sharpventures.workers.dev";
+const fredProxy=()=>(lsGet(PROXY_STORE)||"").trim().replace(/\/+$/,"")||WORKER0;
 async function fetchFred(){
   if(demo)return;
   const p=fredProxy();if(!p){fredState="not set";srcOk.fred=null;return}
@@ -2766,6 +2766,7 @@ async function marketStatus(){
   memStatus();
 }
 function connectWS(){
+  if(!apiKey)return;   // no Finnhub key: prices come from the Worker (extTick)
   if(ws){ws.onclose=null;try{ws.close()}catch(e){}}
   ws=new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
   ws.onopen=()=>{[...FH_SYMS,...Object.keys(FH_CRYPTO)].forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));setFeed("live","Feed: live")};
@@ -4219,13 +4220,13 @@ setInterval(()=>{if(curSym){svLoad(curSym,false)}},60000);
 setInterval(()=>{if(curSym&&Date.now()-((svData[curSym]||{}).t||0)>5*60000)svLoad(curSym,true)},30000);
 
 /* ---------- controls ---------- */
-function openModal(msg){$("keyErr").textContent=msg||"";$("keyIn").value=apiKey||"";$("proxyIn").value=fredProxy();$("modal").classList.add("show")}
+function openModal(msg){$("keyErr").textContent=msg||"";$("keyIn").value=apiKey||"";$("proxyIn").value=(lsGet(PROXY_STORE)||"").trim();$("modal").classList.add("show")}
 $("keyBtn").onclick=()=>openModal();
 $("closeModal").onclick=()=>$("modal").classList.remove("show");
-$("saveKey").onclick=()=>{const k=$("keyIn").value.trim();if(!k){$("keyErr").textContent="Enter a key first.";return}
+$("saveKey").onclick=()=>{const k=$("keyIn").value.trim();
   const px=$("proxyIn").value.trim();if(px&&!/^https:\/\/[^\s/]+/.test(px)){$("keyErr").textContent="The proxy URL must start with https://";return}
   lsSet(PROXY_STORE,px);
-  apiKey=k;lsSet(KEY_STORE,k);$("modal").classList.remove("show");startLive()};
+  apiKey=k||null;lsSet(KEY_STORE,k);$("modal").classList.remove("show");if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}clearInterval(pollTimer);clearInterval(histTimer);startLive()};
 $("keyIn").oninput=()=>$("keyErr").textContent="";
 $("demoBtn").onclick=()=>{$("modal").classList.remove("show");startDemo()};
 document.querySelectorAll("[data-sort]").forEach(b=>b.onclick=()=>{sortBy=b.dataset.sort;document.querySelectorAll("[data-sort]").forEach(x=>x.classList.toggle("on",x===b));dirty=true});
@@ -4270,7 +4271,7 @@ setInterval(()=>{pushPoint(compute());drawChart()},10000);
 setInterval(()=>{memStats();fillRecall()},60000);
 window.addEventListener("resize",()=>{drawChart();drawRecall()});
 apiKey=lsGet(KEY_STORE);
-if(apiKey)startLive();else{openModal();initMemory("soxx_sniper_live")}
+startLive();   // works for every visitor: a Finnhub key is optional (faster regular-session prices, company news, earnings)
 render();renderAnalysis();drawChart();
 </script>
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
