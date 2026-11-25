@@ -20,6 +20,8 @@
 //        GET https://<your-worker>.workers.dev/ghref?r=owner/repo&b=data  (newest commit of a public branch; Cohort Sniper uses it to load new data fast)
 //        GET https://<your-worker>.workers.dev/letf/list               (LETF Sniper: every US leveraged / inverse ETF, parsed; refreshed every 12 h)
 //        GET https://<your-worker>.workers.dev/letf/quotes             (LETF Sniper: live quotes for all funds and their underlyings, about every 10 s)
+//        GET https://<your-worker>.workers.dev/hits?s=soxx              (visitor count of one site: soxx, cohort, letf, mm; &new=1 adds this visitor)
+// Visitor count (optional): create a KV namespace in Cloudflare and bind it to this Worker as HITS. Without it /hits answers "off".
 
 const ALLOW = new Set([
   "DFF","CPIAUCSL","CPILFESL","UNRATE","A191RL1Q225SBEA","ICSA","UMCSENT","NFCI","T10YIE",
@@ -29,6 +31,7 @@ const ALLOW = new Set([
 ]);
 const TTL_MS = 20 * 60 * 1000;      // cache each series for 20 minutes
 const memo = new Map();             // per-isolate cache: id|limit -> {t, obs}
+const hitSeen = new Map();          // per-isolate: site|ip -> day already counted (cuts repeat writes)
 
 function corsHeaders(req, env) {
   const origin = req.headers.get("Origin") || "";
@@ -506,6 +509,25 @@ export default {
       return new Response(JSON.stringify({ ok: true, key: !!env.FRED_KEY, hist: !!env.POLYGON_KEY }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
+    }
+    if (url.pathname === "/hits") {
+      // Visitor count. The page sends new=1 at most once per browser per site per ET day, so "total" = visitor-days.
+      // One KV record per site: {total, day, today}. Bots and link previews do not count. KV free plan: 1,000 writes a day.
+      const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      const site = url.searchParams.get("s") || "";
+      if (!/^(soxx|cohort|letf|mm)$/.test(site)) return json({ status: "error", error: "unknown site" }, 400);
+      if (!env.HITS) return json({ status: "off" });
+      const day = new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10), key = "v:" + site;
+      let rec = null; try { rec = await env.HITS.get(key, { type: "json" }); } catch (e) { }
+      if (!rec || typeof rec.total !== "number") rec = { total: 0, day, today: 0 };
+      if (rec.day !== day) { rec.day = day; rec.today = 0; }
+      const ua = req.headers.get("User-Agent") || "", ip = req.headers.get("CF-Connecting-IP") || "";
+      const seen = hitSeen.get(site + "|" + ip) === day;
+      if (url.searchParams.get("new") === "1" && !seen && !/bot|crawl|spider|slurp|preview|headless|monitor/i.test(ua)) {
+        rec.total++; rec.today++; if (ip) hitSeen.set(site + "|" + ip, day); if (hitSeen.size > 5000) hitSeen.clear();
+        try { await env.HITS.put(key, JSON.stringify(rec)); } catch (e) { }
+      }
+      return json({ status: "ok", site, total: rec.total, today: rec.today, day });
     }
     if (url.pathname === "/ext") {
       const list = (url.searchParams.get("t") || "").toUpperCase().split(",").map(s => s.trim()).filter(s => /^\^?[A-Z][A-Z0-9.\-]{0,8}$/.test(s)).slice(0, 24);
