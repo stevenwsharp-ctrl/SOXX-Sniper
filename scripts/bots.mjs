@@ -123,9 +123,21 @@ function signals(F, i, m, cm = 960) {
 
 // ---------- one order / trade, step by step (the same code for shadow trades, bot trades and the replay) ----------
 function newOrder(sym, idea, k, plan, F, i, t, extra) {
-  const a = F.atr[i], lim = F.c[i] - k * a, swing = Math.min(...F.l.slice(Math.max(0, i - 9), i + 1)) - 0.1 * a;
-  return { sym, idea, k, plan, cl: cls(sym), t0: t, lim, a, swing, ap: a / F.c[i], st: "open", age: 0, b: bucket(et(t).m), cx: ctxTag(F, i), ...extra };
+  const a = F.atr[i], lim = F.c[i] - k * a, swing = Math.min(...F.l.slice(Math.max(0, i - 9), i + 1)) - 0.1 * a, fz = fastZ(F, i);
+  return { sym, idea, k, plan, cl: cls(sym), t0: t, lim, a, swing, ap: a / F.c[i], st: "open", age: 0, b: bucket(et(t).m), cx: ctxTag(F, i), fz, fs: fastTag(fz), ...extra };
 }
+// Nov 25 2026 EV review (council task 2): the fast-move flag at the signal bar, the same rule as the LETF scorecard item
+// fast.5m.15m (a 5-minute move of 4σ or more, σ = the standard deviation of the 1-minute moves). It is measured on the
+// symbol itself, with the bars of the day up to the signal bar only (known at that minute; no look-ahead). For a 2× or 3×
+// fund, the leverage multiplies the move and σ by the same number, so the value is the same as on the underlying.
+// fz = the 5-minute move in σ units. fs: f0 = no fast move, fu = fast move up, fd = fast move down. The 4σ limit is the
+// LETF value, not fitted on SOXX data. Record only: dated.json "fast|<class>|<idea>|<fs>" keys (all versions) and the
+// fz field on each bot trade. No bot rule and no scorecard item reads them (ev.mjs reads S|, L|, live|, skip|, pick| and
+// the twin keys only).
+function fastZ(F, i) { if (i < 15) return null; const Z = F._fz || (F._fz = []); if (Z[i] !== undefined) return Z[i];
+  let n = 0, s = 0, q = 0; for (let j = 1; j <= i; j++) { if (!(F.c[j] > 0 && F.c[j - 1] > 0)) continue; const r = Math.log(F.c[j] / F.c[j - 1]); n++; s += r; q += r * r; }
+  const sd = n > 10 ? Math.sqrt(Math.max(0, q / n - (s / n) ** 2)) : 0; Z[i] = sd > 0 && F.c[i - 5] > 0 ? +(Math.log(F.c[i] / F.c[i - 5]) / (sd * Math.sqrt(5))).toFixed(2) : null; return Z[i]; }
+const fastTag = z => z == null ? null : z >= 4 ? "fu" : z <= -4 ? "fd" : "f0";
 // Nov 17 2026 EV review: the market state at the signal bar (known at that minute). d1 = deep: price 2σ or more under VWAP
 // and RSI 30 or lower (the rule in the SOXX agent backlog of Nov 16, written before the Nov 17 sell-off: no fit on the
 // result). o1 = the day is down 3 % or more from the 9:30 open. Record only (dated.json "ctx|" keys): it gives a base rate
@@ -160,11 +172,12 @@ const key = (cl, idea, k, plan) => `${cl}|${idea}|${k}|${plan}`;
 // on older days and checked on newer days. dated(): per day, per class × idea × half hour and per version, [n, sum,
 // sum of squares, wins] of the paper trades that started that day (file dated.json, the last 30 days). A past day that
 // is already in the memory is replayed once more with DATED on: it fills only the dated record, not the scores.
-let DATED = false; const DV = 2;   // DV: version of the dated record (2 = with the ctx| keys, Nov 17 2026)
+let DATED = false; const DV = 3;   // DV: version of the dated record (2 = with the ctx| keys, Nov 17 2026; 3 = with the fast| keys, Nov 25 2026)
 function dated(S, o) { const D = S.dated || (S.dated = {}), z = D[et(o.t0).d] || (D[et(o.t0).d] = {});
   // ctx keys (Nov 17 2026): "ctx|class|idea|state" (all versions) for every state, and "ctx|class|idea|state|limit|plan"
   // (per version) for the rare states only (not d0o0), so the file stays small. ev.mjs reads only "S|", "L|" and "live|".
   const cx = o.cx ? [`ctx|${o.cl}|${o.idea}|${o.cx}`, ...(o.cx !== "d0o0" ? [`ctx|${o.cl}|${o.idea}|${o.cx}|${o.k}|${o.plan}`] : [])] : [];
+  if (o.fs) cx.push(`fast|${o.cl}|${o.idea}|${o.fs}`);   // Nov 25 2026: the fast-move flag (see fastZ), record only
   for (const kk of [`${o.cl}|${o.idea}@${o.b}`, key(o.cl, o.idea, o.k, o.plan), ...(o.gh || []).map(g => `skip|${g}@${o.b}`), ...(o.pk || []).map(g => `pick|${g}@${o.b}`), ...cx]) { const x = z[kk] || (z[kk] = [0, 0, 0, 0]); x[0]++; x[1] = +(x[1] + o.r).toFixed(6); x[2] = +(x[2] + o.r * o.r).toFixed(8); if (o.r > 0) x[3]++; } }
 // The dated skip record (Nov 15 2026 EV review, council task): what each gate blocked, per bot and half hour, by the day of
 // the signal. "skipn|<bot>|<why>@<half hour>" → [signals skipped]; "skip|<bot>|<why>@<half hour>" → [n, sum r, sum r², wins]
@@ -278,7 +291,7 @@ function onBar(S, sym, F, B, i, shadowOnly, last) {
   const bar = B[i], t = bar[0], m = et(t).m;
   // 1. orders and trades already running
   S.shadow = S.shadow.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done) { tries(S, o); if (o.st === "done") rec(S, o); } return !done; });
-  if (!shadowOnly) for (const [bk, bot] of Object.entries(S.bots)) bot.orders = bot.orders.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done && o.st === "done") { const g = grade(o); bot.trades.push({ sym, idea: o.idea, k: o.k, plan: o.plan, t0: o.t0, tf: o.tf, tx: o.tx, fill: +o.fill.toFixed(4), px: +o.px.toFixed(4), r: +o.r.toFixed(5), usd: +(UNIT * o.r).toFixed(2), why: o.why, min: o.min, mfe: +o.mfe.toFixed(5), mae: +o.mae.toFixed(5), g, sig: o.sig, explore: o.explore || 0, bt: BT ? 1 : 0 }); } return !done; });
+  if (!shadowOnly) for (const [bk, bot] of Object.entries(S.bots)) bot.orders = bot.orders.filter(o => { if (o.sym !== sym) return true; const done = step(o, bar, last); if (done && o.st === "done") { const g = grade(o); bot.trades.push({ sym, idea: o.idea, k: o.k, plan: o.plan, t0: o.t0, tf: o.tf, tx: o.tx, fill: +o.fill.toFixed(4), px: +o.px.toFixed(4), r: +o.r.toFixed(5), usd: +(UNIT * o.r).toFixed(2), why: o.why, min: o.min, mfe: +o.mfe.toFixed(5), mae: +o.mae.toFixed(5), g, sig: o.sig, explore: o.explore || 0, bt: BT ? 1 : 0, ...(o.fz != null ? { fz: o.fz } : {}) }); } return !done; });
   if (last) return;
   // 2. new signals on this closed bar
   const sg = signals(F, i, m, closeM(et(t).d));
