@@ -30,7 +30,7 @@
   const st = document.createElement("style"); st.textContent = `#capexCard table{width:100%;border-collapse:collapse;font:12px var(--mono)}#capexCard th,#capexCard td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}#capexCard th{color:var(--dim);font-weight:600}#capexCard td.l,#capexCard th.l{text-align:left}#capexCard .L{color:var(--up)}#capexCard .S{color:var(--down)}#capexCard .A{color:var(--amber,#ffb547)}#capexCard .note{font-size:11.5px;color:var(--dim);margin:4px 0;line-height:1.45}#capexCard .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}@media(max-width:900px){#capexCard .g2{grid-template-columns:1fr}}#capexCard input{width:64px;font:12px var(--mono);background:var(--panel2,transparent);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 5px}`; document.head.appendChild(st);
   // ---------- data ----------
   const D = {}; let T = null, NOW = null, loadT = 0;
-  async function daily(t) { const j = await (await fetch(`${proxy()}/chart?t=${encodeURIComponent(t)}&range=5y&interval=1d`)).json().catch(() => null); if (!j || j.status !== "ok") return null; const m = new Map(); (j.bars || []).forEach(b => { if (b[4] != null) m.set(new Date(b[0]).toISOString().slice(0, 10), b[4]); }); return m; }
+  async function daily(t) { let j = null; try { const r = await fetch(`${proxy()}/chart?t=${encodeURIComponent(t)}&range=5y&interval=1d`); j = r.ok ? await r.json() : null; } catch (e) { j = null; } if (!j || j.status !== "ok") return null; const m = new Map(); (j.bars || []).forEach(b => { if (b[4] != null) m.set(new Date(b[0]).toISOString().slice(0, 10), b[4]); }); return m; }
   async function load() { if (!proxy() || Date.now() - loadT < 6 * 36e5 && T) return; loadT = Date.now(); const L = await Promise.all(["SOXX", "LQD", "HYG", "IEF", "^TNX"].map(daily)); if (L.some(x => !x)) return;
     const [S, LQ, HY, IE, TN] = L, days = [...S.keys()].filter(d => LQ.has(d) && HY.has(d) && IE.has(d) && TN.has(d)).sort(); D.days = days;
     D.s = days.map(d => S.get(d)); D.ig = days.map(d => Math.log(LQ.get(d) / IE.get(d))); D.hy = days.map(d => Math.log(HY.get(d) / IE.get(d))); D.tn = days.map(d => TN.get(d)); analyze(); }
@@ -76,6 +76,6 @@
       <div class="note">${esc(T.from)} to ${esc(T.to)}, non-overlapping 5- and 20-day outcomes. The signs come from the note, not from the data, so nothing is fitted. All results go to the knowledge hub; the live gauges go to the signal web (cap.*), with a bigger voice when their test holds.</div>` : ""}</details>`;
     const sv = card.querySelector("#cxSave"); if (sv) sv.onclick = () => { const s = parseFloat(card.querySelector("#cxS").value), nv = parseFloat(card.querySelector("#cxN").value); if (s > 0 && nv > 0) { V = { ...V, sox: s, nvda: nv, at: new Date().toISOString().slice(0, 10) }; lsS(K, V); emit(); draw(); } };
   }
-  const go = () => { draw(); load(); emit(); }; setTimeout(go, 2500); setInterval(() => { emit(); load(); }, 10 * 6e4);
+  const safe = () => { load().catch(() => { }); }; const go = () => { draw(); safe(); emit(); }; setTimeout(go, 2500); setInterval(() => { emit(); safe(); }, 10 * 6e4);
   window.CAPEXDATA = () => ({ V, T, NOW });
 })();
