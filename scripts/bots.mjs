@@ -391,6 +391,10 @@ function report(S, note) {
   R.swings.sort((a, b) => b.pct - a.pct); R.swings = R.swings.slice(0, 30);
   // the gates as they stand now (what the bots will not trade), and today's skipped signals per bot
   R.gates = { times: {}, ideas: {} }; for (const cl of ["S", "L"]) { R.gates.times[cl] = Array.from({ length: 13 }, (_, b) => b).filter(b => badTime(S, cl, b, today)).map(bname); R.gates.ideas[cl] = Object.keys(IDEAS).filter(i => loses(stat(S.arms[`${cl}|${i}|*`]), 100));
+    // Nov 27 2026 EV review: why each idea gate is shut (the record the gate reads: all 15 versions, the last 3,000 paper
+    // trades at most, and the 90 % upper bound of the mean). Before, the card said only "bot idea gate", and spot vrev was
+    // shut while its time-exit versions are BACK on the scorecard. Display only: the gate rule does not change.
+    R.gates.ideaWhy = R.gates.ideaWhy || {}; R.gates.ideaWhy[cl] = Object.fromEntries(R.gates.ideas[cl].map(i => { const x = stat(S.arms[`${cl}|${i}|*`]); return [i, { n: Math.round(x.n), m: +x.m.toFixed(6), ub: +(x.m + 1.28 * x.sd / Math.sqrt(x.n)).toFixed(6) }]; }));
     const xs = timeRec(S, cl, today); R.gates.basis = R.gates.basis || {}; R.gates.basis[cl] = { ideas: tradable(cl), rows: xs.map((x, b) => { const r = dayZ(x); return { b, name: bname(b), n: x.n, m: x.n ? +(x.s / x.n).toFixed(5) : null, days: r ? r.D : null, dz: r ? +r.z.toFixed(2) : null, shut: badTime(S, cl, b, today) }; }).filter(x => x.n) }; }
   R.skips = S.skips && S.skips.d === today ? S.skips : {};
   // what each gate blocked (the dated skip record, all days that have it): per bot and reason, signals skipped, and the
